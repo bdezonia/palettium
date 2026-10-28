@@ -1,11 +1,14 @@
 CC = cc
-CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude -Ihardware/sim_bank
 
 .PHONY: all test clean
-all: raster-test
+all: raster-test banked-test
 raster-test: common/rgfx.c tests/test_raster.c include/rgfx.h
 	$(CC) $(CFLAGS) common/rgfx.c tests/test_raster.c -o $@
-test: raster-test
+banked-test: common/rgfx.c hardware/sim_bank/sim_bank.c tests/test_banked.c include/rgfx.h hardware/sim_bank/sim_bank.h
+	$(CC) $(CFLAGS) common/rgfx.c hardware/sim_bank/sim_bank.c tests/test_banked.c -o $@
+test: all
 	./raster-test
+	./banked-test
 clean:
-	rm -f raster-test raster-demo.ppm
+	rm -f raster-test banked-test raster-demo.ppm
