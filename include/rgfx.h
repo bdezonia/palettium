@@ -25,10 +25,24 @@ typedef void (*RG_PixelFn)(struct RG_Device *, int, int, rg_u8);
 typedef void (*RG_LineFn)(struct RG_Device *, int, int, int, int, rg_u8);
 typedef void (*RG_FillFn)(struct RG_Device *, int, int, int, int, rg_u8);
 
+/* 4-bit truth table, index (source_bit << 1) | dest_bit. */
+#define RG_ROP_CLEAR 0x0
+#define RG_ROP_AND   0x8
+#define RG_ROP_COPY  0xC
+#define RG_ROP_XOR   0x6
+#define RG_ROP_OR    0xE
+#define RG_ROP_SET   0xF
+
+typedef void (*RG_BlitFn)(struct RG_Device *dst,
+                          struct RG_Device *src,
+                          int dx, int dy, int sx, int sy,
+                          int width, int height, unsigned rop);
+
 typedef struct RG_Ops {
     RG_PixelFn pixel;
     RG_LineFn line;
     RG_FillFn fill;
+    RG_BlitFn blit;
 } RG_Ops;
 
 typedef struct RG_Device {
@@ -52,5 +66,10 @@ void rg_software_line(RG_Device *dev, int x0, int y0,
                       int x1, int y1, rg_u8 color);
 void rg_software_fill(RG_Device *dev, int x, int y,
                       int width, int height, rg_u8 color);
+
+/* src and dst may be the same device. 16 binary raster operations. */
+void rg_software_blit(RG_Device *dst, RG_Device *src,
+                      int dx, int dy, int sx, int sy,
+                      int width, int height, unsigned rop);
 
 #endif

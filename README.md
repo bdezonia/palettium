@@ -54,3 +54,34 @@ fallback. Backend initialization and OS adapters remain future work.
 
 The archive intentionally excludes compiled executables and generated PPMs.
 Use `make clean` to remove local build outputs.
+
+## Palettium v0.3: 8-bit BitBlt and Boolean raster operations
+
+`RG_Device.ops.blit(dst, src, dx, dy, sx, sy, width, height, rop)`
+copies a rectangle from `src` to `dst`. Coordinates are signed; clipping
+preserves source/destination alignment. Source and destination may be the
+same device, including banked VRAM. For overlapping copies the software
+implementation reads pixels in a safe traversal order.
+
+All 16 two-input bitwise Boolean ROPs are supported. The ROP is a
+four-bit truth table whose bit index is `(source_bit << 1) | dest_bit`:
+`RG_ROP_COPY=0xC`, `RG_ROP_XOR=0x6`, `RG_ROP_AND=0x8`,
+`RG_ROP_OR=0xE`, `RG_ROP_CLEAR=0x0`, `RG_ROP_SET=0xF`.
+These are **Palettium internal ROP codes**, not Win16 GDI ROP encodings
+or Win32 ROP3 constants; the OS adapters must translate explicitly.
+
+Run `make test` to exercise all earlier tests plus 346 deterministic BitBlt
+cases against an independent snapshot-based reference. Included tests cover
+all 16 ROPs, overlaps, negative-coordinate clipping, cross-device transfers,
+and 64 KiB simulated bank boundaries.
+
+### Current limitations / next steps
+
+- Pixel-by-pixel VRAM callbacks are a correctness baseline, **not** an
+  efficient banked copy engine. Introduce run/span access before optimizing.
+- The simulator exposes one read/write bank at a time; real cards may have
+  separate read and write windows and different bank granularities.
+- The software line routine expects bounded coordinates; no general line
+  clipper is implemented yet.
+- 16-bit compilation and Windows GDI entry points are **not yet tested**.
+- No Windows driver binaries are included at this stage.

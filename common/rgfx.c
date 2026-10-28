@@ -21,6 +21,7 @@ static void rg_set_defaults(RG_Device *dev, unsigned width,
     dev->ops.pixel = rg_software_pixel;
     dev->ops.line = rg_software_line;
     dev->ops.fill = rg_software_fill;
+    dev->ops.blit = rg_software_blit;
 }
 
 int rg_init(RG_Device *dev, rg_u8 *pixels,
@@ -106,5 +107,70 @@ void rg_software_fill(RG_Device *dev, int x, int y,
         pos = row * dev->surface.stride + (rg_offset)left;
         for (xx = 0; xx < (unsigned)(right - left); ++xx)
             rg_write_byte(dev, pos + xx, color);
+    }
+}
+
+/* Bitwise 2-input Boolean ROP: 4-bit truth table indexed by (S,D).
+   Operates on all eight bitplanes independently. */
+static rg_u8 rg_rop_apply(rg_u8 source, rg_u8 dest, unsigned rop)
+{
+    unsigned s = source;
+    unsigned d = dest;
+    unsigned v = 0;
+    rop &= 15U;
+    if (rop & 1U) v |= (~s & ~d);
+    if (rop & 2U) v |= (~s & d);
+    if (rop & 4U) v |= (s & ~d);
+    if (rop & 8U) v |= (s & d);
+    return (rg_u8)v;
+}
+
+void rg_software_blit(RG_Device *dst, RG_Device *src,
+                      int dx, int dy, int sx, int sy,
+                      int width, int height, unsigned rop)
+{
+    long left, top, right, bottom, q;
+    long yy, xx, ystart, yend, ystep, xstart, xend, xstep;
+    rg_offset so, doff;
+    rg_u8 sv, dv;
+    int backward_y, backward_x;
+    if (!dst || !src || width <= 0 || height <= 0) return;
+    /* Work in relative rectangle coordinates. Clip BOTH endpoints while
+       preserving the source-to-destination pixel mapping. */
+    left = 0; top = 0; right = width; bottom = height;
+    q = -(long)sx; if (left < q) left = q;
+    q = -(long)dx; if (left < q) left = q;
+    q = (long)src->surface.width - sx; if (right > q) right = q;
+    q = (long)dst->surface.width - dx; if (right > q) right = q;
+    q = -(long)sy; if (top < q) top = q;
+    q = -(long)dy; if (top < q) top = q;
+    q = (long)src->surface.height - sy; if (bottom > q) bottom = q;
+    q = (long)dst->surface.height - dy; if (bottom > q) bottom = q;
+    if (left >= right || top >= bottom) return;
+
+    /* Memmove-style traversal preserves source values for same-device
+       overlapping copies, also when reading/writing banked video RAM. */
+    backward_y = (src == dst && dy > sy);
+    backward_x = (src == dst && dy == sy && dx > sx);
+    ystart = backward_y ? bottom - 1 : top;
+    yend = backward_y ? top - 1 : bottom;
+    ystep = backward_y ? -1 : 1;
+    xstart = backward_x ? right - 1 : left;
+    xend = backward_x ? left - 1 : right;
+    xstep = backward_x ? -1 : 1;
+    for (yy = ystart; yy != yend; yy += ystep) {
+        for (xx = xstart; xx != xend; xx += xstep) {
+            so = (rg_offset)(sy + yy) * src->surface.stride +
+                 (rg_offset)(sx + xx);
+            doff = (rg_offset)(dy + yy) * dst->surface.stride +
+                   (rg_offset)(dx + xx);
+            sv = rg_read_byte(src, so);
+            if (rop == RG_ROP_COPY) {
+                rg_write_byte(dst, doff, sv);
+            } else {
+                dv = rg_read_byte(dst, doff);
+                rg_write_byte(dst, doff, rg_rop_apply(sv, dv, rop));
+            }
+        }
     }
 }
