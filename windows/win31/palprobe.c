@@ -1,18 +1,56 @@
-/* Palettium Win16 toolchain smoke-test DLL.
- * This is NOT a GDI display driver. Do not install it as SYSTEM.DRV.
- * It deliberately requires no DDK headers.
+/*
+ * Palettium Win16 toolchain smoke-test DLL.
+ *
+ * Verifies basic ABI assumptions for the shared graphics library.
+ * This is NOT a GDI display driver.
  */
+
+#include <windows.h>
 #include "rgfx.h"
 
-/* The symbol is exported via PALPROBE.LNK. No Windows header required. */
-unsigned short __far __pascal PalettiumAbiProbe(void)
+/*
+ * Return a bitmask describing the compiler's ABI properties.
+ *
+ * Bit 0: 8-bit byte
+ * Bit 1: VRAM offsets are at least 32 bits
+ * Bit 2: 16-bit int
+ * Bit 3: Graphics operations table exists
+ *
+ * Exported through the module definition file.
+ */
+WORD FAR PASCAL PalettiumAbiProbe(void)
 {
-    /* Bit 0: 8-bit byte; bit 1: 32-bit VRAM offset;
-       bit 2: 16-bit int; bit 3: operation table exists. */
-    unsigned short bits = 0;
-    if (sizeof(rg_u8) == 1) bits |= 1;
-    if (sizeof(rg_offset) >= 4) bits |= 2;
-    if (sizeof(int) == 2) bits |= 4;
-    if (sizeof(RG_Ops) > 0) bits |= 8;
+    WORD bits = 0;
+
+    if (sizeof(rg_u8) == 1)
+        bits |= 0x0001;
+
+    if (sizeof(rg_offset) >= 4)
+        bits |= 0x0002;
+
+    if (sizeof(int) == 2)
+        bits |= 0x0004;
+
+    if (sizeof(RG_Ops) > 0)
+        bits |= 0x0008;
+
     return bits;
 }
+
+/*
+ * Windows DLL initialization.
+ */
+BOOL FAR PASCAL LibMain(
+    HINSTANCE hInstance,
+    WORD wDataSegment,
+    WORD wHeapSize,
+    LPSTR lpszCmdLine)
+{
+    (void)hInstance;
+    (void)wDataSegment;
+    (void)wHeapSize;
+    (void)lpszCmdLine;
+
+    return TRUE;
+}
+```
