@@ -85,3 +85,11 @@ and 64 KiB simulated bank boundaries.
   clipper is implemented yet.
 - 16-bit compilation and Windows GDI entry points are **not yet tested**.
 - No Windows driver binaries are included at this stage.
+
+## v0.4 — Win16 integration preparation
+
+`windows/win31/` includes the Open Watcom Win16 DLL ABI probe, not yet a
+Windows display driver. It prepares the toolchain without misrepresenting the
+complex Windows 3.1 DDK contract. Run `make test` for the extra Win16 memory
+geometry guard. The actual toolchain probe is built with
+`windows/win31/build-win16.sh` once `wcc` and `wlink` are installed.
