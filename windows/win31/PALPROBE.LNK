@@ -1,0 +1,5 @@
+system windows dll
+name PALPROBE.DLL
+file PALPROBE.OBJ
+export PalettiumAbiProbe
+option map=PALPROBE.MAP

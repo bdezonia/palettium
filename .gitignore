@@ -1,0 +1,8 @@
+/raster-test
+/banked-test
+/raster-demo.ppm
+*.o
+*.obj
+*.exe
+*.drv
+*.vxd
