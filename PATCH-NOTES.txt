@@ -1,0 +1,24 @@
+Palettium v0.5 incremental patch based on user-provided orig-src(1).zip.
+
+NEW:
+  include/rg_hardware.h
+  common/rg_hardware.c
+  tests/test_hardware.c
+  docs/hardware-api.md
+MODIFIED:
+  Makefile (adds hardware-test to normal make test)
+UNTOUCHED:
+  include/rgfx.h, common/rgfx.c, existing tests, Win16 sources/build files.
+
+Install from the repository root:
+  unzip -o pal05b.zip
+  make test
+
+Check your working tree before extracting. Suggested safe workflow:
+  git status --short
+  git switch -c hardware-api-v05
+  unzip -o /path/to/pal05b.zip
+  git diff
+  make test
+
+No ROMs or generated artifacts are included. This is NOT yet a Windows driver.
