@@ -1,0 +1,28 @@
+Palettium v0032 — Safe native Windows 3.1 protected-mode diagnostic
+
+Incremental source-only patch over v0031. No changes to PALSTAGE.DRV,
+its 13 DDI exports, or shared/hardware backend. Driver NOT INSTALLABLE.
+
+- NEW PALDIAG.EXE Win16 GUI diagnostic for KERNEL __A000H export:
+  report both 16-bit words and optional GetSelectorBase lookups, without
+  touching the framebuffer or programming ET4000AX registers.
+- Optional, separately confirmed INT 10h AH=0Fh BIOS current mode
+  readback (might be virtualized in Windows 386 enhanced mode).
+- NEW Open Watcom `windows/win31/build-paldiag.sh`; output remains in
+  `tests/exes/` and is comprehensively removed by root `make clean`.
+- Host regression compiles the real Win16 source against mock Windows
+  interfaces and checks missing-export and opt-in behavior.
+- README, Win31 README and HANDOFF updated with v0031 user's successful
+  Windows 3.1 driver compile/link and DOS 256/512/1024 KiB test.
+
+Test commands:
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal32.zip
+make clean && make test
+make -f Makefile.win31diag test
+sh windows/win31/build-paldiag.sh
+sh windows/win31/build-palddi.sh
+wdump -x tests/exes/PALSTAGE.DRV
+
+The Win16 diagnostic build and runtime test require the user's Open
+Watcom installation and a recoverable Windows 3.1 86Box VM.

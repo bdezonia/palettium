@@ -1,0 +1,11 @@
+CC = cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Itests/win16_stubs
+
+.PHONY: all test
+all: tests/exes/paldiag-host-test
+tests/exes/paldiag-host-test: windows/win31/paldiag.c tests/test_win31_diag.c tests/win16_stubs/windows.h tests/win16_stubs/dos.h | tests/exes
+	$(CC) $(CFLAGS) windows/win31/paldiag.c tests/test_win31_diag.c -o $@
+tests/exes:
+	mkdir -p $@
+test: all
+	./tests/exes/paldiag-host-test

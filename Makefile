@@ -18,6 +18,7 @@ test: all
 	./tests/exes/format-test
 	./tests/exes/hardware-format-test
 	python3 tests/test_build_maintenance.py
+	$(MAKE) -f Makefile.win31diag test
 # This is the project-wide clean, not merely the original seven raster tests.
 # All Makefile.* host binaries and the Win16 staging objects live under
 # tests/exes; DOS outputs live under build/. Older Win16 probe scripts run

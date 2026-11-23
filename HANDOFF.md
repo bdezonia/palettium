@@ -1,94 +1,72 @@
-# Palettium v0031 handoff — Win16 ET4000AX build repair and complete clean (2026-11-23 UTC)
+# Palettium v0032 handoff — safe Win3.1 selector/BIOS diagnostic (2026-11-23 UTC)
 
-## Maintainer-confirmed results through v0029
+## Verified v0031 baseline
 
-The maintainer has passed all Linux host tests and Open Watcom builds
-through **v0029**. The 13-export Windows 3.1 `PALSTAGE.DRV` was linked and
-verified with `wdump`. The DOS `ET4KTEST.EXE` was **actually run** in 86Box
-with **256, 512 and 1024 KiB** ET4000AX configurations and appeared correct
-in all three. This is encouraging direct hardware-model evidence, but not
-Windows 3.1 display-driver initialization.
+User applied pal31.zip over v0030; `make clean && make test`, 7 shared
+raster/hardware checks plus the build-maintenance test, every requested
+auxiliary Makefile target and the Open Watcom Windows 3.1 `PALSTAGE.DRV`
+compile+link **PASSED** on the user workstation. No warnings reported.
+`wdump -x tests/exes/PALSTAGE.DRV` showed all 13 expected DDI exports.
+The v0030 ET4K include/link errors are fixed, and `make clean` now removes
+all generated output. User also successfully ran ET4KTEST in 86Box in DOS
+at 256/512/1024 KiB VRAM (visual correctness at all three). None of this
+yet validates a live Windows 3.1 display-driver lifecycle.
 
-## v0030 blocker reported by maintainer
+## v0032 deliverable
 
-Applying `pal30.zip` and running the host Makefiles gave all PASS results.
-The Open Watcom Win16 compile stopped at `pal_et4k_session.c`, because
-`windows/win31/pal_et4k_session.h` includes `"et4k.h"`, but
-`windows/win31/build-palddi.sh` lacked
-`-i=hardware/tseng/et4000ax`. Subsequent unknown `ET4K_Port` and
-`ET4K_State` errors were cascading header errors. A second audit found
-that the Win16 source list did not include
-`hardware/tseng/et4000ax/et4k.c`, so linking would have failed once
-compilation proceeded. Consequently v0030 NE compilation/linking **did not
-pass**. The subsequent `wdump` reported no PALSTAGE.DRV because compilation
-stopped and the build script had removed its prior output.
+- NEW `windows/win31/paldiag.c`: standalone Win16 GUI diagnostic.
+  Queries `GetModuleHandle("KERNEL")`, `GetProcAddress("__A000H")`,
+  and optionally `GetSelectorBase`/`GetWinFlags`, displaying both high and
+  low words of the returned export address and the available bases. The
+  native adapter in `pal_et4k_win16.c` assumes the LOW word is the selector;
+  **do not adopt that assumption for actual video access until confirmed**.
+  No A000h dereference, I/O port writes, driver load, palette update or
+  video-mode set is performed.
+- After the initial report, a second message box asks permission for a
+  read-only `INT 10h AH=0Fh` current-mode query (reports AL/AH/BH). The
+  default safe path is pressing **No**. In enhanced mode Windows can
+  virtualize the result; do not interpret it as physical BIOS validation.
+- NEW stable script `windows/win31/build-paldiag.sh` generates
+  **`tests/exes/PALDIAG.EXE`** with Open Watcom's `wcl` Win16 GUI target.
+  No new driver DDI exports, no changes to PALSTAGE.DRV or its link recipe.
+- NEW host test `tests/test_win31_diag.c` compiles the actual paldiag.c
+  against 2 lightweight mock Win16 API headers. Covers no-BIOS default,
+  explicit opt-in, missing KERNEL/export/function and reported selector
+  bases. `Makefile.win31diag` runs it; root `make test` includes it.
+  `tests/test_build_maintenance.py` checks the new diagnostic binaries
+  are removed by root `make clean` (sources remain). README and Win31
+  README are current.
 
-## v0031 corrections
+## Build and run
 
-1. **No production filenames changed.** `windows/win31/build-palddi.sh`
-   now passes the ET4000AX include directory to `wcc` and compiles the
-   **existing** `hardware/tseng/et4000ax/et4k.c` alongside the Win16 port
-   adapter and session coordinator. This closes the confirmed missing
-   header and expected ET4K function-definition linker gap; it does not
-   create a duplicate backend or alter the 13 DDI export ordinals.
-2. Project-root `make clean` now removes **all generated** `tests/exes/`
-   host executables, Win16 object files/NE staging driver/export report,
-   `build/` (including DOS `ET4KTEST.EXE`), root-level toolchain object
-   artifacts, and old Win16 probe objects/DLLs/executables in
-   `windows/win31/`. It preserves checked-in source, headers, notes and
-   linker `.LNK` files. It is safe to invoke repeatedly. `/build/` is
-   ignored in Git.
-3. `tests/test_build_maintenance.py` is now run by `make test`. It checks
-   Win16 source/include closure and unique object filenames; it executes
-   the project-wide clean **in a temporary test directory**, verifying
-   generated-file deletion and source preservation. No cleanup test
-   deletes files from the working repository.
-4. README, Win31 README and patch notes updated. **No driver behavior,
-   BIOS/VDD policy, PDEVICE ABI, or hardware-mode enabling changed.**
-
-## Build and test
-
-Apply `pal31.zip` over the **v0030** tree:
+Apply v0032 patch over v0031; first build host tests and the regular
+Win16 staging driver to ensure nothing regressed:
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal31.zip
-make clean
-make test
-make -f Makefile.win31native test
-make -f Makefile.et4kmodes test
-make -f Makefile.et4k test
-make -f Makefile.win31link test
-make -f Makefile.screen17 test
-make -f Makefile.win31ddi test
-make -f Makefile.bitmap test
+unzip -o ~/Downloads/pal32.zip
+make clean && make test
+make -f Makefile.win31diag test
 sh windows/win31/build-palddi.sh
+sh windows/win31/build-paldiag.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-`make clean` intentionally deletes the v0029 DOS executable and old test
-binaries. Rebuild the DOS smoke test with `sh dos/build-et4k.sh` *only if*
-needed; the maintainer already validated all three VRAM sizes with v0029.
-All platform-neutral host regressions and the clean test pass in the
-assistant's Linux environment. **Open Watcom v0031 Win16 compilation and
-linking still need the maintainer's test.** If there is another Watcom
-compiler or linker error, capture the first one, not the cascading errors.
+**User Open Watcom Win16 compilation/link of PALDIAG.EXE NOT YET TESTED.**
+Copy the resulting `tests/exes/PALDIAG.EXE` into a disposable **Windows
+3.1** VM. Run it as an ordinary Win16 program. Capture full first dialog,
+plus optional BIOS readback. Start in a recoverable VM under the existing
+display driver; do not replace that driver. Test Windows standard mode
+and enhanced mode separately only if both can be configured safely.
 
-## Remaining hardware/driver limitations
+## Important limitations and next steps
 
-The v0030 Win16 native bridge and session logic remain **unactivated**.
-`Enable(style=0)` still fails, and PALSTAGE.DRV is deliberately **NOT
-INSTALLABLE**. `Enable(style=1)` remains a staging 640×480 candidate.
-No Win16 VRAM-capacity discovery/configuration or operational GDI-owned
-PDEVICE binding exists. The BIOS mode-set and A000 selector adapter are
-not yet runtime-verified under Windows 3.1; 386-enhanced-mode VDD
-coordination, text/cursor, huge BITMAP support and a complete DDI capability
-audit also remain. Do not put PALSTAGE.DRV into SYSTEM.INI.
-
-After the Win16 v0031 build is verified, the next appropriate step is a
-**non-mode-changing**, recoverable Win3.1 runtime diagnostic of KERNEL's
-A000 selector and BIOS current-mode readback (not an installable driver),
-then actual PDEVICE ownership and VDD coordination. Keep the shared C89
-renderer and reusable ET4000AX backend for Windows 3.1, WfW 3.11,
-Windows 95 and Windows 98. Fixed-width checkpoint tags; source-only
-incremental ZIP with correct UTC extended and local DOS ZIP timestamps.
+**PALSTAGE.DRV NOT INSTALLABLE**: `Enable(style=0)` still intentionally
+returns failure; no GDI-owned PDEVICE, active Win16 host binding, verified
+VRAM capacity, 386 enhanced-mode VDD handoff, text/cursor, or huge-bitmap
+capability. PALDIAG reports selector mapping metadata but **does not prove
+A000h VRAM reads/writes are safe**. No port I/O, mode programming or VDD
+coordination is exercised. After actual Win3.1 PALDIAG results, correct
+the Win16 selector assumption if necessary, then implement a safe
+non-installed driver startup test and real GDI ownership. Preserve C89
+shared renderer, ET4000AX backend, four OS adapters and fixed-width tags.

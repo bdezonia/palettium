@@ -53,6 +53,7 @@ def check_full_clean():
         generated = [
             "tests/exes/raster-test", "tests/exes/win31-native-test",
             "tests/exes/PALSTAGE.DRV", "tests/exes/PALSTAGE.generated.lnk",
+            "tests/exes/PALDIAG.EXE", "tests/exes/paldiag-host-test",
             "tests/exes/et4k-test", "tests/exes/raster-demo.ppm",
             "build/dos/ET4KTEST.EXE", "build/other/temporary.obj",
             "windows/win31/PALCORE.DLL", "windows/win31/PALDEV.EXPORTS.txt",

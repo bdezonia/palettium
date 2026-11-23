@@ -1,4 +1,4 @@
-# Windows 3.1 staging display driver (v0031)
+# Windows 3.1 staging display driver (v0032)
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -28,7 +28,7 @@ See `README.md` in the project root for test commands and architecture.
 palette capability bits. The palette and output machinery is only reachable in an *already running*
 screen host. The Win16 ET4000AX mode initialization, active GDI PDEVICE,
 huge/multiplane memory bitmaps, patterned brushes, text, cursor and window
-switch paths remain unfinished. v0029 passed Open Watcom; v0030 failed while compiling `pal_et4k_session.c` because the ET4K include directory was absent. v0031 fixes this include path and adds the ET4K backend to the Win16 link list; maintainer verification of the v0031 build is pending. Never select PALSTAGE.DRV
+switch paths remain unfinished. v0029 passed Open Watcom; v0030 failed while compiling `pal_et4k_session.c` because the ET4K include directory was absent. v0031 fixes this include path and adds the ET4K backend to the Win16 link list; the maintainer confirmed the v0031 Win16 build and all 13 exports. Never select PALSTAGE.DRV
 in SYSTEM.INI.
 
 Win16 segmented-memory caveat: the screen framebuffer is larger than 64 KiB;
@@ -81,9 +81,34 @@ capacity configuration, mouse cursor, text, and 386-enhanced VDD cooperation
 Watcom and compiles `hardware/tseng/et4000ax/et4k.c` into the staging
 module. The previously reported missing `et4k.h` caused cascading
 `ET4K_Port`/`ET4K_State` errors; missing `et4k.c` would also have blocked
-linking. This has **not** been verified with the maintainer's Open Watcom
-toolchain yet. The driver still deliberately refuses `Enable(style=0)`.
+linking. This **passed** on the maintainer's Open Watcom
+toolchain with all 13 exports. The driver still deliberately refuses `Enable(style=0)`.
 
 From the project root, `make clean` now deletes all generated artifacts
 under `tests/exes/` and `build/`, plus historical Win16 probe DLL, EXE and
 OBJ files, without removing `.LNK`, `.c`, or `.h` sources.
+
+## v0032 protected-mode diagnostic (separate application)
+
+Build `PALDIAG.EXE` (not a `.DRV`) on the Linux/Open Watcom workstation:
+
+```sh
+make -f Makefile.win31diag test
+sh windows/win31/build-paldiag.sh
+```
+
+Copy **only** `tests/exes/PALDIAG.EXE` into a recoverable Windows 3.1
+86Box VM; run it from File Manager (File → Run) or Program Manager.
+The first dialog reports `KERNEL.__A000H`'s returned high/low words,
+possible `GetSelectorBase` mappings, and `GetWinFlags`. **Copy the full
+result**. It does not touch A000h or change the display. A second dialog
+asks whether to run read-only `INT 10h AH=0Fh`; press **No** for the most
+conservative first run, or **Yes** to record mode AL, columns AH and page BH.
+BIOS mode reporting can be virtualized in 386 enhanced mode. Record whether
+Windows is running in standard or enhanced mode. **Do not install**
+`PALSTAGE.DRV` or change `SYSTEM.INI`. The native adapter is still dormant.
+
+The v0030 adapter currently takes the low word of `GetProcAddress` as its
+selector. This is **unverified**; PALDIAG deliberately exposes both words
+and selector-base values rather than dereferencing either. Resolve this
+from actual Windows results before activating mode programming.
