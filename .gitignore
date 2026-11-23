@@ -4,6 +4,7 @@
 /banked-test
 /raster-demo.ppm
 /gdi-rop-test
+/gdiinfo-test
 *.o
 *.O
 *.obj

@@ -1,0 +1,10 @@
+# Palettium v0.11 standalone Linux check (no changes to existing Makefile)
+CC ?= cc
+CFLAGS ?= -std=c89 -O2 -Wall -Wextra -Werror
+.PHONY: test clean
+test: gdiinfo-test
+	./gdiinfo-test
+gdiinfo-test: windows/win31/pal_gdiinfo.c windows/win31/pal_gdiinfo.h tests/test_win31_gdiinfo.c
+	$(CC) $(CFLAGS) -Iwindows/win31 windows/win31/pal_gdiinfo.c tests/test_win31_gdiinfo.c -o $@
+clean:
+	rm -f gdiinfo-test

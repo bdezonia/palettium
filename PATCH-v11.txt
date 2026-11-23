@@ -1,0 +1,10 @@
+Palettium v0.11 incremental patch (additive; no existing files overwritten)
+NEW windows/win31/pal_gdiinfo.h
+NEW windows/win31/pal_gdiinfo.c
+NEW windows/win31/palcap.c
+NEW windows/win31/build-palcap.sh
+NEW tests/test_win31_gdiinfo.c
+NEW Makefile.gdiinfo
+NEW docs/v11-gdiinfo.md
+
+Do NOT install any of these modules as a Windows display driver.
