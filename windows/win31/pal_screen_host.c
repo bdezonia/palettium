@@ -61,3 +61,12 @@ int pal_screen_host_palette(PAL_ScreenHost *host, unsigned index,
     if (!host || !host->running) return 0;
     return rg_hw_palette(&host->binding, index, red, green, blue);
 }
+
+int pal_screen_host_pixel(PAL_ScreenHost *host, PAL_U32 token,
+                          int x, int y, PAL_U32 physical_color,
+                          unsigned rop2, PAL_U32 *result)
+{
+    if (!host || !host->running) return 0;
+    return pal_screen_ddi_pixel(&host->ddi, token, x, y,
+                                physical_color, rop2, result);
+}

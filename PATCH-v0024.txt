@@ -1,0 +1,41 @@
+Palettium v0024 — Win3.1 Pixel/Output DDI bridge
+
+Incremental source patch for the v0023 checkpoint. Apply from the
+palettium/ repository root with: unzip -o pal24.zip
+Do NOT alter historical Git tags. This patch does not include binaries.
+
+ADDED  tests/test_win31_pixel.c
+CHANGED Makefile.win31link
+CHANGED windows/win31/pal_screen_ddi.[ch]
+CHANGED windows/win31/pal_screen_host.[ch]
+CHANGED windows/win31/palddi.c
+CHANGED windows/win31/build-palddi.sh
+CHANGED tools/check_win31_exports.py
+CHANGED tests/test_win31_exportcheck.py
+CHANGED tests/test_win31_hw_screen.c
+CHANGED tools/pack_utc.py
+CHANGED HANDOFF.md, CHECKSUMS.sha256
+
+ABI (Windows 3.x DDK): Pixel @9: DWORD FAR PASCAL with GET, SET, error
+0x80000000; physical INDEX8 only and ROP2 1..16. Pixel rejects an
+unbound/wrong PDEVICE token, inactive mode, invalid index, ROP, or xy.
+Uses unified RG pixel functions and hardware override; no ET4000
+registers in the Windows adapter. Output @8: WORD FAR PASCAL;
+return -1/0xFFFF for all styles to delegate GDI simulation.
+Staging exports now @1, @4, @5, @8, @9.
+
+Host tests (all passed at patch creation):
+  make clean && make test
+  make -f Makefile.win31link test
+  make -f Makefile.screen17 test
+  plus remaining Makefile.* host test targets
+
+Open Watcom Win16 link NOT tested in the assistant's environment:
+  sh windows/win31/build-palddi.sh
+  wdump -x tests/exes/PALSTAGE.DRV
+Please provide the full compiler/linker output if this fails.
+
+SAFETY: PALSTAGE.DRV IS STILL NOT INSTALLABLE. Enable(style=0) fails;
+ColorInfo and other compulsory services, real Windows/ET4000 mode init,
+palette, and cursor/text/screen-switching support remain incomplete.
+Do not install the stage driver or modify SYSTEM.INI.

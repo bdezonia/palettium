@@ -13,9 +13,17 @@ EXPORTS
  BITBLT @1
  DISABLE @4
  ENABLE @5
+ OUTPUT @8
+ PIXEL @9
 """
-assert module.parse_exports(sample) == {"BITBLT": 1, "DISABLE": 4, "ENABLE": 5}
+assert module.parse_exports(sample) == module.EXPECTED
 assert module.parse_exports("ENABLE @1\nDISABLE @2\n") != module.EXPECTED
 assert module.parse_exports("ENABLE @5\nDISABLE @4\nBITBLT @9\n") != module.EXPECTED
 assert module.parse_exports("garbage") == {}
+for bad in ("PIXEL @9\nPIXEL @9\n", "PIXEL @9\nOUTPUT @9\n"):
+    try:
+        module.parse_exports(bad)
+        raise AssertionError("duplicate was accepted")
+    except ValueError:
+        pass
 print("PASS: Win31 export checker accepts valid ordinals and rejects invalid ones")

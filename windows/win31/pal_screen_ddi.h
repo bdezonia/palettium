@@ -19,6 +19,16 @@ int pal_screen_ddi_attach(PAL_ScreenDDI *bridge, PAL_PDEVICE *pd,
                           RG_Device *device, PAL_U32 far_token);
 void pal_screen_ddi_detach(PAL_ScreenDDI *bridge);
 
+/* Physical INDEX8 Pixel DDI. A read (rop2=0) returns the physical index;
+ * a write uses GDI ROP2 1..16 and returns 1 on success. The caller must
+ * validate its DRAWMODE pointer before passing the first Rop2 WORD here.
+ * No unrelated PDEVICE or memory BITMAP can access screen VRAM.
+ * On failure the output argument is unchanged and no pixel is modified.
+ */
+int pal_screen_ddi_pixel(PAL_ScreenDDI *bridge, PAL_U32 device_token,
+                         int x, int y, PAL_U32 physical_color,
+                         unsigned rop2, PAL_U32 *result);
+
 /* Screen-to-screen only. Memory BITMAPs are deliberately not supported.
  * Tokens come from OS adapter; no untrusted DDI pointer is dereferenced. */
 int pal_screen_ddi_bitblt(PAL_ScreenDDI *bridge,

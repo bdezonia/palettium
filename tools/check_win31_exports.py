@@ -6,15 +6,22 @@ Input must be `wdump -x file.DRV` text. No binary modification occurs.
 import re
 import sys
 
-EXPECTED = {"BITBLT": 1, "DISABLE": 4, "ENABLE": 5}
+EXPECTED = {"BITBLT": 1, "DISABLE": 4, "ENABLE": 5,
+            "OUTPUT": 8, "PIXEL": 9}
 
 
 def parse_exports(output):
     found = {}
+    seen_ordinals = {}
     for line in output.splitlines():
         match = re.match(r"^\s*([A-Za-z][A-Za-z0-9_]*)\s+@(\d+)\s*$", line)
         if match:
-            found[match.group(1).upper()] = int(match.group(2))
+            name = match.group(1).upper()
+            ordinal = int(match.group(2))
+            if name in found or ordinal in seen_ordinals:
+                raise ValueError("duplicate NE export name or ordinal: " + line.strip())
+            found[name] = ordinal
+            seen_ordinals[ordinal] = name
     return found
 
 
@@ -27,7 +34,7 @@ def main():
                 for name, ord_ in EXPECTED.items() if found.get(name) != ord_]
     if failures:
         raise SystemExit("FAIL: " + "; ".join(failures))
-    print("PASS: DDI export ordinals: BitBlt @1, Disable @4, Enable @5")
+    print("PASS: DDI export ordinals: BitBlt @1, Disable @4, Enable @5, Output @8, Pixel @9")
 
 
 if __name__ == "__main__":

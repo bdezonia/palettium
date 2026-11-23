@@ -24,6 +24,9 @@ int pal_screen_host_bitblt(PAL_ScreenHost *host,
                            PAL_U32 dst_token, int dx, int dy,
                            PAL_U32 src_token, int sx, int sy,
                            int width, int height, unsigned long rop);
+int pal_screen_host_pixel(PAL_ScreenHost *host, PAL_U32 token,
+                          int x, int y, PAL_U32 physical_color,
+                          unsigned rop2, PAL_U32 *result);
 int pal_screen_host_palette(PAL_ScreenHost *host, unsigned index,
                             rg_u8 red, rg_u8 green, rg_u8 blue);
 #endif

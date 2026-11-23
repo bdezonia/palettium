@@ -57,6 +57,7 @@ int main(void)
     RG_Hardware hw;
     PAL_ScreenHost host;
     rg_offset a=65535UL, b=65536UL;
+    PAL_U32 physical = 0;
     assert(m);
     memset(&io,0,sizeof(io));
     memset(&host,0,sizeof(host));
@@ -77,6 +78,11 @@ int main(void)
     assert(rg_read_byte(&host.device,b)==0x34);
     assert((m->bank>>4)==1);
     assert((m->bank&15)==1);
+    assert(pal_screen_host_pixel(&host,TOKEN,0,0,0x83UL,13,&physical));
+    assert(physical==1UL);
+    assert(pal_screen_host_pixel(&host,TOKEN,0,0,0,0,&physical));
+    assert(physical==0x83UL);
+    assert(!pal_screen_host_pixel(&host,TOKEN+1,0,0,0,0,&physical));
     rg_software_fill(&host.device,5,5,40,15,0x71);
     assert(pal_screen_host_bitblt(&host,TOKEN,30,35,TOKEN,5,5,
                                   40,15,0x00CC0020UL));
@@ -91,6 +97,7 @@ int main(void)
     assert(!pal_screen_host_bitblt(&host,TOKEN,0,0,TOKEN,0,0,
                                    5,5,0x00CC0020UL));
     assert(!pal_screen_host_palette(&host,2,0,0,0));
+    assert(!pal_screen_host_pixel(&host,TOKEN,0,0,0,0,&physical));
     pal_screen_host_stop(&host);
     assert(m->restores==2);
     assert(pal_screen_host_start(&host,&hw,640,480,TOKEN));

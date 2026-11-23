@@ -39,3 +39,52 @@ int pal_screen_ddi_bitblt(PAL_ScreenDDI *bridge,
     return rg_win31_screen_bitblt(&bridge->screen, &bridge->screen,
                                  dx, dy, sx, sy, width, height, rop);
 }
+
+/* ROP2 values map directly to the 16 Boolean truth tables by subtracting 1.
+ * Truth table input bit index is (source_bit << 1) | dest_bit, matching
+ * the shared raster engine's raw-pixel ROP convention. */
+int pal_screen_ddi_pixel(PAL_ScreenDDI *bridge, PAL_U32 device_token,
+                         int x, int y, PAL_U32 physical_color,
+                         unsigned rop2, PAL_U32 *result)
+{
+    RG_Device *device;
+    rg_pixel old, value;
+    unsigned truth;
+    if (!result || !bridge || !bridge->installed || !bridge->pdevice ||
+        !bridge->screen_token || device_token != bridge->screen_token ||
+        !pal_pd_valid(bridge->pdevice) ||
+        bridge->pdevice->state != PAL_PD_ACTIVE ||
+        !bridge->screen.active || !bridge->screen.device ||
+        bridge->pdevice->width != bridge->screen.width ||
+        bridge->pdevice->height != bridge->screen.height ||
+        bridge->pdevice->pitch != bridge->screen.pitch)
+        return 0;
+    device = bridge->screen.device;
+    if (device->surface.format != RG_FMT_INDEX8 ||
+        device->surface.width != bridge->screen.width ||
+        device->surface.height != bridge->screen.height ||
+        device->surface.stride != bridge->screen.pitch ||
+        x < 0 || y < 0 || (unsigned)x >= bridge->screen.width ||
+        (unsigned)y >= bridge->screen.height || rop2 > 16u)
+        return 0;
+    if (!rop2) {
+        if (!rg_get_pixel(device, x, y, &old)) return 0;
+        *result = (PAL_U32)old;
+        return 1;
+    }
+    if (physical_color > 255UL || !device->ops.pixel) return 0;
+    if (rop2 == 13u) value = (rg_pixel)physical_color; /* R2_COPYPEN */
+    else {
+        if (!rg_get_pixel(device, x, y, &old)) return 0;
+        truth = rop2 - 1u;
+        value = 0;
+        if (truth & 1u) value |= ~(rg_pixel)physical_color & ~old;
+        if (truth & 2u) value |= ~(rg_pixel)physical_color & old;
+        if (truth & 4u) value |= (rg_pixel)physical_color & ~old;
+        if (truth & 8u) value |= (rg_pixel)physical_color & old;
+        value &= 255UL;
+    }
+    device->ops.pixel(device, x, y, value);
+    *result = 1UL;
+    return 1;
+}

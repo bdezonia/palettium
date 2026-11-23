@@ -48,6 +48,8 @@ cat >> "$LINKFILE" <<'EOF_EXPORTS'
 export BitBlt.1
 export Disable.4
 export Enable.5
+export Output.8
+export Pixel.9
 EOF_EXPORTS
 
 # Fail early if an edit duplicates the executable-format selection.
@@ -61,4 +63,4 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
 python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
 printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; other DDI functions missing.'
+    'NOT INSTALLABLE: Enable(style=0) still fails; palette, objects, text and other DDI services missing.'
