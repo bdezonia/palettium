@@ -160,7 +160,37 @@ int main(void)
     assert(rg_read_byte(&host.device,103UL*640UL+256UL)==77u);
     assert(rg_read_byte(&host.device,104UL*640UL+267UL)==63u);
     assert(m->changes>3 && m->bad==0);
+    /* v0027: both GDI synthesis primitives use real banked VRAM.
+     * The span at y=102 crosses offset 65535/65536 between x=255/256. */
+    rg_software_fill(&host.device,248,102,24,6,0);
+    assert(!pal_screen_host_output_ready(&host,TOKEN+1));
+    assert(pal_screen_host_output_ready(&host,TOKEN));
+    assert(!pal_screen_host_scanline(&host,TOKEN+1,102,250,270,0,
+                                      &pen,&brush,13,2));
+    assert(pal_screen_host_scanline(&host,TOKEN,102,250,270,0,
+                                    &pen,&brush,13,2));
+    assert(rg_read_byte(&host.device,102UL*640UL+255UL)==77u);
+    assert(rg_read_byte(&host.device,102UL*640UL+256UL)==77u);
+    assert(rg_read_byte(&host.device,102UL*640UL+270UL)==0u);
+    rg_software_fill(&host.device,248,102,24,6,0);
+    assert(!pal_screen_host_segment(&host,TOKEN+1,254,102,260,102,
+                                     0,&pen,7));
+    assert(pal_screen_host_segment(&host,TOKEN,254,102,260,102,
+                                    0,&pen,7));
+    assert(pal_screen_host_segment(&host,TOKEN,260,102,260,105,
+                                    0,&pen,7));
+    assert(rg_read_byte(&host.device,102UL*640UL+254UL)==63u);
+    assert(rg_read_byte(&host.device,102UL*640UL+256UL)==63u);
+    assert(rg_read_byte(&host.device,102UL*640UL+259UL)==63u);
+    assert(rg_read_byte(&host.device,102UL*640UL+260UL)==63u);
+    assert(rg_read_byte(&host.device,105UL*640UL+260UL)==0u);
+    assert(m->bad==0);
     pal_screen_host_stop(&host);
+    assert(!pal_screen_host_output_ready(&host,TOKEN));
+    assert(!pal_screen_host_scanline(&host,TOKEN,102,250,270,0,
+                                      &pen,&brush,13,2));
+    assert(!pal_screen_host_segment(&host,TOKEN,254,102,260,102,
+                                     0,&pen,7));
     assert(!pal_screen_host_rectangle(&host,TOKEN,rect,&clip,
                                        &pen,&brush,13,2));
     assert(m->restores==2);
@@ -177,6 +207,6 @@ int main(void)
     pal_screen_host_stop(&host);
     assert(m->restores==3);
     free(m);
-    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, palette, clipped Output rectangle");
+    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, palette, rectangle, scanlines, polylines");
     return 0;
 }

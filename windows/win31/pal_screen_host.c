@@ -134,6 +134,13 @@ int pal_screen_host_rectangle(PAL_ScreenHost *host, PAL_U32 token,
                               const RG_Pen *pen, const RG_Brush *brush,
                               unsigned rop2, unsigned background_mode)
 {
+    if (!pal_screen_host_output_ready(host, token)) return 0;
+    return rg_gdi_output_rectangle(&host->device, bounds, clip,
+                                    pen, brush, rop2, background_mode);
+}
+
+int pal_screen_host_output_ready(PAL_ScreenHost *host, PAL_U32 token)
+{
     if (!host || !host->running || !token || !host->ddi.installed ||
         token != host->ddi.screen_token ||
         !pal_pd_valid(&host->pdevice) ||
@@ -144,6 +151,26 @@ int pal_screen_host_rectangle(PAL_ScreenHost *host, PAL_U32 token,
         host->pdevice.width != host->device.surface.width ||
         host->pdevice.height != host->device.surface.height ||
         host->pdevice.pitch != host->device.surface.stride) return 0;
-    return rg_gdi_output_rectangle(&host->device, bounds, clip,
-                                    pen, brush, rop2, background_mode);
+    return 1;
+}
+
+int pal_screen_host_scanline(PAL_ScreenHost *host, PAL_U32 token,
+                              int y, int left, int right,
+                              const RG_Rect *clip, const RG_Pen *pen,
+                              const RG_Brush *brush, unsigned rop2,
+                              unsigned background_mode)
+{
+    if (!pal_screen_host_output_ready(host,token)) return 0;
+    return rg_gdi_output_scanline(&host->device,y,left,right,clip,
+                                   pen,brush,rop2,background_mode);
+}
+
+int pal_screen_host_segment(PAL_ScreenHost *host, PAL_U32 token,
+                             int x0, int y0, int x1, int y1,
+                             const RG_Rect *clip, const RG_Pen *pen,
+                             unsigned rop2)
+{
+    if (!pal_screen_host_output_ready(host,token)) return 0;
+    return rg_gdi_output_segment(&host->device,x0,y0,x1,y1,
+                                  clip,pen,rop2);
 }

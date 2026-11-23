@@ -75,4 +75,4 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
 python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
 printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; patterned brushes, text, bitmap, cursor and mode initialization remain missing.'
+    'NOT INSTALLABLE: Enable(style=0) still fails; memory bitmaps, text, cursor and native mode initialization remain missing.'

@@ -42,9 +42,20 @@ int pal_screen_host_update_colors(PAL_ScreenHost *host,
 int pal_screen_host_scanlr(PAL_ScreenHost *host, PAL_U32 token,
                            int x, int y, PAL_U32 physical,
                            unsigned style, int *found);
-/* Screen-only OS_RECTANGLE. Physical objects come from RealizeObject. */
+/* Screen-only Output primitives. Physical objects come from RealizeObject. */
 int pal_screen_host_rectangle(PAL_ScreenHost *host, PAL_U32 token,
                               RG_Rect bounds, const RG_Rect *clip,
                               const RG_Pen *pen, const RG_Brush *brush,
                               unsigned rop2, unsigned background_mode);
+int pal_screen_host_scanline(PAL_ScreenHost *host, PAL_U32 token,
+                              int y, int left, int right,
+                              const RG_Rect *clip, const RG_Pen *pen,
+                              const RG_Brush *brush, unsigned rop2,
+                              unsigned background_mode);
+int pal_screen_host_segment(PAL_ScreenHost *host, PAL_U32 token,
+                             int x0, int y0, int x1, int y1,
+                             const RG_Rect *clip, const RG_Pen *pen,
+                             unsigned rop2);
+/* Output's begin/end scan hints require a live screen token but no pixels. */
+int pal_screen_host_output_ready(PAL_ScreenHost *host, PAL_U32 token);
 #endif

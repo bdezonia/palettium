@@ -136,9 +136,13 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
     return (DWORD)size;
 }
 
-/* Output @8: first real shape, OS_RECTANGLE, using our realized objects,
- * shared ROP2 and indexed screen renderer. Everything not fully supported
- * requests DDK-defined GDI simulation (-1), never claims partial output.
+/* Output @8: GDI's required OS_SCANLINES (4) and OS_POLYLINE (18),
+ * the existing OS_RECTANGLE (6), plus harmless BEGIN/END scan hints.
+ * Other shapes return -1 for GDI synthesis. Screen identity must be valid
+ * before marshalling or touching the video memory. Scanline POINT[0].y
+ * gives the common Y; POINT[1..count-1] each hold an (left,right) X pair.
+ * Each polyline segment excludes its final endpoint, preventing double XOR
+ * at joins. Bounds/ROP/physical objects are checked before drawing.
  */
 WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
                         LPVOID points, LPVOID pen, LPVOID brush,
@@ -159,12 +163,20 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
         return (WORD)-1;
     token = pal_ddi_far_token((PAL_U16)FP_SEG(dest),
                               (PAL_U16)FP_OFF(dest));
-    if (token != pal_active_host->ddi.screen_token || style != 6u ||
-        count != 2u || !points || !drawmode || !pal_object_layout_ok())
+    if (!pal_screen_host_output_ready(pal_active_host, token))
+        return (WORD)-1;
+    /* Win3.x bracketing hints have no drawn pixels and can be ignored. */
+    if (style == 80u || style == 81u) return 1u;
+    if ((style != 4u && style != 6u && style != 18u) ||
+        count < 2u || count > 16384u || !points || !drawmode ||
+        !pal_object_layout_ok()) return (WORD)-1;
+    if (style == 6u && count != 2u) return (WORD)-1;
+    /* Win16 far pointers have a 16-bit offset. Do not index a POINT
+     * sequence across a 64 KiB segment wrap. */
+    if ((PAL_U32)(PAL_U16)FP_OFF(points) +
+        (PAL_U32)count * (PAL_U32)sizeof(PAL_POINT16) > 65536UL)
         return (WORD)-1;
     pt = (const PAL_POINT16 FAR *)points;
-    bounds.left = pt[0].x; bounds.top = pt[0].y;
-    bounds.right = pt[1].x; bounds.bottom = pt[1].y;
     draw = (const WORD FAR *)drawmode;
     rop2 = draw[0]; bgmode = draw[1];
     if (rop2 < 1u || rop2 > 16u || bgmode < 1u || bgmode > 2u)
@@ -187,6 +199,27 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
         for (i=0; i<sizeof(near_brush); ++i) target[i]=source[i];
         if (!rg_brush_valid(&near_brush)) return (WORD)-1;
     }
+    if (style == 4u) {
+        /* Preflight every span before the first write: reject malformed
+         * pairs without leaving a half-rendered scanline list. */
+        for (i=1u; i<(unsigned)count; ++i)
+            if (pt[i].x > pt[i].y) return (WORD)-1;
+        for (i=1u; i<(unsigned)count; ++i)
+            if (!pal_screen_host_scanline(pal_active_host, token,
+                    pt[0].y, pt[i].x, pt[i].y, cptr,
+                    pen ? &near_pen : 0, brush ? &near_brush : 0,
+                    rop2, bgmode)) return (WORD)-1;
+        return 1u;
+    }
+    if (style == 18u) {
+        for (i=1u; i<(unsigned)count; ++i)
+            if (!pal_screen_host_segment(pal_active_host, token,
+                    pt[i-1u].x, pt[i-1u].y, pt[i].x, pt[i].y,
+                    cptr, pen ? &near_pen : 0, rop2)) return (WORD)-1;
+        return 1u;
+    }
+    bounds.left = pt[0].x; bounds.top = pt[0].y;
+    bounds.right = pt[1].x; bounds.bottom = pt[1].y;
     return pal_screen_host_rectangle(pal_active_host, token, bounds, cptr,
              pen ? &near_pen : 0, brush ? &near_brush : 0,
              rop2, bgmode) ? 1u : (WORD)-1;

@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0026** (incremental tags are fixed-width).
+Current development milestone: **v0027** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -36,9 +36,19 @@ driver**. Palettium is *not* yet an installable driver package.
   pens and solid, hollow and hatched brushes (all six hatch styles),
   a genuinely rendered `Output(OS_RECTANGLE)` with clipping and ROP2,
   and ET4000AX bank-crossing rectangle tests. Object realization and
-  shape rendering reuse new shared C89 code rather than duplicating the
+  shape rendering reuse shared C89 code rather than duplicating the
   Windows adapter or the ET4000AX implementation. Pattern brushes are
-  not yet realized. The v0026 Win16 build awaits maintainer validation.
+  not yet realized. **v0026 Win16 build and all 13 exports passed** on the
+  maintainer's Open Watcom system (November 23, 2026).
+- **New in v0027:** the two DDK-required GDI synthesis primitives now have
+  screen-backed implementations: `Output(OS_SCANLINES=4)` (multiple
+  right-exclusive horizontal intervals, brush/pen, hatches and ROP2) and
+  `Output(OS_POLYLINE=18)` (connected 1px segments with exclusive final
+  endpoints, clipping and ROP2). Both reuse `common/rg_gdi_output.c` and
+  the same hardware pixel overrides and clipping path as rectangles.
+  BEGINNSCAN/ENDNSCAN hints are safe no-ops. Host tests cover geometry,
+  every ROP2, XOR joins, extreme signed coordinates and ET4000AX VRAM
+  bank crossing. v0027 Win16 linking **requires maintainer validation**.
 
 ## Architecture
 
@@ -46,7 +56,7 @@ driver**. Palettium is *not* yet an installable driver package.
 | --- | --- | --- |
 | Shared raster | `include/rgfx.h`, `common/rgfx.c` | Software fallbacks, raw pixels, callbacks, overrides |
 | GDI helpers | `common/rg_gdi_*.c`, `common/rg_win31_screen.c` | ROP and screen blit translation |
-| Physical objects/output | `include/rg_objects.h`, `common/rg_objects.c`, `common/rg_gdi_output.c` | Pen/brush realization, hatch tests, shared clipped rectangle drawing |
+| Physical objects/output | `include/rg_objects.h`, `common/rg_objects.c`, `common/rg_gdi_output.c` | Pen/brush realization, hatch tests, shared clipped rectangles, scanlines and polylines |
 | Color management | `include/rg_palette.h`, `common/rg_palette.c` | INDEX8 RGB table, static colors, translation, remap |
 | Hardware contract | `include/rg_hardware.h`, `common/rg_hardware.c` | Mode, lifecycle, palette and optional acceleration |
 | Hardware backend | `hardware/tseng/et4000ax/` | ET4000AX bank/DAC operations, no Windows ABI |
@@ -90,42 +100,42 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0026 expects
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0027 expects
 **13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
-The 12-export v0025 build passed on the maintainer's Open Watcom system;
-the **v0026 Win16 link is not yet validated** there.
+The 13-export **v0026** build passed on the maintainer's Open Watcom
+system; the **v0027 Win16 link is not yet validated** there.
 
 When applying an incremental patch downloaded through your browser:
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal26.zip
+unzip -o ~/Downloads/pal27.zip
 ```
 
 The archive contains **repository-relative paths** (no enclosing directory).
-Apply it over a **validated v0025** tree. Source ZIPs carry exact UTC timestamps in the
+Apply it over a **validated v0026** tree. Source ZIPs carry exact UTC timestamps in the
 extended ZIP field and the local DOS ZIP header timestamp for America/Chicago.
 
 ## Important: NOT INSTALLABLE
 
 **Do not copy `PALSTAGE.DRV` into Windows' display-driver configuration or
 change `SYSTEM.INI` to select it.** The `Enable(style=0)` screen initialization
-path deliberately fails. v0026 now realizes several physical pen/brush forms
-and draws rectangles, but it does **not** yet support patterned brushes,
-mandatory scanline/polyline output styles, memory bitmaps and text, cursor
-management, a complete GDI simulation contract, or proven Win16 mode setting
-and screen switching. `Enable(style=1)` returns only a *candidate* GDIINFO; it intentionally does **not** advertise RC_PALETTE
+path deliberately fails. v0027 now draws the two required scanline/polyline
+styles **to the screen**, but it does **not** yet support drawing to GDI-owned
+monochrome or color memory bitmaps, patterned brushes, text, cursor management,
+a complete GDI simulation contract, or proven Win16 mode setting and screen
+switching. `Enable(style=1)` returns only a *candidate* GDIINFO; it intentionally does **not** advertise RC_PALETTE
 until the rest of the palette-capable display DDI is integrated and validated.
 
 ### Next engineering priorities
 
-Complete the required Windows 3.1 scanline/polyline and text/bitmap drawing
-paths, then connect Win16 ET4000AX mode set, VRAM aperture and lifecycle to a real
+Implement GDI memory-bitmap output and minimum cursor/text fallback contracts;
+connect Win16 ET4000AX mode set, VRAM aperture and lifecycle to a real
 GDI-owned PDEVICE; then implement the remaining required services and test
 startup in a recoverable 86Box Windows 3.1 environment (standard and 386
 Enhanced Mode). Keep port access OS-specific and share code with WfW/9x
 where their driver contracts allow.
 
-Check `HANDOFF.md` and `PATCH-v0026.txt` for precise checkpoint status and
+Check `HANDOFF.md` and `PATCH-v0027.txt` for precise checkpoint status and
 remaining test gaps. Earlier `docs/` and patch notes document the milestones.

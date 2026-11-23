@@ -1,0 +1,55 @@
+Palettium v0027 — required Win3.1 Output scanlines and polylines
+
+Incremental: apply over user-validated v0026:
+  cd ~/dev/palettium
+  unzip -o ~/Downloads/pal27.zip
+
+Implementation:
+- Windows 3.x DDI Output @8 now handles mandatory OS_SCANLINES (4) and
+  OS_POLYLINE (18), in addition to the existing rectangle (6).
+- Scanlines use the documented POINT protocol: POINT[0].y is common Y,
+  subsequent POINTs contain pairs of [left,right) X endpoints. GDI's
+  brush takes precedence; absent a brush, the physical pen is used.
+  Supports ROP2 1..16, transparent/opaque hatched brushes, clipping.
+  All intervals preflight before first write.
+- Polylines draw consecutive segments with exclusive ending endpoints;
+  shared Bresenham uses 32-bit displacement/error to avoid overflow on
+  16-bit Win16 compilers. Adjacent XOR segments touch joins once.
+- OS_BEGINNSCAN (80) / OS_ENDNSCAN (81) are accepted no-op hints for an
+  active screen device. Unsupported shapes return -1 for GDI simulation.
+- Shared renderer uses a single clipping and pixel-ROP dispatch, supporting
+  existing hardware pixel overrides including ET4000AX banked access.
+  No new Win31 exports; 13 ordinals remain unchanged.
+- Foreground/brush algorithms remain reusable with the planned WfW and 9x
+  adapters. Win16 far POINT and object marshalling stays in palddi.c.
+
+Tests and documentation:
+- New tests/test_win31_lines.c: all 16 ROP2s, exclusive endpoints,
+  reversed/steep/diagonal lines, XOR joins, hatch modes, invalid input,
+  clipping and signed-coordinate extremes.
+- Existing ET4000AX lifecycle test additionally verifies both primitives
+  through banked VRAM across the 65535/65536 boundary; checks invalid
+  device tokens and stopped-host refusal.
+- v0026 previously passed Win16 build on the maintainer's Open Watcom.
+  All v0027 host tests passed. Win16 v0027 compile/link must be checked.
+- README.md, HANDOFF.md, Windows 3.1 README and build status updated.
+  Source ZIP is incremental, uses UTC 0x5455 and Chicago DOS timestamps;
+  no binaries, stable production file names, tests under tests/exes/.
+
+Run:
+  make -f Makefile.win31link test
+  make -f Makefile.screen17 test
+  make -f Makefile.win31ddi test
+  sh windows/win31/build-palddi.sh
+  wdump -x tests/exes/PALSTAGE.DRV
+
+The v0027 driver is STILL NOT INSTALLABLE. Do not edit SYSTEM.INI.
+Enable(style=0) deliberately returns failure. GDI-required memory-bitmap
+rendering (including monochrome bitmaps), text/cursor services, actual Win16
+ET4000AX port/aperture/mode callbacks, enhanced-mode switching and verified
+PDEVICE lifecycle remain unresolved. Capability discovery is only a candidate.
+
+Original historical DDK:
+  https://dos-help.soulsphere.org/ddag31qh.hlp/Output.html
+  https://dos-help.soulsphere.org/ddag31qh.hlp/dispoutput.html
+  https://www.pcjs.org/documents/books/mspl13/win/w3ddkadp/
