@@ -2,6 +2,7 @@ option quiet
 system windows_dll
 file tests/exes/rgfx.obj
 file tests/exes/rg_hardware.obj
+file tests/exes/rg_palette.obj
 file tests/exes/rg_gdi_rop.obj
 file tests/exes/rg_gdi_blit.obj
 file tests/exes/rg_win31_screen.obj

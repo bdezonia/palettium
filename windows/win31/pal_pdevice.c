@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stddef.h>
 #include <string.h>
 #include "pal_pdevice.h"
@@ -26,7 +27,10 @@ int pal_pd_prepare(PAL_PDEVICE *pd, unsigned width, unsigned height,
 {
     if (!pd || !pal_pd_layout_ok() || !width || !height ||
         width > 32767u || height > 32767u ||
-        pitch < width || pitch > 65535u) return 0;
+        pitch < width) return 0;
+#if UINT_MAX > 65535U
+    if (pitch > 65535u) return 0;
+#endif
     /* The 8-bit framebuffer spans more than 64K; no near VRAM pointer. */
     memset(pd, 0, sizeof(*pd));
     pd->type = 1u;

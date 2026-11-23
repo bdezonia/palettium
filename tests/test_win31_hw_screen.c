@@ -12,6 +12,8 @@ typedef struct Mock {
     rg_u8 bytes[CAP];
     rg_u8 bank;
     unsigned changes, modes, restores, bad, palette;
+    rg_u8 dac[256][3];
+    unsigned dac_index, dac_channel;
 } Mock;
 
 static rg_u8 port_in(void *p, unsigned port)
@@ -24,7 +26,13 @@ static void port_out(void *p, unsigned port, rg_u8 val)
 {
     Mock *m=(Mock *)p;
     if (port==0x3CD) { m->bank=val; ++m->changes; }
-    else if (port==0x3C8 || port==0x3C9) ++m->palette;
+    else if (port==0x3C8) {
+        m->dac_index=val; m->dac_channel=0; ++m->palette;
+    } else if (port==0x3C9) {
+        if (m->dac_channel>=3) { ++m->bad; return; }
+        m->dac[m->dac_index][m->dac_channel++]=val;
+        ++m->palette;
+    }
     else ++m->bad;
 }
 static rg_u8 read_window(void *p, unsigned off)
@@ -57,7 +65,10 @@ int main(void)
     RG_Hardware hw;
     PAL_ScreenHost host;
     rg_offset a=65535UL, b=65536UL;
-    PAL_U32 physical = 0;
+    PAL_U32 physical = 0, logical = 0;
+    unsigned short map[256];
+    int found;
+    unsigned i;
     assert(m);
     memset(&io,0,sizeof(io));
     memset(&host,0,sizeof(host));
@@ -67,11 +78,26 @@ int main(void)
     et4k_setup(&et,io,CAP);
     et4k_make_hardware(&et,&hw);
     assert(!pal_screen_host_start(&host,&hw,640,480,0));
+    /* Palette is mandatory for a Win3.x 256-color screen, but remains
+       optional in the hardware API for other platform adapters. */
+    hw.set_palette=0;
+    assert(!pal_screen_host_start(&host,&hw,640,480,TOKEN));
+    et4k_make_hardware(&et,&hw);
     assert(!pal_screen_host_start(&host,&hw,800,600,TOKEN));
     assert(m->restores==1);
     assert(pal_screen_host_start(&host,&hw,640,480,TOKEN));
     assert(!pal_screen_host_start(&host,&hw,640,480,TOKEN));
     assert(host.pdevice.state==PAL_PD_ACTIVE);
+    assert(m->palette==80); /* exact 20 static DAC entries * 4 port writes */
+    assert(m->dac[0][0]==0 && m->dac[0][1]==0 && m->dac[0][2]==0);
+    assert(m->dac[9][0]==41 && m->dac[9][1]==50 && m->dac[9][2]==60);
+    assert(m->dac[246][0]==63 && m->dac[246][1]==62 && m->dac[246][2]==60);
+    assert(m->dac[255][0]==63 && m->dac[255][1]==63 && m->dac[255][2]==63);
+    assert(pal_screen_host_colorinfo(&host,TOKEN,0xFF00000CUL,1,&logical,&physical));
+    assert(logical==0xFF00000CUL && physical==12UL);
+    assert(pal_screen_host_colorinfo(&host,TOKEN,255,0,&logical,&physical));
+    assert(logical==0x00FFFFFFUL);
+    assert(!pal_screen_host_colorinfo(&host,TOKEN+1,255,0,&logical,&physical));
     rg_write_byte(&host.device,a,0x12);
     rg_write_byte(&host.device,b,0x34);
     assert(rg_read_byte(&host.device,a)==0x12);
@@ -89,21 +115,48 @@ int main(void)
     assert(rg_read_byte(&host.device,35UL*640UL+30)==0x71);
     assert(!pal_screen_host_bitblt(&host,TOKEN+1,0,0,TOKEN,0,0,
                                    10,10,0x00CC0020UL));
-    assert(pal_screen_host_palette(&host,9,255,128,0));
-    assert(m->palette==4);
+    assert(!pal_screen_host_palette(&host,9,255,128,0));
+    assert(pal_screen_host_palette(&host,12,255,128,0));
+    assert(m->palette==84);
+    assert(m->dac[12][0]==63 && m->dac[12][1]==32 && m->dac[12][2]==0);
+    assert(host.palette.entries[12].red==255 && host.palette.entries[12].green==128);
+    for (i=0; i<256u; ++i) map[i]=(unsigned short)i;
+    /* physical color remapping and ScanLR must cross the 64K bank. */
+    assert(pal_screen_host_pixel(&host,TOKEN,254,102,6,13,&physical));
+    assert(pal_screen_host_pixel(&host,TOKEN,256,102,7,13,&physical));
+    assert(pal_screen_host_pixel(&host,TOKEN,260,102,8,13,&physical));
+    assert(pal_screen_host_scanlr(&host,TOKEN,250,102,7,1,&found) && found==256);
+    assert(pal_screen_host_scanlr(&host,TOKEN,260,102,8,3,&found) && found==260);
+    assert(pal_screen_host_scanlr(&host,TOKEN,256,102,7,0,&found) && found==257);
+    assert(pal_screen_host_scanlr(&host,TOKEN,639,102,8,1,&found) && found==-1);
+    assert(!pal_screen_host_scanlr(&host,TOKEN,640,102,8,1,&found));
+    assert(!pal_screen_host_scanlr(&host,TOKEN+1,256,102,7,1,&found));
+    assert(!pal_screen_host_scanlr(&host,TOKEN,256,102,7,4,&found));
+    assert(!pal_screen_host_scanlr(&host,TOKEN,256,102,256,1,&found));
+    map[6]=106; map[7]=107; map[8]=108;
+    assert(pal_screen_host_update_colors(&host,250,102,20,1,map));
+    assert(pal_screen_host_pixel(&host,TOKEN,254,102,0,0,&physical) && physical==106);
+    assert(pal_screen_host_pixel(&host,TOKEN,256,102,0,0,&physical) && physical==107);
+    assert(pal_screen_host_pixel(&host,TOKEN,260,102,0,0,&physical) && physical==108);
+    map[255]=256;
+    assert(!pal_screen_host_update_colors(&host,250,102,20,1,map));
+    assert(!pal_screen_host_update_colors(&host,635,102,20,1,map));
     assert(m->changes>3 && m->bad==0);
     pal_screen_host_stop(&host);
     assert(m->restores==2);
     assert(!pal_screen_host_bitblt(&host,TOKEN,0,0,TOKEN,0,0,
                                    5,5,0x00CC0020UL));
-    assert(!pal_screen_host_palette(&host,2,0,0,0));
+    assert(!pal_screen_host_palette(&host,12,0,0,0));
+    assert(!pal_screen_host_colorinfo(&host,TOKEN,0,0,&logical,&physical));
     assert(!pal_screen_host_pixel(&host,TOKEN,0,0,0,0,&physical));
     pal_screen_host_stop(&host);
     assert(m->restores==2);
     assert(pal_screen_host_start(&host,&hw,640,480,TOKEN));
+    assert(m->palette==164);
+    assert(host.palette.entries[12].red==0); /* reset on restart */
     pal_screen_host_stop(&host);
     assert(m->restores==3);
     free(m);
-    puts("PASS: Win31 lifecycle -> ET4000 backend -> banked VRAM -> GDI BitBlt");
+    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, 20 static colors, UpdateColors");
     return 0;
 }

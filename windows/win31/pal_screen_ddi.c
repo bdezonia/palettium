@@ -88,3 +88,36 @@ int pal_screen_ddi_pixel(PAL_ScreenDDI *bridge, PAL_U32 device_token,
     *result = 1UL;
     return 1;
 }
+
+int pal_screen_ddi_scanlr(PAL_ScreenDDI *bridge, PAL_U32 token,
+                          int x, int y, PAL_U32 physical_color,
+                          unsigned style, int *found)
+{
+    RG_Device *dev;
+    rg_pixel value;
+    int at, step, match;
+    if (!bridge || !bridge->installed || !bridge->pdevice ||
+        !bridge->screen.active || !bridge->screen.device ||
+        !bridge->screen_token || token != bridge->screen_token ||
+        !pal_pd_valid(bridge->pdevice) ||
+        bridge->pdevice->state != PAL_PD_ACTIVE ||
+        bridge->pdevice->width != bridge->screen.width ||
+        bridge->pdevice->height != bridge->screen.height ||
+        bridge->pdevice->pitch != bridge->screen.pitch ||
+        !found || physical_color > 255UL || style > 3u ||
+        x < 0 || y < 0 || (unsigned)x >= bridge->screen.width ||
+        (unsigned)y >= bridge->screen.height) return 0;
+    dev = bridge->screen.device;
+    if (dev->surface.format != RG_FMT_INDEX8 ||
+        dev->surface.width != bridge->screen.width ||
+        dev->surface.height != bridge->screen.height ||
+        dev->surface.stride != bridge->screen.pitch) return 0;
+    step = (style & 2u) ? -1 : 1;
+    match = !!(style & 1u);
+    for (at=x; at>=0 && (unsigned)at<bridge->screen.width; at+=step) {
+        if (!rg_get_pixel(dev, at, y, &value)) return 0;
+        if ((value == physical_color) == match) { *found=at; return 1; }
+    }
+    *found = -1;
+    return 1;
+}

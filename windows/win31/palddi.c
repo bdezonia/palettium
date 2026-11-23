@@ -2,9 +2,24 @@
  * Compiled as a Win16 object only. NOT AN INSTALLABLE DISPLAY DRIVER.
  * No ET4000-specific code. Enable deliberately fails until ready.
  */
+/* SDK names sometimes overlap Win16 display-DDI exports. */
 #define BitBlt PalWinApiBitBlt
+#define ColorInfo PalWinApiColorInfo
+#define ScanLR PalWinApiScanLR
+#define SetPalette PalWinApiSetPalette
+#define GetPalette PalWinApiGetPalette
+#define SetPalTrans PalWinApiSetPalTrans
+#define GetPalTrans PalWinApiGetPalTrans
+#define UpdateColors PalWinApiUpdateColors
 #include <windows.h>
 #undef BitBlt
+#undef ColorInfo
+#undef ScanLR
+#undef SetPalette
+#undef GetPalette
+#undef SetPalTrans
+#undef GetPalTrans
+#undef UpdateColors
 #include <dos.h>
 #include "pal_ddl_blit.h"
 #include "pal_enable.h"
@@ -97,4 +112,125 @@ void FAR PASCAL Disable(LPVOID physical_device)
 {
     (void)physical_device;
     pal_active_host = 0;
+}
+
+/* ColorInfo @2: GDI passes a logical COLORREF (0x00BBGGRR) or an
+ * explicit 0xFF00iiii palette index. Physical color is the framebuffer
+ * index, NOT a DAC RGB value. Avoid dereferencing foreign PDEVICEs.
+ */
+DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
+{
+    PAL_U32 logical, index;
+    PAL_U32 token;
+    if (!pal_active_host || !device) return 0;
+    token = pal_ddi_far_token((PAL_U16)FP_SEG(device),
+                              (PAL_U16)FP_OFF(device));
+    if (!pal_screen_host_colorinfo(pal_active_host, token, (PAL_U32)color,
+                                   physical != 0, &logical, &index)) return 0;
+    if (physical) *(DWORD FAR *)physical = (DWORD)index;
+    return (DWORD)logical;
+}
+
+/* ScanLR @12, flood-fill horizontal search. Signed -1 means not found;
+ * 0x8000 means invalid device, coordinates, or unsupported bitmap.
+ */
+WORD FAR PASCAL ScanLR(LPVOID device, short x, short y,
+                       DWORD physical, WORD style)
+{
+    int found;
+    PAL_U32 token;
+    if (!pal_active_host || !device) return 0x8000u;
+    token = pal_ddi_far_token((PAL_U16)FP_SEG(device),
+                              (PAL_U16)FP_OFF(device));
+    if (!pal_screen_host_scanlr(pal_active_host, token, x, y,
+                                (PAL_U32)physical, style, &found))
+        return 0x8000u;
+    return (WORD)found;
+}
+
+/* Win3.x palette DDIs have no PDEVICE argument; they are valid only
+ * after the screen host has completed hardware and PDEVICE startup.
+ * Keep Win16 far-memory copying here; core palette owns color policy.
+ */
+void FAR PASCAL SetPalette(short start, short count, LPVOID palette)
+{
+    const unsigned char FAR *src = (const unsigned char FAR *)palette;
+    PAL_ScreenHost *host = pal_active_host;
+    RG_Color current;
+    unsigned i, idx, off;
+    if (!host || !host->running || !src || start < 0 || count < 0 ||
+        (unsigned)start > 256u ||
+        (unsigned)count > 256u-(unsigned)start) return;
+    /* Validate the entire transaction before any hardware write. */
+    for (i=0; i<(unsigned)count; ++i) {
+        idx = (unsigned)start+i;
+        if (!rg_palette_is_static(idx)) continue;
+        off = 4u*i;
+        if (!rg_palette_get_entry(&host->palette, idx, &current) ||
+            current.red != src[off] ||
+            current.green != src[off+1u] ||
+            current.blue != src[off+2u]) return;
+    }
+    for (i=0; i<(unsigned)count; ++i) {
+        idx = (unsigned)start+i;
+        if (rg_palette_is_static(idx)) continue;
+        off = 4u*i;
+        (void)pal_screen_host_palette(host, idx,
+                src[off], src[off+1u], src[off+2u]);
+    }
+}
+
+void FAR PASCAL GetPalette(short start, short count, LPVOID palette)
+{
+    unsigned char FAR *dst = (unsigned char FAR *)palette;
+    RG_Color color;
+    unsigned i, off;
+    if (!pal_active_host || !pal_active_host->running || !dst ||
+        start < 0 || count < 0 || (unsigned)start > 256u ||
+        (unsigned)count > 256u-(unsigned)start) return;
+    for (i=0; i<(unsigned)count; ++i) {
+        if (!rg_palette_get_entry(&pal_active_host->palette,
+                                   (unsigned)start+i, &color)) return;
+        off = 4u*i;
+        dst[off] = color.red;
+        dst[off+1u] = color.green;
+        dst[off+2u] = color.blue;
+        dst[off+3u] = 0;
+    }
+}
+
+void FAR PASCAL SetPalTrans(LPVOID translation)
+{
+    const WORD FAR *src = (const WORD FAR *)translation;
+    unsigned short table[256];
+    unsigned i;
+    if (!pal_active_host || !pal_active_host->running) return;
+    if (src) for (i=0; i<256u; ++i) table[i] = src[i];
+    (void)rg_palette_set_translation(&pal_active_host->palette,
+                                      src ? table : 0);
+}
+
+void FAR PASCAL GetPalTrans(LPVOID translation)
+{
+    WORD FAR *dst = (WORD FAR *)translation;
+    unsigned i;
+    if (!pal_active_host || !pal_active_host->running || !dst) return;
+    for (i=0; i<256u; ++i)
+        dst[i] = (WORD)pal_active_host->palette.logical_to_physical[i];
+}
+
+/* UpdateColors @26: x/y/extents, followed by a 256-WORD physical-index
+ * translation table. Bounds and all 256 values are validated by core
+ * BEFORE the first pixel is touched.
+ */
+void FAR PASCAL UpdateColors(WORD x, WORD y, WORD width, WORD height,
+                             LPVOID translation)
+{
+    const WORD FAR *src = (const WORD FAR *)translation;
+    unsigned short table[256];
+    unsigned i;
+    if (!pal_active_host || !pal_active_host->running || !src) return;
+    for (i=0; i<256u; ++i) table[i] = src[i];
+    (void)pal_screen_host_update_colors(pal_active_host, x, y,
+                                        width, height, table);
 }

@@ -11,10 +11,17 @@ spec.loader.exec_module(module)
 sample = """LIBRARY PALSTAGE
 EXPORTS
  BITBLT @1
+ COLORINFO @2
  DISABLE @4
  ENABLE @5
  OUTPUT @8
  PIXEL @9
+ SCANLR @12
+ SETPALETTE @22
+ GETPALETTE @23
+ SETPALTRANS @24
+ GETPALTRANS @25
+ UPDATECOLORS @26
 """
 assert module.parse_exports(sample) == module.EXPECTED
 assert module.parse_exports("ENABLE @1\nDISABLE @2\n") != module.EXPECTED

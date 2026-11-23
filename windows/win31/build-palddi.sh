@@ -10,6 +10,7 @@ mkdir -p tests/exes
 
 SOURCES='common/rgfx.c
 common/rg_hardware.c
+common/rg_palette.c
 common/rg_gdi_rop.c
 common/rg_gdi_blit.c
 common/rg_win31_screen.c
@@ -46,10 +47,17 @@ done
 # These ordinals follow the documented Win16 display DDI.
 cat >> "$LINKFILE" <<'EOF_EXPORTS'
 export BitBlt.1
+export ColorInfo.2
 export Disable.4
 export Enable.5
 export Output.8
 export Pixel.9
+export ScanLR.12
+export SetPalette.22
+export GetPalette.23
+export SetPalTrans.24
+export GetPalTrans.25
+export UpdateColors.26
 EOF_EXPORTS
 
 # Fail early if an edit duplicates the executable-format selection.
@@ -63,4 +71,4 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
 python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
 printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; palette, objects, text and other DDI services missing.'
+    'NOT INSTALLABLE: Enable(style=0) still fails; objects, text, bitmap, cursor and mode initialization remain missing.'

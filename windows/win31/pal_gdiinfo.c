@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stddef.h>
 #include <string.h>
 #include "pal_gdiinfo.h"
@@ -25,7 +26,10 @@ int pal_win31_make_candidate(PAL_GDIINFO *info,
 {
     if (!info || !pal_win31_layout_ok()) return 0;
     if (!width || !height || width > 32767u || height > 32767u ||
-        !pdevice_bytes || pdevice_bytes > 65535u) return 0;
+        !pdevice_bytes) return 0;
+#if UINT_MAX > 65535U
+    if (pdevice_bytes > 65535u) return 0;
+#endif
     memset(info, 0, sizeof(*info));
     info->dpVersion = PAL_WIN31_GDI_VERSION;
     info->dpTechnology = 1; /* DT_RASDISPLAY */

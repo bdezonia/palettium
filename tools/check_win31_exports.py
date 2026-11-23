@@ -6,8 +6,10 @@ Input must be `wdump -x file.DRV` text. No binary modification occurs.
 import re
 import sys
 
-EXPECTED = {"BITBLT": 1, "DISABLE": 4, "ENABLE": 5,
-            "OUTPUT": 8, "PIXEL": 9}
+EXPECTED = {"BITBLT": 1, "COLORINFO": 2, "DISABLE": 4,
+            "ENABLE": 5, "OUTPUT": 8, "PIXEL": 9, "SCANLR": 12,
+            "SETPALETTE": 22, "GETPALETTE": 23, "SETPALTRANS": 24,
+            "GETPALTRANS": 25, "UPDATECOLORS": 26}
 
 
 def parse_exports(output):
@@ -34,7 +36,8 @@ def main():
                 for name, ord_ in EXPECTED.items() if found.get(name) != ord_]
     if failures:
         raise SystemExit("FAIL: " + "; ".join(failures))
-    print("PASS: DDI export ordinals: BitBlt @1, Disable @4, Enable @5, Output @8, Pixel @9")
+    print("PASS: 12 Win31 display-DDI exports including ColorInfo @2, "
+          "ScanLR @12, palette @22..26")
 
 
 if __name__ == "__main__":

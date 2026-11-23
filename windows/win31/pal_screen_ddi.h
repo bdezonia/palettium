@@ -25,6 +25,13 @@ void pal_screen_ddi_detach(PAL_ScreenDDI *bridge);
  * No unrelated PDEVICE or memory BITMAP can access screen VRAM.
  * On failure the output argument is unchanged and no pixel is modified.
  */
+/* ScanLR (Win3.x @12) uses the same physical-index identity as Pixel.
+ * found=-1 is a valid search result. Returns zero on invalid parameters.
+ */
+int pal_screen_ddi_scanlr(PAL_ScreenDDI *bridge, PAL_U32 device_token,
+                          int x, int y, PAL_U32 physical_color,
+                          unsigned style, int *found);
+
 int pal_screen_ddi_pixel(PAL_ScreenDDI *bridge, PAL_U32 device_token,
                          int x, int y, PAL_U32 physical_color,
                          unsigned rop2, PAL_U32 *result);

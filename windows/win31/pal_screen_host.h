@@ -5,12 +5,14 @@
  * This is NOT an installable Windows display driver. */
 #include "pal_screen_ddi.h"
 #include "rg_hardware.h"
+#include "rg_palette.h"
 
 typedef struct PAL_ScreenHost {
     PAL_PDEVICE pdevice;
     RG_Device device;
     RG_HwBinding binding;
     PAL_ScreenDDI ddi;
+    RG_Palette palette;
     unsigned running;
 } PAL_ScreenHost;
 
@@ -29,4 +31,14 @@ int pal_screen_host_pixel(PAL_ScreenHost *host, PAL_U32 token,
                           unsigned rop2, PAL_U32 *result);
 int pal_screen_host_palette(PAL_ScreenHost *host, unsigned index,
                             rg_u8 red, rg_u8 green, rg_u8 blue);
+int pal_screen_host_colorinfo(PAL_ScreenHost *host, PAL_U32 token,
+                               PAL_U32 input, int forward,
+                               PAL_U32 *logical, PAL_U32 *physical);
+int pal_screen_host_update_colors(PAL_ScreenHost *host,
+                                  unsigned x, unsigned y,
+                                  unsigned width, unsigned height,
+                                  const unsigned short *table);
+int pal_screen_host_scanlr(PAL_ScreenHost *host, PAL_U32 token,
+                           int x, int y, PAL_U32 physical,
+                           unsigned style, int *found);
 #endif

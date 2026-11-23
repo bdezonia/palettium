@@ -1,95 +1,121 @@
-# Palettium v0.2 — vintage Windows graphics-driver framework
+# Palettium
 
-Shared software drawing primitives and a hardware-access interface for eventual
-Windows 3.1, Windows for Workgroups 3.11, Windows 95 and Windows 98 drivers.
+A **C89 graphics-driver framework for legacy Windows**, designed to keep
+pixel rendering and video-card backends reusable across four operating-system
+adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
+Windows 98**.
 
-## Build and test (Linux)
+Current development milestone: **v0025** (incremental tags are fixed-width).
+The immediate objective is the **first working Windows 3.1 ET4000AX display
+driver**. Palettium is *not* yet an installable driver package.
 
-```sh
-make test
-```
+## What works today
 
-Expected results:
-
-```
-PASS: raster demo created raster-demo.ppm; mock override called 3 times
-PASS: banked 640x480 agrees with linear framebuffer; bank switches=11
-```
-
-The switch count is specific to this simulated workload. `raster-demo.ppm` is
-an indexed-color visualization with a demo-only color mapping.
+- Shared software pixel/line/fill/BitBlt operations, with optional
+  per-operation `RG_Ops` hardware overrides. Ten framebuffer formats are
+  supported, from indexed 1/2/4/8/16 through RGB555/565/888 and 32-bit
+  XRGB/ARGB storage. Framebuffer offsets are 32-bit or larger.
+- Byte-callback framebuffers with bank-switching, host simulation, and an
+  **ET4000AX backend** (`hardware/tseng/et4000ax/`) supporting native
+  **640×480×8** mode, independent 64 KiB read/write banks and a 6-bit DAC.
+  Video-mode selection and actual port/aperture I/O come from the platform
+  callbacks; no VESA requirement is baked into the hardware backend.
+- The ET4000AX DOS demo was previously run on **86Box** (display and VRAM
+  readback passed). Earlier PALCORE/PALTEST Win16 graphics tests also passed
+  in Windows 3.1. These are *not* proof of a working display driver.
+- A linked Open Watcom NE staging module `PALSTAGE.DRV` with Windows 3.x DDI
+  exports. v0024 exports for BitBlt, Enable, Disable, Output and Pixel passed
+  an Open Watcom build and `wdump` verification on the maintainer's machine.
+- **New in v0025:** common INDEX8 system-palette state and logical/physical
+  translation, 20 reserved Windows colors, `ColorInfo`, `ScanLR`, the five
+  palette operations (Set/GetPalette, Set/GetPalTrans, UpdateColors), and
+  ET4000AX-backed palette and scan/remap tests. v0025 Win16 linking is not
+  yet verified on the maintainer's Open Watcom installation.
 
 ## Architecture
 
-`include/rgfx.h` declares an 8-bit indexed framebuffer graphics API.
-`rg_init()` supports host-addressable linear memory (the v0.1 API).
-`rg_init_vram()` supports a framebuffer whose pixels are read/written through
-byte callbacks; offsets use `unsigned long` so they are 32-bit even on 16-bit C.
-The common raster routines use `rg_write_byte()` rather than indexing VRAM.
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| Shared raster | `include/rgfx.h`, `common/rgfx.c` | Software fallbacks, raw pixels, callbacks, overrides |
+| GDI helpers | `common/rg_gdi_*.c`, `common/rg_win31_screen.c` | ROP and screen blit translation |
+| Color management | `include/rg_palette.h`, `common/rg_palette.c` | INDEX8 RGB table, static colors, translation, remap |
+| Hardware contract | `include/rg_hardware.h`, `common/rg_hardware.c` | Mode, lifecycle, palette and optional acceleration |
+| Hardware backend | `hardware/tseng/et4000ax/` | ET4000AX bank/DAC operations, no Windows ABI |
+| Win3.x adapter | `windows/win31/` | DDI ABI, GDIINFO, PDEVICE, far pointers, screen host |
+| Additional OS adapters | `windows/wfw311/`, `windows/win95/`, `windows/win98/` | Planned, currently placeholders |
 
-`hardware/sim_bank/` is a **test double**, not a Tseng/VESA implementation:
-it models a 64-KiB CPU aperture with 64-KiB bank granularity. It gives us a
-repeatable bank-switching test independent of any emulator or physical card.
+The intention is for a **small card-specific backend** to combine with shared
+software drawing and *four thin OS adapters*, rather than duplicating the
+renderer for each chipset or Windows release. The Windows 95/98 interfaces and
+packaging still require substantial development; Windows 3.1 and WfW 3.11
+cannot be assumed binary-identical without testing.
 
-`RG_Device.ops` keeps the per-operation override design: replace just those
-operations the card accelerates; call explicit `rg_software_*` functions for
-fallback. Backend initialization and OS adapters remain future work.
+## Build and test (Linux)
 
-## Limitations / next work
+For the shared C89 renderer and existing regression suite:
 
-- **Not yet an installable Windows driver**; `windows/` contains placeholders.
-- The Linux simulator does not model hardware I/O ports, separate read/write
-  banks, overlapping bank windows, or hardware timing.
-- Software line drawing still expects reasonably bounded coordinates; implement
-  robust pre-clipping before passing untrusted GDI coordinates to it.
-- Per-byte callback access is correct but not fast. A banked span/window
-  interface should come before performance work on large rectangles and BitBlts.
-- Some 16-bit compilers have data-pointer and far-memory limitations. The direct
-  `pixels` path is for framebuffers addressable by the chosen memory model;
-  a 16-bit Windows backend should normally use callbacks (and far access where
-  necessary). No Open Watcom legacy-target compile has been claimed yet.
-- No BitBlt, palette programming, VESA mode setting, or chipset support yet.
+```sh
+make clean && make test
+```
 
-## Repository notes
+For the current Windows 3.1 and ET4000AX integration tests:
 
-The archive intentionally excludes compiled executables and generated PPMs.
-Use `make clean` to remove local build outputs.
+```sh
+make -f Makefile.win31link test
+make -f Makefile.screen17 test
+make -f Makefile.win31ddi test
+make -f Makefile.enable22 test
+make -f Makefile.et4k test
+```
 
-## Palettium v0.3: 8-bit BitBlt and Boolean raster operations
+Tests compile with a host C89 compiler; generated executables and artifacts go
+under **`tests/exes/`** (ignored by Git). The Windows-target-specific ABI is
+also checked with host layout tests; these tests **do not simulate a complete
+Windows 3.1 GDI startup**.
 
-`RG_Device.ops.blit(dst, src, dx, dy, sx, sy, width, height, rop)`
-copies a rectangle from `src` to `dst`. Coordinates are signed; clipping
-preserves source/destination alignment. Source and destination may be the
-same device, including banked VRAM. For overlapping copies the software
-implementation reads pixels in a safe traversal order.
+For a Windows 3.1 NE staging binary, configure Open Watcom's Win16 tools
+(`wcc`, `wlink`, `wdump`) and run from the repository root:
 
-All 16 two-input bitwise Boolean ROPs are supported. The ROP is a
-four-bit truth table whose bit index is `(source_bit << 1) | dest_bit`:
-`RG_ROP_COPY=0xC`, `RG_ROP_XOR=0x6`, `RG_ROP_AND=0x8`,
-`RG_ROP_OR=0xE`, `RG_ROP_CLEAR=0x0`, `RG_ROP_SET=0xF`.
-These are **Palettium internal ROP codes**, not Win16 GDI ROP encodings
-or Win32 ROP3 constants; the OS adapters must translate explicitly.
+```sh
+sh windows/win31/build-palddi.sh
+wdump -x tests/exes/PALSTAGE.DRV
+```
 
-Run `make test` to exercise all earlier tests plus 346 deterministic BitBlt
-cases against an independent snapshot-based reference. Included tests cover
-all 16 ROPs, overlaps, negative-coordinate clipping, cross-device transfers,
-and 64 KiB simulated bank boundaries.
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0025 expects
+12 documented exports, including `COLORINFO @2`, `SCANLR @12`, and palette
+DDIs `@22..26`. The build script checks the ordinals. Run it on the actual
+Open Watcom installation before treating v0025 as Win16-validated.
 
-### Current limitations / next steps
+When applying an incremental patch downloaded through your browser:
 
-- Pixel-by-pixel VRAM callbacks are a correctness baseline, **not** an
-  efficient banked copy engine. Introduce run/span access before optimizing.
-- The simulator exposes one read/write bank at a time; real cards may have
-  separate read and write windows and different bank granularities.
-- The software line routine expects bounded coordinates; no general line
-  clipper is implemented yet.
-- 16-bit compilation and Windows GDI entry points are **not yet tested**.
-- No Windows driver binaries are included at this stage.
+```sh
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal25.zip
+```
 
-## v0.4 — Win16 integration preparation
+The archive contains **repository-relative paths** (no enclosing directory).
+Apply it over a **v0024** tree. Source ZIPs carry exact UTC timestamps in the
+extended ZIP field and the local DOS ZIP header timestamp for America/Chicago.
 
-`windows/win31/` includes the Open Watcom Win16 DLL ABI probe, not yet a
-Windows display driver. It prepares the toolchain without misrepresenting the
-complex Windows 3.1 DDK contract. Run `make test` for the extra Win16 memory
-geometry guard. The actual toolchain probe is built with
-`windows/win31/build-win16.sh` once `wcc` and `wlink` are installed.
+## Important: NOT INSTALLABLE
+
+**Do not copy `PALSTAGE.DRV` into Windows' display-driver configuration or
+change `SYSTEM.INI` to select it.** The `Enable(style=0)` screen initialization
+path deliberately fails. Although v0025 provides useful color/palette logic,
+it does **not** yet support the required realized pens/brushes, bitmap and text
+operations, cursor management, full GDI simulation contract, or a proven
+Win16 mode-setting and screen-switch path. `Enable(style=1)` currently returns
+only a *candidate* GDIINFO; it intentionally does **not** advertise RC_PALETTE
+until the rest of the palette-capable display DDI is integrated and validated.
+
+### Next engineering priorities
+
+Complete a verified Windows 3.1 `RealizeObject` and bitmap/text fallback path;
+connect Win16 ET4000AX mode set, VRAM aperture and lifecycle to a real
+GDI-owned PDEVICE; then implement the remaining required services and test
+startup in a recoverable 86Box Windows 3.1 environment (standard and 386
+Enhanced Mode). Keep port access OS-specific and share code with WfW/9x
+where their driver contracts allow.
+
+Check `HANDOFF.md` and `PATCH-v0025.txt` for precise checkpoint status and
+remaining test gaps. Earlier `docs/` and patch notes document the milestones.
