@@ -8,6 +8,7 @@
 /raster-test
 /raster-demo.ppm
 /win16-guard
+/win31-screen-test
 *.o
 *.O
 *.obj

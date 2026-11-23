@@ -1,0 +1,13 @@
+Palettium v0015 — additive patch
+
+New: include/rg_win31_screen.h
+     common/rg_win31_screen.c
+     tests/test_win31_screen.c
+     Makefile.win31blit
+     windows/win31/palddi15.c
+     windows/win31/build-palddi15.sh
+     docs/v0015-win31-bridge.md
+
+No existing source files are replaced.
+NOT AN INSTALLABLE DISPLAY DRIVER.
+Every ZIP entry timestamp deliberately fixed to 2025-01-01 12:00:00.
