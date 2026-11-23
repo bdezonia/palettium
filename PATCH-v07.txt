@@ -1,0 +1,7 @@
+PALETTIUM v0.7 incremental Win16 core integration gate
+ADD: windows/win31/palcore.c
+ADD: windows/win31/build-palcore.sh
+ADD: docs/v07-win16.md
+No original files changed; no overwrite of Makefile, existing probe, or ET4000 backend.
+Run: sh windows/win31/build-palcore.sh
+This is NOT a GDI driver and must NOT be installed as SYSTEM.DRV or display.drv.

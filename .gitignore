@@ -9,4 +9,7 @@
 *.drv
 *.vxd
 *.zip
-PALPROBE.*
+*.DLL
+*.EXE
+*.MAP
+*.OBJ
