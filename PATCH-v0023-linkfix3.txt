@@ -1,0 +1,21 @@
+Palettium v0023 - linker recipe check correction (third fix)
+
+Problem: the previous build rejected WCL-generated linker recipes unless they
+contained exactly one line beginning with SYSTEM. This was an unsupported
+assumption: WCL had already linked successfully before that test was run.
+
+Change: remove the restrictive SYSTEM-line count; append only the exported
+Win16 DDI names/ordinals to WCL's saved recipe, then run WLINK on that recipe.
+The final wdump export-table validation remains mandatory.
+
+Only windows/win31/build-palddi.sh is replaced; no C source changes.
+
+From repository root:
+    unzip -o ~/Downloads/pal23fix3.zip
+    sh windows/win31/build-palddi.sh
+
+PALSTAGE.DRV remains non-installable. Do not alter Windows SYSTEM.INI.
+
+If linking still fails, share the first 40 lines of
+    tests/exes/PALSTAGE.generated.lnk
+and WLINK's error output.

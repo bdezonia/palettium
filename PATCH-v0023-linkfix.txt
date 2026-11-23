@@ -1,0 +1,12 @@
+Palettium v0023 linker-export correction
+
+Changed: windows/win31/build-palddi.sh
+No C files changed.
+
+Cause: WCL -fd=PATH saves generated directives rather than reading PATH.
+Fix: Pass @windows/win31/palddi.lnk to WCL to include the export directives.
+
+Apply: unzip -o ~/Downloads/pal23fix.zip
+Test: sh windows/win31/build-palddi.sh
+Expected: BitBlt @1, Disable @4, Enable @5.
+NOT INSTALLABLE: Enable style 0 is still disabled.

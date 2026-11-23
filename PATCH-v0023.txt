@@ -1,0 +1,12 @@
+Palettium v0023 — integrated Win16 staging link
+
+NEW: windows/win31/pal_driver_entry.c
+NEW: windows/win31/palddi.lnk
+UPDATED: windows/win31/build-palddi.sh
+NEW: tools/check_win31_exports.py
+NEW: tests/test_win31_exportcheck.py
+NEW: Makefile.win31link
+NEW: docs/v0023-linked-staging.md
+
+No existing graphics/hardware sources are modified.
+Do NOT install PALSTAGE.DRV as a Windows display driver.

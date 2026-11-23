@@ -1,0 +1,8 @@
+Palettium v0023 linker fix 4
+
+The old build ran wcl to generate an entire linker recipe and then relinked it, sometimes with duplicated SYSTEM blocks. This patch replaces that process with a single explicit wlink recipe, containing one SYSTEM windows_dll, all objects, and export ordinals @1, @4, @5. No C files are modified.
+
+Apply: unzip -o pal23fix4.zip
+Build: sh windows/win31/build-palddi.sh
+
+Do NOT install PALSTAGE.DRV as a Windows display driver.

@@ -1,0 +1,10 @@
+.PHONY: test win16 clean
+
+test:
+	python3 tests/test_win31_exportcheck.py
+
+win16:
+	sh windows/win31/build-palddi.sh
+
+clean:
+	rm -f tests/exes/PALSTAGE.DRV tests/exes/PALSTAGE.exports.txt

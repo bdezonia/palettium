@@ -1,0 +1,20 @@
+Palettium v0023 link fix #2
+
+Cause: passing @palddi.lnk to wcl after selecting -l=windows_dll
+results in a second SYSTEM selection (E3057). The older -fd=palddi.lnk
+was also incorrect: -fd saves/generated a link recipe, it does not
+read an existing one.
+
+This patch changes only windows/win31/build-palddi.sh.
+The build now:
+  1. Builds all Win16 object files as before.
+  2. Uses WCL -fd to save the complete correct Win16 link recipe.
+  3. Appends palddi.lnk containing only module/export directives.
+  4. Checks that the recipe has exactly one SYSTEM directive.
+  5. Invokes WLINK against that recipe and validates the export table.
+
+All intermediate outputs stay under tests/exes/.
+The module is a non-installable staging driver; don't install it.
+
+Run: sh windows/win31/build-palddi.sh
+Open Watcom integration must still be tested on your Linux machine.

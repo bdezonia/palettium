@@ -1,0 +1,16 @@
+option quiet
+system windows_dll
+file tests/exes/rgfx.obj
+file tests/exes/rg_hardware.obj
+file tests/exes/rg_gdi_rop.obj
+file tests/exes/rg_gdi_blit.obj
+file tests/exes/rg_win31_screen.obj
+file tests/exes/pal_gdiinfo.obj
+file tests/exes/pal_pdevice.obj
+file tests/exes/pal_enable.obj
+file tests/exes/pal_screen_ddi.obj
+file tests/exes/pal_screen_host.obj
+file tests/exes/pal_ddl_blit.obj
+file tests/exes/palddi.obj
+file tests/exes/pal_driver_entry.obj
+name tests/exes/PALSTAGE.DRV
