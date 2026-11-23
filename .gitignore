@@ -2,6 +2,7 @@
 /bitmap-test
 /blit-gdi-test
 /blit-test
+/ddi16-test
 /gdi-rop-test
 /gdiinfo-test
 /pdevice-test

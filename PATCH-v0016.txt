@@ -1,0 +1,14 @@
+Palettium v0016 - additive Win3.x DDI screen router
+
+New files only:
+  windows/win31/pal_screen_ddi.h
+  windows/win31/pal_screen_ddi.c
+  tests/test_win31_ddi_bridge.c
+  Makefile.ddi16
+  docs/v0016-ddi-routing.md
+
+Install: unzip pal16.zip in existing repository root.
+Test: make -f Makefile.ddi16 test
+NOT AN INSTALLABLE WINDOWS DISPLAY DRIVER.
+No changes to any existing source, hardware driver, or Makefile.
+  tools/pack_utc.py - reusable UTC ZIP packager with extended timestamps
