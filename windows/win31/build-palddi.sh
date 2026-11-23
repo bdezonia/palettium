@@ -16,6 +16,7 @@ common/rg_gdi_output.c
 common/rg_gdi_rop.c
 common/rg_gdi_blit.c
 common/rg_win31_screen.c
+hardware/tseng/et4000ax/et4k.c
 windows/win31/pal_gdiinfo.c
 windows/win31/pal_pdevice.c
 windows/win31/pal_objects.c
@@ -45,7 +46,10 @@ for source in $SOURCES; do
     base=$(basename "$source" .c)
     obj="tests/exes/$base.obj"
     echo "Win16 C: $source"
+    # Session and Win16 platform adapter both include et4k.h.  The
+    # ET4000AX implementation also MUST be in SOURCES so it can link.
     wcc -bt=windows -mc -bd -zu -zq -i=include -i=windows/win31 \
+        -i=hardware/tseng/et4000ax \
         -fo="$obj" "$source"
     test -s "$obj"
     printf 'file %s\n' "$obj" >> "$LINKFILE"

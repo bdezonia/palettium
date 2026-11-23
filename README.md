@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0030** (incremental tags are fixed-width).
+Current development milestone: **v0031** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -77,7 +77,7 @@ driver**. Palettium is *not* yet an installable driver package.
   staging binary does **not** yet negotiate modes or initialize the native
   ET4000AX hardware.
 
-- **New in v0030 (host-tested; Win16 verification pending):** a protected-mode
+- **v0030 (host-tested; Win16 compilation failed at the missing ET4K header):** a protected-mode
   Windows 3.1 ET4000AX platform adapter uses KERNEL's `__A000H` mapped
   selector rather than a real-mode `A000h` pointer, along with native byte
   port I/O and an INT 10h mode-set/readback callback. A platform-neutral
@@ -87,6 +87,16 @@ driver**. Palettium is *not* yet an installable driver package.
   user's video mode. **The native adapter is only compiled/linked, not
   activated by the DDI**: VDD coordination, GDI-owned PDEVICE binding,
   cursor/text and mode configuration are still needed before installation.
+
+- **v0031 (build-repair checkpoint):** the Open Watcom Win16 link recipe now
+  supplies the ET4000AX header path and compiles the existing ET4000AX
+  backend, fixing the maintainer-reported v0030 include error and the
+  subsequent unresolved-symbol risk. `make clean` is now **project-wide**:
+  it removes all generated binaries under `tests/exes/`, DOS products under
+  `build/`, and legacy Win16 probe outputs while preserving sources and
+  checked-in link recipes. A maintenance regression checks both. **Open
+  Watcom v0031 verification is still pending.** No DDI, raster or mode
+  behavior was changed, and the driver is still not installable.
 
 ## Architecture
 
@@ -109,7 +119,10 @@ cannot be assumed binary-identical without testing.
 
 ## Build and test (Linux)
 
-For the shared C89 renderer and existing regression suite:
+The top-level `make clean` removes **all** generated test executables,
+Win16 driver objects/exports, DOS build outputs, and historical Win16 probe
+binaries. It is idempotent; recompilation is required afterwards. For the
+shared C89 renderer and existing regression suite:
 
 ```sh
 make clean && make test
@@ -141,22 +154,23 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0029 expects
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0031 expects
 **13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
-The 13-export **v0028** build passed on the maintainer's Open Watcom
-system; the **v0029 Win16 link is not yet validated** there. v0029 only
-changes the common ET4000AX backend and host tests, not the Win16 link list.
+The 13-export **v0029** build passed on the maintainer's Open Watcom
+system. The **v0030 build stopped** on a missing `et4k.h` include directory;
+v0031 adds that directory and includes `et4k.c` in the Win16 link recipe.
+The **v0031 Open Watcom build is awaiting maintainer validation**.
 
 When applying an incremental patch downloaded through your browser:
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal29.zip
+unzip -o ~/Downloads/pal31.zip
 ```
 
 The archive contains **repository-relative paths** (no enclosing directory).
-Apply it over a **validated v0028** tree. Source ZIPs carry exact UTC timestamps in the
+Apply it over the **v0030** tree. Source ZIPs carry exact UTC timestamps in the
 extended ZIP field and the local DOS ZIP header timestamp for America/Chicago.
 
 ## Important: NOT INSTALLABLE
@@ -181,5 +195,5 @@ text/cursor and missing bitmap DDIs and test Win3.1 standard-mode startup
 first, then 386 enhanced mode with the appropriate VDD and screen switching,
 in a recoverable 86Box VM. Preserve shared code across the four OS targets.
 
-Check `HANDOFF.md` and `PATCH-v0029.txt` for precise checkpoint status and
+Check `HANDOFF.md` and `PATCH-v0031.txt` for precise checkpoint status and
 remaining test gaps. Earlier `docs/` and patch notes document the milestones.

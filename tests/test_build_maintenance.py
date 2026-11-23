@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Regression guard for the Win16 link recipe and project-wide make clean."""
+import pathlib
+import re
+import shutil
+import subprocess
+import tempfile
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def check_win16_recipe():
+    script = (ROOT / "windows/win31/build-palddi.sh").read_text()
+    source_match = re.search(r"SOURCES='([^']+)'", script, re.S)
+    assert source_match, "missing Win16 SOURCES list"
+    sources = source_match.group(1).split()
+    assert "hardware/tseng/et4000ax/et4k.c" in sources, "ET4000 backend not linked"
+    assert "windows/win31/pal_et4k_session.c" in sources, "session missing"
+    assert "windows/win31/pal_et4k_win16.c" in sources, "Win16 adapter missing"
+    assert len(sources) == len(set(sources)), "duplicate linked source"
+    stems = [pathlib.Path(x).stem for x in sources]
+    assert len(stems) == len(set(stems)), "Win16 object filename collision"
+
+    # Exactly the include switches that the actual wcc invocation receives.
+    command = re.search(r"\bwcc -bt=windows .*?\n\s*test -s", script, re.S)
+    assert command, "Win16 compiler invocation not found"
+    include_dirs = [ROOT / p for p in re.findall(r"-i=([\w./-]+)", command.group())]
+    assert ROOT / "hardware/tseng/et4000ax" in include_dirs
+    assert ROOT / "windows/win31" in include_dirs
+    assert ROOT / "include" in include_dirs
+
+    examined = set()
+
+    def examine(file):
+        if file in examined:
+            return
+        examined.add(file)
+        assert file.is_file(), "missing Win16 source/header: " + str(file)
+        for header in re.findall(r'^\s*#\s*include\s*"([^"]+)"', file.read_text(), re.M):
+            candidates = [file.parent / header] + [d / header for d in include_dirs]
+            found = next((x for x in candidates if x.is_file()), None)
+            assert found is not None, "unresolved include {} from {}".format(header, file)
+            examine(found.resolve())
+
+    for source in sources:
+        examine((ROOT / source).resolve())
+
+
+def check_full_clean():
+    with tempfile.TemporaryDirectory(prefix="pal-clean-") as temp:
+        base = pathlib.Path(temp)
+        shutil.copyfile(ROOT / "Makefile", base / "Makefile")
+        generated = [
+            "tests/exes/raster-test", "tests/exes/win31-native-test",
+            "tests/exes/PALSTAGE.DRV", "tests/exes/PALSTAGE.generated.lnk",
+            "tests/exes/et4k-test", "tests/exes/raster-demo.ppm",
+            "build/dos/ET4KTEST.EXE", "build/other/temporary.obj",
+            "windows/win31/PALCORE.DLL", "windows/win31/PALDEV.EXPORTS.txt",
+            "windows/win31/PALPROBE.OBJ", "windows/win31/pal_bitmap.obj",
+            "windows/win31/PALTEST.EXE", "rgfx.obj", "et4k_demo.OBJ",
+        ]
+        retained = [
+            "windows/win31/PALPROBE.LNK", "windows/win31/palddi.c",
+            "windows/win31/README.md", "README.md", "tests/test_kept.c",
+        ]
+        for rel in generated + retained:
+            path = base / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("test fixture\n")
+        for _ in range(2):  # clean must be idempotent
+            subprocess.run(["make", "clean"], cwd=base, check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for rel in generated:
+            assert not (base / rel).exists(), "not cleaned: " + rel
+        assert not (base / "tests/exes").exists()
+        assert not (base / "build").exists()
+        for rel in retained:
+            assert (base / rel).is_file(), "source deleted by clean: " + rel
+
+
+if __name__ == "__main__":
+    check_win16_recipe()
+    check_full_clean()
+    print("PASS: Win16 ET4000 includes/link list; global clean clears all outputs and preserves sources")

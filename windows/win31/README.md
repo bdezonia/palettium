@@ -1,4 +1,4 @@
-# Windows 3.1 staging display driver (v0030)
+# Windows 3.1 staging display driver (v0031)
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -28,7 +28,7 @@ See `README.md` in the project root for test commands and architecture.
 palette capability bits. The palette and output machinery is only reachable in an *already running*
 screen host. The Win16 ET4000AX mode initialization, active GDI PDEVICE,
 huge/multiplane memory bitmaps, patterned brushes, text, cursor and window
-switch paths remain unfinished. v0029 passed Open Watcom; v0030 Win16 build awaits maintainer testing. Never select PALSTAGE.DRV
+switch paths remain unfinished. v0029 passed Open Watcom; v0030 failed while compiling `pal_et4k_session.c` because the ET4K include directory was absent. v0031 fixes this include path and adds the ET4K backend to the Win16 link list; maintainer verification of the v0031 build is pending. Never select PALSTAGE.DRV
 in SYSTEM.INI.
 
 Win16 segmented-memory caveat: the screen framebuffer is larger than 64 KiB;
@@ -41,7 +41,7 @@ The older `palprobe`, `palcore`, `paltest` and other probe files are retained
 for reference. Do not build them into PALSTAGE.DRV or clone the stable DDI
 implementation into new numbered production files.
 
-## Mode-selection status (v0030)
+## Mode-selection status (v0031)
 
 The shared ET4000AX backend accepts 640x400x256 on verified 256 KiB cards
 (Tseng BIOS mode 2Fh), and 640x480x256 on cards with at least 512 KiB
@@ -54,7 +54,7 @@ planar 16-color output and enhanced-mode VDD coordination are not done.
 This new catalog is useful in host integration but does NOT make the NE
 module appropriate for installation.
 
-## Native adapter checkpoint (v0030)
+## Native adapter checkpoint (v0031)
 
 `pal_et4k_win16.c` is **real Win16 port/aperture/BIOS adapter code**, not an
 active DDI service. It resolves the protected-mode selector exported by
@@ -74,3 +74,16 @@ candidate, NOT a negotiated geometry; style=0 still fails. A working
 display driver additionally needs GDI's PDEVICE pointer bound correctly,
 capacity configuration, mouse cursor, text, and 386-enhanced VDD cooperation
 (including VDDsetaddresses for packed SVGA on Win3.1). **Do not install.**
+
+## v0031 Win16 build repair and cleanup
+
+`build-palddi.sh` now supplies `-i=hardware/tseng/et4000ax` to Open
+Watcom and compiles `hardware/tseng/et4000ax/et4k.c` into the staging
+module. The previously reported missing `et4k.h` caused cascading
+`ET4K_Port`/`ET4K_State` errors; missing `et4k.c` would also have blocked
+linking. This has **not** been verified with the maintainer's Open Watcom
+toolchain yet. The driver still deliberately refuses `Enable(style=0)`.
+
+From the project root, `make clean` now deletes all generated artifacts
+under `tests/exes/` and `build/`, plus historical Win16 probe DLL, EXE and
+OBJ files, without removing `.LNK`, `.c`, or `.h` sources.

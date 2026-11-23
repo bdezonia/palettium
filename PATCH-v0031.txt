@@ -1,0 +1,25 @@
+Palettium v0031 — fix v0030 Win16 ET4000AX build; comprehensive make clean
+
+Incremental over v0030; source-only. No new display DDI exports or mode
+changes. PALSTAGE.DRV is still NOT INSTALLABLE.
+
+- Correct Open Watcom's -i=hardware/tseng/et4000ax include path for
+  pal_et4k_session.c and pal_et4k_win16.c.
+- Link the original hardware/tseng/et4000ax/et4k.c into PALSTAGE.DRV.
+  The missing implementation would otherwise cause unresolved ET4K symbols.
+- Top-level `make clean` removes generated host and Win16 tests, NE driver
+  products, DOS build products, and historical Win16 probe outputs.
+  Checked-in C/H/LNK and documentation are preserved.
+- Add an automatic maintenance regression in `make test` that checks source
+  inclusion/link lists and tests clean in a throwaway directory.
+- Update README.md, Win31 README and HANDOFF.md.
+
+The complete Linux C89 regression suite is green in the packaging
+workspace. Open Watcom Win16 compile/link is awaiting maintainer validation.
+
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal31.zip
+make clean && make test
+make -f Makefile.win31native test
+sh windows/win31/build-palddi.sh
+wdump -x tests/exes/PALSTAGE.DRV

@@ -17,8 +17,24 @@ test: all
 	./tests/exes/hardware-test
 	./tests/exes/format-test
 	./tests/exes/hardware-format-test
+	python3 tests/test_build_maintenance.py
+# This is the project-wide clean, not merely the original seven raster tests.
+# All Makefile.* host binaries and the Win16 staging objects live under
+# tests/exes; DOS outputs live under build/. Older Win16 probe scripts run
+# in windows/win31 and emit intermediate OBJ files alongside their sources.
+# Never delete checked-in Win16 linker recipes (for example PALPROBE.LNK).
 clean:
-	rm -f tests/exes/raster-test tests/exes/banked-test tests/exes/blit-test tests/exes/win16-guard tests/exes/hardware-test tests/exes/format-test tests/exes/hardware-format-test tests/exes/raster-demo.ppm
+	rm -rf tests/exes build
+	rm -f windows/win31/*.obj windows/win31/*.OBJ \
+	      windows/win31/*.o windows/win31/*.O \
+	      windows/win31/*.dll windows/win31/*.DLL \
+	      windows/win31/*.exe windows/win31/*.EXE \
+	      windows/win31/*.drv windows/win31/*.DRV \
+	      windows/win31/*.map windows/win31/*.MAP \
+	      windows/win31/*.err windows/win31/*.ERR \
+	      windows/win31/*.EXP windows/win31/*.exp \
+	      windows/win31/*.EXPORTS.txt \
+	      ./*.obj ./*.OBJ ./*.o ./*.O ./*.map ./*.MAP
 
 tests/exes/win16-guard: common/rgfx.c tests/test_win16_geometry.c include/rgfx.h | tests/exes
 	$(CC) $(CFLAGS) common/rgfx.c tests/test_win16_geometry.c -o $@
