@@ -1,0 +1,16 @@
+Palettium v0013 — Additive Windows 3.x BITMAP boundary
+
+New files (no replacements):
+  windows/win31/pal_bitmap.h
+  windows/win31/pal_bitmap.c
+  windows/win31/palbmp.c
+  windows/win31/build-palbmp.sh
+  tests/test_win31_bitmap.c
+  Makefile.bitmap
+  docs/v0013-bitmap.md
+
+Install: unzip pal13.zip from the repository root.
+Run: make -f Makefile.bitmap test
+     sh windows/win31/build-palbmp.sh
+
+This does not implement a usable display driver; do not install PALGDI.DRV.
