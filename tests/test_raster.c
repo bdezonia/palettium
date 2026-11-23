@@ -45,7 +45,7 @@ int main(void)
     dev.ops.line(&dev, 80, 0, 80, 119, 200);
     if (intercepted_lines != 3) return 2;
     if (framebuffer[80 * W + 80] != 200) return 3;
-    if (!write_ppm("raster-demo.ppm")) return 4;
-    puts("PASS: raster demo created raster-demo.ppm; mock override called 3 times");
+    if (!write_ppm("tests/exes/raster-demo.ppm")) return 4;
+    puts("PASS: raster demo created tests/exes/raster-demo.ppm; mock override called 3 times");
     return 0;
 }

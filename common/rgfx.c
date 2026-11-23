@@ -5,9 +5,10 @@ unsigned rg_pixel_bits(RG_PixelFormat f)
 {
     switch (f) {
     case RG_FMT_INDEX1: return 1;
+    case RG_FMT_INDEX2: return 2;
     case RG_FMT_INDEX4: return 4;
     case RG_FMT_INDEX8: return 8;
-    case RG_FMT_RGB555: case RG_FMT_RGB565: return 16;
+    case RG_FMT_INDEX16: case RG_FMT_RGB555: case RG_FMT_RGB565: return 16;
     case RG_FMT_RGB888: return 24;
     case RG_FMT_XRGB8888: case RG_FMT_ARGB8888: return 32;
     default: return 0;

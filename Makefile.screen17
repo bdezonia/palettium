@@ -8,9 +8,12 @@ SRC = common/rgfx.c common/rg_hardware.c common/rg_gdi_rop.c \
       windows/win31/pal_screen_ddi.c windows/win31/pal_screen_host.c \
       hardware/tseng/et4000ax/et4k.c tests/test_win31_hw_screen.c
 .PHONY: test clean
-test: screen17-test
-	./screen17-test
-screen17-test: $(SRC) windows/win31/pal_screen_host.h
+test: tests/exes/screen17-test
+	./tests/exes/screen17-test
+tests/exes/screen17-test: $(SRC) windows/win31/pal_screen_host.h | tests/exes
 	$(CC) $(CFLAGS) $(INC) $(SRC) -o $@
 clean:
-	rm -f screen17-test
+	rm -f tests/exes/screen17-test
+
+tests/exes:
+	mkdir -p $@

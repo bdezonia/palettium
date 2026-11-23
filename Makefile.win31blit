@@ -1,9 +1,12 @@
 CC ?= cc
 CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude
 .PHONY: test clean
-win31-screen-test: common/rgfx.c common/rg_gdi_rop.c common/rg_gdi_blit.c common/rg_win31_screen.c tests/test_win31_screen.c
+tests/exes/win31-screen-test: common/rgfx.c common/rg_gdi_rop.c common/rg_gdi_blit.c common/rg_win31_screen.c tests/test_win31_screen.c | tests/exes
 	$(CC) $(CFLAGS) common/rgfx.c common/rg_gdi_rop.c common/rg_gdi_blit.c common/rg_win31_screen.c tests/test_win31_screen.c -o $@
-test: win31-screen-test
-	./win31-screen-test
+test: tests/exes/win31-screen-test
+	./tests/exes/win31-screen-test
 clean:
-	rm -f win31-screen-test
+	rm -f tests/exes/win31-screen-test
+
+tests/exes:
+	mkdir -p $@

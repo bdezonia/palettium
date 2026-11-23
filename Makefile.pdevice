@@ -2,9 +2,12 @@
 CC ?= cc
 CFLAGS ?= -std=c89 -O2 -Wall -Wextra -Werror
 .PHONY: test clean
-test: pdevice-test
-	./pdevice-test
-pdevice-test: windows/win31/pal_pdevice.c windows/win31/pal_pdevice.h windows/win31/pal_gdiinfo.c windows/win31/pal_gdiinfo.h tests/test_win31_pdevice.c
+test: tests/exes/pdevice-test
+	./tests/exes/pdevice-test
+tests/exes/pdevice-test: windows/win31/pal_pdevice.c windows/win31/pal_pdevice.h windows/win31/pal_gdiinfo.c windows/win31/pal_gdiinfo.h tests/test_win31_pdevice.c | tests/exes
 	$(CC) $(CFLAGS) -Iwindows/win31 windows/win31/pal_gdiinfo.c windows/win31/pal_pdevice.c tests/test_win31_pdevice.c -o $@
 clean:
-	rm -f pdevice-test
+	rm -f tests/exes/pdevice-test
+
+tests/exes:
+	mkdir -p $@

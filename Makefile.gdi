@@ -2,11 +2,14 @@ CC = cc
 CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude
 .PHONY: test clean
 
-gdi-rop-test: common/rg_gdi_rop.c tests/test_gdi_rop.c include/rg_gdi_rop.h include/rgfx.h
+tests/exes/gdi-rop-test: common/rg_gdi_rop.c tests/test_gdi_rop.c include/rg_gdi_rop.h include/rgfx.h | tests/exes
 	$(CC) $(CFLAGS) common/rg_gdi_rop.c tests/test_gdi_rop.c -o $@
 
-test: gdi-rop-test
-	./gdi-rop-test
+test: tests/exes/gdi-rop-test
+	./tests/exes/gdi-rop-test
 
 clean:
-	rm -f gdi-rop-test
+	rm -f tests/exes/gdi-rop-test
+
+tests/exes:
+	mkdir -p $@

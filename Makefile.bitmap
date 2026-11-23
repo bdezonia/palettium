@@ -1,9 +1,12 @@
 CC ?= cc
 CFLAGS ?= -std=c89 -O2 -Wall -Wextra -Werror
 .PHONY: test clean
-test: bitmap-test
-	./bitmap-test
-bitmap-test: windows/win31/pal_bitmap.c windows/win31/pal_bitmap.h windows/win31/pal_pdevice.c windows/win31/pal_pdevice.h windows/win31/pal_gdiinfo.c windows/win31/pal_gdiinfo.h tests/test_win31_bitmap.c
+test: tests/exes/bitmap-test
+	./tests/exes/bitmap-test
+tests/exes/bitmap-test: windows/win31/pal_bitmap.c windows/win31/pal_bitmap.h windows/win31/pal_pdevice.c windows/win31/pal_pdevice.h windows/win31/pal_gdiinfo.c windows/win31/pal_gdiinfo.h tests/test_win31_bitmap.c | tests/exes
 	$(CC) $(CFLAGS) -Iwindows/win31 windows/win31/pal_bitmap.c windows/win31/pal_pdevice.c windows/win31/pal_gdiinfo.c tests/test_win31_bitmap.c -o $@
 clean:
-	rm -f bitmap-test
+	rm -f tests/exes/bitmap-test
+
+tests/exes:
+	mkdir -p $@

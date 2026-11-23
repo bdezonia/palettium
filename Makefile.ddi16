@@ -7,9 +7,12 @@ SRC = common/rgfx.c common/rg_gdi_rop.c common/rg_gdi_blit.c \
       windows/win31/pal_pdevice.c windows/win31/pal_screen_ddi.c \
       tests/test_win31_ddi_bridge.c
 .PHONY: test clean
-test: ddi16-test
-	./ddi16-test
-ddi16-test: $(SRC) windows/win31/pal_screen_ddi.h
+test: tests/exes/ddi16-test
+	./tests/exes/ddi16-test
+tests/exes/ddi16-test: $(SRC) windows/win31/pal_screen_ddi.h | tests/exes
 	$(CC) $(CFLAGS) $(INC) $(SRC) -o $@
 clean:
-	rm -f ddi16-test
+	rm -f tests/exes/ddi16-test
+
+tests/exes:
+	mkdir -p $@

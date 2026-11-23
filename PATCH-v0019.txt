@@ -1,0 +1,26 @@
+Palettium v0019 — indexed formats and test build output cleanup
+
+MODIFIED:
+  include/rgfx.h
+  common/rgfx.c
+  tests/test_formats_unified.c
+  tests/test_raster.c
+  Makefile
+  Makefile.bitmap
+  Makefile.ddi16
+  Makefile.et4k
+  Makefile.gdi
+  Makefile.gdiblt
+  Makefile.gdiinfo
+  Makefile.pdevice
+  Makefile.screen17
+  Makefile.win31blit
+NEW:
+  docs/v0019-build-pixels.md
+  PATCH-v0019.txt
+
+One-time local cleanup: old root test executables and raster-demo.ppm can
+be deleted. Add `/tests/exes/` to .gitignore; the patch deliberately does
+not overwrite your custom .gitignore.
+
+Use `unzip -o pal19.zip` in the existing repository and `make test`.

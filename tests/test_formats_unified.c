@@ -76,9 +76,32 @@ int main(void)
     rg_pixel value;
     rg_offset offset = 65535UL;
     unsigned n;
-    for (n=1;n<=8;++n) {
+    for (n=1;n<=10;++n) {
         f = (RG_PixelFormat)n;
         if (exercise(f)) return 1;
+    }
+    /* INDEX2: four pixels per byte, high-order pair first. */
+    {
+        rg_u8 packed[2] = { 0, 0 };
+        RG_Device two;
+        unsigned i;
+        CHECK(rg_init(&two,packed,5,1,2,2,RG_FMT_INDEX2));
+        for (i=0;i<5;++i) CHECK(rg_put_pixel(&two,(int)i,0,(rg_pixel)(i&3U)));
+        CHECK(packed[0]==0x1b && packed[1]==0x00);
+        CHECK(rg_put_pixel(&two,4,0,3));
+        CHECK(packed[1]==0xc0);
+        CHECK(rg_get_pixel(&two,4,0,&value) && value==3);
+    }
+    /* INDEX16: a 16-bit palette index, NOT an RGB565 pixel. */
+    {
+        rg_u8 packed[4] = { 0, 0, 0, 0 };
+        RG_Device sixteen;
+        CHECK(rg_init(&sixteen,packed,2,1,4,4,RG_FMT_INDEX16));
+        CHECK(rg_put_pixel(&sixteen,0,0,0x1234UL));
+        CHECK(rg_put_pixel(&sixteen,1,0,0xfedcUL));
+        CHECK(packed[0]==0x34 && packed[1]==0x12);
+        CHECK(packed[2]==0xdc && packed[3]==0xfe);
+        CHECK(rg_get_pixel(&sixteen,1,0,&value) && value==0xfedcUL);
     }
     /* 24-bit pixel starting at byte 65535, spanning two 64K banks. */
     memory=(rg_u8 *)calloc(65540UL,1);
@@ -96,6 +119,6 @@ int main(void)
     CHECK(rg_rgb_pack(RG_FMT_RGB565,255,255,255,0)==0xffffUL);
     CHECK(rg_rgb_pack(RG_FMT_RGB888,0x12,0x34,0x56,0)==0x123456UL);
     free(memory);
-    puts("PASS: unified 8 formats; clipping, ROPs, overlap, RGB packing, cross-bank pixel");
+    puts("PASS: unified 10 formats; clipping, ROPs, overlap, RGB packing, cross-bank pixel");
     return 0;
 }

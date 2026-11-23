@@ -9,7 +9,8 @@ typedef unsigned long rg_offset;
 typedef unsigned long rg_pixel;
 
 typedef enum RG_PixelFormat {
-    RG_FMT_INDEX1 = 1, RG_FMT_INDEX4, RG_FMT_INDEX8,
+    RG_FMT_INDEX1 = 1, RG_FMT_INDEX2, RG_FMT_INDEX4, RG_FMT_INDEX8,
+    RG_FMT_INDEX16,
     RG_FMT_RGB555, RG_FMT_RGB565, RG_FMT_RGB888,
     RG_FMT_XRGB8888, RG_FMT_ARGB8888
 } RG_PixelFormat;
