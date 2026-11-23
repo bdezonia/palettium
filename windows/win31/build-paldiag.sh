@@ -6,6 +6,7 @@ cd "$(dirname "$0")/../.."
 command -v wcl >/dev/null
 mkdir -p tests/exes
 wcl -bt=windows -ms -zq -l=windows \
-    -fe=tests/exes/PALDIAG.EXE windows/win31/paldiag.c
+    -fe=tests/exes/PALDIAG.EXE \
+    windows/win31/paldiag.c windows/win31/pal_vdd.c
 [ -s tests/exes/PALDIAG.EXE ]
 printf '%s\n' 'Built tests/exes/PALDIAG.EXE (Win16 GUI; read-only by default).'

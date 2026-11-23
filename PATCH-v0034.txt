@@ -1,0 +1,28 @@
+Palettium v0034 — opt-in one-byte A000h readability diagnostic
+
+Incremental source-only patch over v0033. The maintainer's v0033 PALDIAG
+ran successfully in Windows 3.1 Enhanced mode, reporting __A000H selector
+1027h and BIOS mode 12h. No A000h access had been attempted.
+
+- Reuse PALDIAG.EXE, no new production driver or DDI exports.
+- STEP 0–3 verified read-only environment queries retained.
+- STEP 4 BIOS query remains separately optional; declining does not force
+  acceptance of the new read.
+- NEW STEP 5: explicit consent + protected-mode/selector guard + STEP 5A
+  pre-read checkpoint; one volatile read of A000:0000; STEP 5B shows byte.
+- No writes, mode change, bank switching, port I/O or selector-base calls.
+- Strict host mock tests for opt-in, read once, early exits, invalid flags
+  and selectors, and no access without consent.
+- Updated README.md, windows/win31/README.md and HANDOFF.md.
+
+Test:
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal34.zip
+make -f Makefile.win31diag test
+sh windows/win31/build-paldiag.sh
+
+Use ONLY a restorable 86Box Windows 3.1 snapshot with the existing display
+driver. If desired, explicitly accept STEP 5 and report whether STEP 5B
+appears; a GP fault after STEP 5A remains possible. One read cannot prove
+physical mapping, bank I/O, VDD compatibility or driver installability.
+PALSTAGE.DRV remains intentionally NOT INSTALLABLE.

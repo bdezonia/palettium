@@ -20,5 +20,8 @@ typedef void (*FARPROC)(void);
 HMODULE GetModuleHandle(const char *name);
 FARPROC GetProcAddress(HMODULE module,const char *name);
 DWORD GetWinFlags(void);
+int GetPrivateProfileString(const char *section,const char *key,
+                            const char *fallback,char *buffer,int size,
+                            const char *filename);
 int MessageBox(HWND window,const char *message,const char *title,unsigned flags);
 #endif

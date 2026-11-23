@@ -1,4 +1,4 @@
-# Windows 3.1 staging display driver (v0033)
+# Windows 3.1 staging display driver (v0035)
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -120,3 +120,57 @@ selector-base calls based on a bit-pattern heuristic. It compiled with
 Open Watcom but caused a KRNL386 GP fault before its first report dialog
 under Windows 3.1. Do not use that version; the revised v0033 program
 above is intended to identify the faulting call without unsafe base queries.
+
+## v0033 actual 86Box result and v0034 experimental read
+
+The maintainer **ran v0033 PALDIAG in Windows 3.1 successfully**. The
+screenshots show `GetModuleHandle("KERNEL") = 010F`, raw `__A000H` export
+`FFFF:1027` (low-word selector candidate `1027`), `GetWinFlags=00000C29`
+(protected/386 Enhanced), and optional BIOS INT 10h AH=0Fh reporting
+mode `12h`, columns `50h`, page `00h`. No GP fault appeared. This does not
+prove that the selector safely maps banked Tseng VRAM.
+
+v0034 keeps the same `PALDIAG.EXE` and STEP 0–4 behavior, but now asks
+**separately** whether to attempt one read-only byte access using
+`MK_FP(selector, 0)`. It performs preflight (protected mode, nonzero/non-FFFF
+selector), shows **STEP 5A before the actual volatile load**, then shows
+**STEP 5B** with the returned byte if successful. The user can decline both
+the BIOS call and the video-memory read independently. No video memory writes,
+video mode changes, bank selection, or I/O port calls are present.
+
+Use only a **recoverable 86Box snapshot**; a GP fault remains possible.
+If Windows faults after STEP 5A, report that precise last dialog. A returned
+byte does NOT prove that this is the physical A0000h aperture rather than a
+VDD-managed view in 386 Enhanced mode. Before enabling an SVGA desktop,
+implement the Windows 3.1 VDD coordination and device lifecycle; a standalone
+GUI process's read is not permission for the display driver to do raw BIOS
+mode switching or 3CDh bank I/O. Do not install `PALSTAGE.DRV`.
+
+```sh
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal34.zip
+make -f Makefile.win31diag test
+sh windows/win31/build-paldiag.sh
+```
+
+## v0035: VDD configuration advisory (no hardware changes)
+
+The maintainer's v0034 PALDIAG screenshots confirm the single A000h byte
+read at selector 1027h, offset 0, returned 00h without a GPF. This is
+not an SVGA bank-switch/VDD endorsement.
+
+In v0035, the same PALDIAG.EXE adds opt-in STEP 6, reporting the **configured**
+`SYSTEM.INI [386Enh] display=` value. You can decline STEP 5's experimental
+VRAM read and still accept STEP 6. A portable Win3.x-only `pal_vdd.c`
+classifies the setting and warns that the stock Win3.1 VGA VDD cannot safely
+be assumed to support a 640x480x256 (307200-byte) desktop, because Windows
+3.1's standard VDD is documented to be incompatible with SVGA drivers
+requiring more than 256 KiB (Microsoft KB80901). A custom or VDDVGA30 VDD
+entry is merely an unverified candidate; reading SYSTEM.INI does NOT prove
+which VxD was actually loaded, or that the ET4000AX register state can be
+saved/restored during DOS-window switches. No configuration is written.
+
+Before enabling the driver: establish the intended VDD, grabber and Win3.1
+`VDDsetaddresses` service 0Ch contract against historical DDK sources,
+then implement a verified GDI-owned PDEVICE/mode lifecycle and safe rollback.
+Do not make any in-guest `SYSTEM.INI` change to install PALSTAGE.DRV.

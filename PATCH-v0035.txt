@@ -1,0 +1,24 @@
+Palettium v0035: Windows 3.1 read-only VDD configuration reconnaissance
+
+Incremental source patch over v0034; no PALSTAGE.DRV behavior changes.
+- PALDIAG v0035 retains v0034 diagnostic STEP 0..5; after skipping or
+  completing STEP 5, an independently opt-in STEP 6 reads SYSTEM.INI's
+  [386Enh] display setting through GetPrivateProfileString.
+- Tiny Win3.x C89 VDD configuration policy classifies stock Windows 3.1
+  VGA, VDDVGA30.386, other, missing; stock VGA VDD with a >256 KiB
+  enhanced-mode framebuffer is flagged KNOWN INCOMPATIBLE (KB80901).
+  No setting is regarded as verified compatible.
+- Updated mock Win16 tests, README and HANDOFF. No BIOS mode switch,
+  port writes, framebuffer writes, bank switching, registry/INI write or
+  changes to the 13-export noninstallable staging display driver.
+
+Install:
+  cd ~/dev/palettium
+  unzip -o ~/Downloads/pal35.zip
+  make -f Makefile.win31diag test
+  sh windows/win31/build-paldiag.sh
+
+Windows 3.1 86Box test: run PALDIAG with the original VGA display driver;
+skip STEP 5, accept STEP 6, record configured VDD string. Do NOT assume
+configured VDD equals loaded VDD. Open Watcom build and 86Box runtime of
+v0035 require maintainer validation.

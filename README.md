@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0033** (incremental tags are fixed-width).
+Current development milestone: **v0035** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -107,16 +107,34 @@ driver**. Palettium is *not* yet an installable driver package.
   `GetSelectorBase` on bit-pattern-selected words is not an adequate
   validity check; the precise faulting call is **not established**.
 
-- **v0033 (crash-isolating PALDIAG revision, not yet Windows-tested):**
-  The same `PALDIAG.EXE` now displays STEP 0 immediately on entering WinMain,
-  then separately asks permission before `GetWinFlags`, `GetModuleHandle`
-  and `GetProcAddress(KERNEL, "__A000H")`. It displays the low/high export
-  words but never calls `GetSelectorBase`, never dereferences A000 memory,
-  and never changes registers or mode. Optional BIOS mode readback remains
-  a separately confirmed final step. If a GP fault recurs, the last
-  displayed checkpoint isolates the suspect call. Host tests pass; actual
-  Open Watcom build and Windows 3.1 runtime are **unverified for v0033**.
-  The live display driver remains *non-installable*.
+- **v0033 (maintainer-validated Windows 3.1 runtime):** The revised
+  `PALDIAG.EXE` ran successfully in Windows 3.1 under 86Box. Screenshots
+  show `GetModuleHandle("KERNEL") = 010F`, the exported `__A000H` address
+  `FFFF:1027` (documented selector candidate `1027` in the low word),
+  `GetWinFlags = 00000C29` (protected / 386 Enhanced mode), and the
+  *optional* INT 10h AH=0Fh query returning video mode `12h`, 80 columns,
+  page 0. No GP fault occurred and no mode change was attempted.
+  The earlier v0032 fault remains unlocalized; `GetSelectorBase` was
+  removed for v0033, but that does not prove it caused the fault.
+- **v0034 (maintainer-validated Windows 3.1 A000h read):** The 86Box
+  Windows 3.1 STEP 5A/5B screenshots confirm one protected-mode
+  `A000h:0000h` byte read via selector `1027h` returned **00h**, without
+  a GP fault. This does **not** prove unvirtualized VRAM mapping or port,
+  bank and mode-set compatibility with Windows' VDD.
+
+- **v0035 (VDD compatibility reconnaissance; Win16 runtime UNTESTED):**
+  The existing `PALDIAG.EXE` can now optionally read the configured
+  `[386Enh] display=` entry from `SYSTEM.INI`, after the existing STEP 5.
+  Declining the experimental byte read does **not** block this new STEP 6.
+  A new tiny Win3.x-only C89 classifier recognizes `*VDDVGA`,
+  `VDDVGA30.386`, and unknown/OEM settings. It warns **KNOWN INCOMPATIBLE**
+  if stock Windows 3.1 VDD is configured for 640×480×256's 307,200-byte
+  framebuffer. All other VDD cases remain **UNVERIFIED**: configuration
+  does not establish the VxD loaded or a safe mode switch. It makes no
+  changes to `SYSTEM.INI` and adds no DDI exports. Windows 3.1's default
+  VGA VDD is documented to be incompatible with SVGA display drivers
+  using over 256 KiB (Microsoft KB80901). Even the 256 KiB ET4000AX
+  packed-color mode requires testing with the VDD.
 
 ## Architecture
 
@@ -175,24 +193,24 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0033 retains
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0035 retains
 **13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
 The 13-export **v0029** build passed on the maintainer's Open Watcom
 system. The **v0030 build stopped** on a missing `et4k.h` include directory;
 v0031 adds that directory and includes `et4k.c` in the Win16 link recipe.
 The **v0031 Open Watcom build passed on the maintainer's machine**.
-The v0032 PALDIAG.EXE Win16 build and Windows runtime check still need testing.
+The v0032 PALDIAG Win16 build succeeded but its Windows runtime failed; v0033 PALDIAG subsequently ran successfully in 86Box (see above). v0034 PALDIAG v0034 A000h single-byte read succeeded in Windows 3.1; v0035 Win16 build and Windows runtime remain untested.
 
 When applying an incremental patch downloaded through your browser:
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal32.zip
+unzip -o ~/Downloads/pal35.zip
 ```
 
 The archive contains **repository-relative paths** (no enclosing directory).
-Apply it over the **v0031** tree. Source ZIPs carry exact UTC timestamps in the
+Apply it over the **v0034** tree. Source ZIPs carry exact UTC timestamps in the
 extended ZIP field and the local DOS ZIP header timestamp for America/Chicago.
 
 ## Important: NOT INSTALLABLE
@@ -217,5 +235,5 @@ text/cursor and missing bitmap DDIs and test Win3.1 standard-mode startup
 first, then 386 enhanced mode with the appropriate VDD and screen switching,
 in a recoverable 86Box VM. Preserve shared code across the four OS targets.
 
-Check `HANDOFF.md` and `PATCH-v0032.txt` for precise checkpoint status and
+Check `HANDOFF.md` and `PATCH-v0035.txt` for precise checkpoint status and
 remaining test gaps. Earlier `docs/` and patch notes document the milestones.
