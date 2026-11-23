@@ -1,6 +1,6 @@
-/* Palettium Win16 GDI BitBlt boundary, v0020.
+/* Palettium Win16 GDI entry-point staging implementation.
  * Compiled as a Win16 object only. NOT AN INSTALLABLE DISPLAY DRIVER.
- * No ET4000-specific code. An eventual Enable() must establish the host.
+ * No ET4000-specific code. Enable deliberately fails until ready.
  */
 #define BitBlt PalWinApiBitBlt
 #include <windows.h>
@@ -33,4 +33,22 @@ BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
                (PAL_U16)FP_SEG(dest), (PAL_U16)FP_OFF(dest), dx, dy,
                (PAL_U16)FP_SEG(src), (PAL_U16)FP_OFF(src), sx, sy,
                width, height, (unsigned long)rop) ? TRUE : FALSE;
+}
+
+/* Win3.x display driver enablement is two-stage. Neither GDIINFO nor the
+ * physical device is ready for Windows to consume, so refuse both stages.
+ * Never call pal_win16_bind_host() from an unsuccessful initialization.
+ */
+WORD FAR PASCAL Enable(LPVOID destination, WORD style,
+                       LPSTR device_type, LPSTR output_file, LPVOID data)
+{
+    (void)destination; (void)style; (void)device_type;
+    (void)output_file; (void)data;
+    return 0;
+}
+
+void FAR PASCAL Disable(LPVOID physical_device)
+{
+    (void)physical_device;
+    pal_active_host = 0;
 }

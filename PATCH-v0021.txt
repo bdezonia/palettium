@@ -1,0 +1,15 @@
+Palettium v0021 additive ZIP plus intentional cleanup.
+
+ADD: windows/win31/palddi.c
+ADD: windows/win31/build-palddi.sh
+ADD: Makefile.win31ddi
+ADD: tools/cleanup-win31-staging.sh
+ADD: docs/v0021-driver-cleanup.md
+
+REMOVE using tools/cleanup-win31-staging.sh:
+ windows/win31/palddi15.c, windows/win31/palddi20.c,
+ windows/win31/palgdi.c, their three old build scripts,
+ old shell binaries/exports, tests/exes/palddi20.obj, Makefile.far20.
+
+Do not install as a display driver. Existing Linux regression tests should
+remain unchanged. This is source consolidation, not a driver enablement.

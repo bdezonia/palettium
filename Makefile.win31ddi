@@ -1,4 +1,4 @@
-# Palettium v0020: Win31 GDI far pointer boundary regression
+# Palettium Win31 GDI far pointer boundary regression
 CC ?= cc
 CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror
 INCS = -Iinclude -Iwindows/win31
