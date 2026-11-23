@@ -1,0 +1,14 @@
+Palettium v0014 incremental patch (2026-11-22)
+
+New files ONLY:
+  include/rg_gdi_blit.h
+  common/rg_gdi_blit.c
+  tests/test_gdi_blit.c
+  Makefile.gdiblt
+  docs/v0014-gdi-bitblt.md
+
+No existing source files replaced. Does not modify any Win16 build artifact.
+Run: make -f Makefile.gdiblt test
+
+CAUTION: Previous PALGDI.DRV is not installable: its provisional export ordinal
+map conflicts with the documented BitBlt ordinal 1. See documentation.

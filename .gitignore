@@ -1,5 +1,6 @@
 /banked-test
 /bitmap-test
+/blit-gdi-test
 /blit-test
 /gdi-rop-test
 /gdiinfo-test
