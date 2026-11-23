@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0035** (incremental tags are fixed-width).
+Current development milestone: **v0036** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -122,7 +122,7 @@ driver**. Palettium is *not* yet an installable driver package.
   a GP fault. This does **not** prove unvirtualized VRAM mapping or port,
   bank and mode-set compatibility with Windows' VDD.
 
-- **v0035 (VDD compatibility reconnaissance; Win16 runtime UNTESTED):**
+- **v0035 (VDD compatibility reconnaissance; Windows runtime PASS):**
   The existing `PALDIAG.EXE` can now optionally read the configured
   `[386Enh] display=` entry from `SYSTEM.INI`, after the existing STEP 5.
   Declining the experimental byte read does **not** block this new STEP 6.
@@ -134,7 +134,26 @@ driver**. Palettium is *not* yet an installable driver package.
   changes to `SYSTEM.INI` and adds no DDI exports. Windows 3.1's default
   VGA VDD is documented to be incompatible with SVGA display drivers
   using over 256 KiB (Microsoft KB80901). Even the 256 KiB ET4000AX
-  packed-color mode requires testing with the VDD.
+  packed-color mode requires testing with the VDD. **The maintainer's
+  v0035 STEP 6 screenshot confirmed `SYSTEM.INI [386Enh] display=*vddvga`
+  in 86Box**, with 640×480×8 flagged known incompatible and 640×400×8
+  unverified. This is the configured VDD string, not proof of which VDD is
+  actively loaded.
+- **v0036 (host-tested; DOS runtime awaiting user validation):** static
+  analysis of six user-provided 86Box ET4000 option ROMs found BIOS-specific
+  CRTC register `37h` memory-organization and mode-eligibility logic. A
+  strictly diagnostic snapshot helper in the existing ET4000AX backend
+  reads the active color/mono CRTC index/data pair and **restores its previous
+  index**. The helper decodes a *candidate* capacity from bus width and chip
+  depth, but never calls a VRAM probe, changes a graphics mode, or promotes
+  the hint to a verified size. `ET4KTEST INFO` under **plain DOS** prints
+  the C000h video ROM version/date hint and raw register `37h` without any
+  video-mode transition or framebuffer/bank access; existing
+  `ET4KTEST 256|512|1024` graphics tests print the hint first and still
+  obey the explicitly provided VRAM size. Reading index `37h` requires two
+  index-port writes (select/restore), **not** register-data writes.
+  Register accessibility, BIOS variation, and 86Box interpretations must be
+  tested on the maintainer's VM before treating a capacity hint as useful.
 
 ## Architecture
 
@@ -193,24 +212,24 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0035 retains
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0036 retains
 **13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
 The 13-export **v0029** build passed on the maintainer's Open Watcom
 system. The **v0030 build stopped** on a missing `et4k.h` include directory;
 v0031 adds that directory and includes `et4k.c` in the Win16 link recipe.
 The **v0031 Open Watcom build passed on the maintainer's machine**.
-The v0032 PALDIAG Win16 build succeeded but its Windows runtime failed; v0033 PALDIAG subsequently ran successfully in 86Box (see above). v0034 PALDIAG v0034 A000h single-byte read succeeded in Windows 3.1; v0035 Win16 build and Windows runtime remain untested.
+The v0032 PALDIAG build succeeded but its original Windows runtime failed; v0033 and v0034 PALDIAG then succeeded in 86Box, and the v0035 STEP 6 VDD-configuration screenshot succeeded. v0036 changes only the DOS diagnostic and shared ET4000 backend; its Open Watcom DOS build and runtime still await maintainer testing.
 
 When applying an incremental patch downloaded through your browser:
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal35.zip
+unzip -o ~/Downloads/pal36.zip
 ```
 
 The archive contains **repository-relative paths** (no enclosing directory).
-Apply it over the **v0034** tree. Source ZIPs carry exact UTC timestamps in the
+Apply it over the **v0035** tree. Source ZIPs carry exact UTC timestamps in the
 extended ZIP field and the local DOS ZIP header timestamp for America/Chicago.
 
 ## Important: NOT INSTALLABLE
@@ -235,5 +254,5 @@ text/cursor and missing bitmap DDIs and test Win3.1 standard-mode startup
 first, then 386 enhanced mode with the appropriate VDD and screen switching,
 in a recoverable 86Box VM. Preserve shared code across the four OS targets.
 
-Check `HANDOFF.md` and `PATCH-v0035.txt` for precise checkpoint status and
+Check `HANDOFF.md` and `PATCH-v0036.txt` for precise checkpoint status and
 remaining test gaps. Earlier `docs/` and patch notes document the milestones.

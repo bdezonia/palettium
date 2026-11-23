@@ -61,25 +61,78 @@ static void dos_restore(void *ctx)
     r.h.al = 3;
     int86(0x10, &r, &r);
 }
+/* This is strictly a ROM *identification hint* for the six known
+ * C000h ET4000 option ROMs analyzed at v0036, not a chipset probe.
+ * It reads bytes but never writes option-ROM space.
+ */
+static void dos_rom_identity(void)
+{
+    const unsigned char __far *rom=(const unsigned char __far *)MK_FP(0xC000,0);
+    char date[9];
+    char version[7];
+    unsigned n;
+    if (rom[0]!=0x55u || rom[1]!=0xaau || rom[2]!=0x40u ||
+        rom[0x98u]!='V' || (rom[0x99u]!='1' && rom[0x99u]!='8') ||
+        rom[0x9au]!='.') {
+        puts("C000h: no recognized ET4000 32KiB ROM signature.");
+        return;
+    }
+    for (n=0;n<8u;++n) date[n]=(char)rom[0x8fu+n];
+    date[8]='\0';
+    for (n=0;n<6u;++n) version[n]=(char)rom[0x98u+n];
+    version[6]='\0';
+    if (date[2]!='/' || date[5]!='/') {
+        puts("C000h: ET4000-like ROM signature, date format unknown.");
+        return;
+    }
+    printf("C000h ROM identification hint: %s, BIOS date %s\n",
+           version, date);
+}
+
+static void dos_crtc37_report(const ET4K_Port *io)
+{
+    ET4K_Crtc37 info;
+    if (!et4k_crtc37_snapshot(io,&info)) {
+        puts("CRTC 37h: unavailable (missing I/O callback).");
+        return;
+    }
+    printf("CRTC 37h raw=%02Xh (index port %03Xh, previous index %02Xh)\n",
+           (unsigned)info.raw_value,info.crtc_index_port,
+           (unsigned)info.previous_index);
+    printf("   Width=%u-bit, chip depth=%uK; organization HINT=%lu KiB\n",
+           info.bus_width_bits,info.chip_depth_k,
+           info.capacity_hint/1024UL);
+    puts("   NOT verified VRAM! BIOS protection/board wiring may differ.");
+    puts("   Never use this hint to override the explicit 86Box VRAM setting.");
+}
+
 int main(int argc, char **argv)
 {
     ET4K_Port io;
     unsigned y, x;
     unsigned long installed;
     int ok = 1;
-    if (argc != 2 || (strcmp(argv[1],"256") != 0 &&
+    if (argc != 2 || (strcmp(argv[1],"INFO") != 0 &&
+                      strcmp(argv[1],"256") != 0 &&
                       strcmp(argv[1],"512") != 0 &&
                       strcmp(argv[1],"1024") != 0)) {
-        puts("Usage: ET4KTEST 256|512|1024");
-        puts("Enter the VRAM KiB explicitly, matching your 86Box setting.");
-        puts("Wrong larger values can corrupt the screen; no auto-detection.");
+        puts("Usage: ET4KTEST INFO | 256 | 512 | 1024");
+        puts("INFO: DOS-only read-only ROM/register report, no mode switch.");
+        puts("Graphics: enter VRAM KiB explicitly, matching your 86Box setting.");
+        puts("A falsely larger VRAM value can corrupt graphics memory.");
         return 2;
     }
-    installed=(unsigned long)atoi(argv[1])*1024UL;
     memset(&io, 0, sizeof io);
     memset(&binding, 0, sizeof binding);
     io.in_port = dos_in;
     io.out_port = dos_out;
+    dos_rom_identity();
+    dos_crtc37_report(&io);
+    if (strcmp(argv[1],"INFO") == 0) {
+        puts("INFO finished: no BIOS mode call, VRAM access or bank change.");
+        return 0;
+    }
+    installed=(unsigned long)atoi(argv[1])*1024UL;
     io.mem_read = dos_mem_read;
     io.mem_write = dos_mem_write;
     io.set_mode = dos_mode;

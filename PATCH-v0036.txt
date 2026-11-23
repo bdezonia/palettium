@@ -1,0 +1,48 @@
+Palettium v0036 — read-only ET4000 BIOS/VRAM configuration diagnostic
+
+Incremental source-only patch over validated v0035. The previous user
+screenshots confirm PALDIAG STEP 6 configured [386Enh] display=*vddvga;
+Win31 hardware initialization is STILL DISABLED, 13 DDI exports unchanged.
+
+New code:
+- et4k_crtc37_snapshot / decode in existing ET4000 backend. Reads VGA
+  misc 3CCh; selects color/mono indexed CRTC register 37h; restores the
+  original index. Only two INDEX-port writes. Absolutely no CRTC DATA
+  writes, VRAM/bank access, mode setting, or destructive VRAM probing.
+- Returns memory bus/chip organization and a NOT VERIFIED capacity hint,
+  never an automatically accepted mode/VRAM size.
+- Existing DOS ET4KTEST now supports `ET4KTEST INFO`: no BIOS mode
+  switch, VRAM access or bank I/O; prints C000h option-ROM version/date
+  hint and CRTC37 raw value/hypothetical organization. The existing
+  `ET4KTEST 256|512|1024` graphics modes still require the exact
+  explicitly selected VRAM amount; they print the diagnostic first.
+- A new mock port regression verifies both CRTC address pairs, index
+  restoration, register decoding and zero non-index writes.
+
+No additional framework or duplicated code. Win31/PALSTAGE code is not
+modified. This does not implement a VDD or enable Win3.1 installation.
+
+Install and portable test (run in ~/dev/palettium):
+  unzip -o ~/Downloads/pal36.zip
+  make clean
+  make test
+  make -f Makefile.et4k test
+  make -f Makefile.et4kmodes test
+  sh windows/win31/build-palddi.sh
+  sh dos/build-et4k.sh
+
+The assistant's C89 host regression passes; Open Watcom DOS/Win16 builds
+and actual 86Box DOS INFO readings still require the maintainer's run.
+
+In plain DOS inside snapshot-restorable 86Box, with a Tseng ET4000AX:
+  ET4KTEST INFO
+Repeat at 256, 512, 1024 KiB, recording complete terminal text and
+which BIOS 86Box is actually configured to use. If convenient compare
+one V8 and one V1 BIOS. Never run from a Windows DOS box. INFO performs
+index-port writes to access CRTC37, but no video-mode transition and no
+framebuffer write.
+
+Future: determine whether the CRTC hint is stable and trustworthy under
+specific ROM/card configurations; keep verified capacity mandatory.
+Continue GDI-owned PDEVICE, cursor/text and safe VDD coordination rather
+than treating a register read as permission to activate mode-setting.

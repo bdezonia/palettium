@@ -4,6 +4,45 @@
 #define ET4K_DAC_WRITE 0x3C8
 #define ET4K_DAC_DATA  0x3C9
 
+/* Read-only ET4000 memory-configuration *hint*. The only OUTs select
+ * CRTC index 37h and restore the previous index. No CRTC data writes.
+ * The BIOS/board may protect or implement this register differently;
+ * never promote the decoded guess to ET4K_State.capacity automatically.
+ */
+void et4k_crtc37_decode(rg_u8 raw, ET4K_Crtc37 *result)
+{
+    unsigned bus;
+    unsigned depth;
+    if (!result) return;
+    bus = (unsigned)(raw & 3u);
+    result->raw_value = raw;
+    result->bus_width_bits = (bus >= 2u) ? (bus == 2u ? 16u : 32u) : 8u;
+    depth = (raw & 8u) ? 256u : 64u;
+    result->chip_depth_k = depth;
+    result->capacity_hint = (unsigned long)(result->bus_width_bits / 8u)
+                            * (unsigned long)depth * 1024UL;
+}
+
+int et4k_crtc37_snapshot(const ET4K_Port *io, ET4K_Crtc37 *result)
+{
+    ET4K_Crtc37 temp;
+    unsigned index_port;
+    rg_u8 original;
+    rg_u8 raw;
+    if (!io || !result || !io->in_port || !io->out_port) return 0;
+    temp.misc_output = io->in_port(io->cookie, 0x3CCu);
+    index_port = (temp.misc_output & 1u) ? 0x3D4u : 0x3B4u;
+    original = io->in_port(io->cookie, index_port);
+    io->out_port(io->cookie, index_port, 0x37u);
+    raw = io->in_port(io->cookie, index_port + 1u);
+    io->out_port(io->cookie, index_port, original);
+    temp.crtc_index_port = index_port;
+    temp.previous_index = original;
+    et4k_crtc37_decode(raw, &temp);
+    *result = temp;
+    return 1;
+}
+
 /* The 4-bit bank selector addresses at most 1 MiB. ET4000AX ROM modes
  * 2Eh (640x480x8) and 2Fh (640x400x8) use packed bytes, so 256K cards
  * can use the latter without inventing a planar framebuffer layout.

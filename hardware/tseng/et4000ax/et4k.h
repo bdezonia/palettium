@@ -59,6 +59,31 @@ typedef struct ET4K_ModeInfo {
     unsigned long minimum_vram;
 } ET4K_ModeInfo;
 
+/* v0036 diagnostic ONLY: snapshot CRTC 37h (Video System Configuration 2).
+ * Reads 3CCh and the active color/mono CRTC index/data ports. Selecting
+ * register 37h temporarily WRITES the CRTC INDEX port only; its previous
+ * index is restored before returning. Does not write CRTC DATA, touch
+ * bank 3CDh, probe VRAM, set a BIOS mode, or unlock protected registers.
+ * An inaccessible/locked extended register may return misleading data.
+ * Call only where raw port access is explicitly permitted (DOS), NEVER
+ * from Win3.x protected mode without a VDD contract. This is NOT a
+ * chipset-identity, VRAM-capacity, or mode-eligibility probe.
+ */
+typedef struct ET4K_Crtc37 {
+    unsigned crtc_index_port;
+    rg_u8 misc_output;
+    rg_u8 previous_index;
+    rg_u8 raw_value;
+    unsigned bus_width_bits;     /* 8/16/32 memory bus from low bits */
+    unsigned chip_depth_k;       /* nominal 64K / 256K memory organization */
+    unsigned long capacity_hint; /* hypothetical bytes, NEVER verified */
+} ET4K_Crtc37;
+int et4k_crtc37_snapshot(const ET4K_Port *io, ET4K_Crtc37 *result);
+/* Decode register 37h as an ET4000-family memory organization hint.
+ * This does NOT check physical chips, VRAM aliases, chipset model or BIOS.
+ */
+void et4k_crtc37_decode(rg_u8 raw, ET4K_Crtc37 *result);
+
 /* capacity = known bytes (256K/512K/1M) or zero to use query_capacity.
  * In particular, 256K is no longer rejected at initialization.
  * If capacity is unknown or invalid, no mode will be set.

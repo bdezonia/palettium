@@ -1,82 +1,90 @@
-# Palettium v0035 handoff — Win3.1 VDD configuration advisory (2026-11-23 UTC)
+# Palettium v0036 handoff — ET4000 ROM memory-configuration diagnostics (2026-11-23 UTC)
 
-## User-validated baseline
+## Verified baseline
 
-- v0031 `make clean`, all host C89 tests and Open Watcom `PALSTAGE.DRV`
-  compile/link **PASS**, with the same 13 staging display-DDI exports.
-- `ET4KTEST.EXE` displayed the expected graphics in 86Box DOS with 256,
-  512 and 1024 KiB configured ET4000AX VRAM.
-- v0032 first Win16 PALDIAG had GPF in `KRNL386.EXE 0001:2272` before a
-  dialog; precise cause was not established. v0033 PALDIAG was successful:
+- The user validated v0031 `make clean`, all host tests, and the Open
+  Watcom `PALSTAGE.DRV` build/link with 13 Windows 3.1 DDI exports.
+- The user ran ET4KTEST under 86Box DOS with 256, 512 and 1024 KiB of
+  ET4000AX VRAM; graphical output appeared correct in all three cases.
+- v0033 Win16 PALDIAG ran in Windows 3.1 386 Enhanced mode:
   `GetModuleHandle("KERNEL")=010F`, `__A000H=FFFF:1027`,
-  `GetWinFlags=00000C29` (386 Enhanced), optional BIOS INT 10h AH=0Fh
-  returned mode `12h`, 80 columns, page 0.
-- **v0034 PASS in Windows 3.1:** user's screenshots show PALDIAG STEP 5A
-  announcing a single A000h:0000h byte read with selector `1027h`, and
-  STEP 5B returning **00h** without a GP fault. This confirms one readable
-  protected-mode A000h byte mapping in that VM, **NOT** physical identity,
-  8-bit banking, writes, VDD compatibility or mode switching.
+  `GetWinFlags=0C29`, INT10 AH=0Fh reported mode 12h.
+- v0034 Win16 PALDIAG STEP 5B successfully read A000h:0000h as `00h`,
+  without GP fault; this is one selector read, not proof of real VRAM
+  identity or VDD support.
+- **v0035 STEP 6 confirmed in a user Windows 3.1 screenshot:**
+  `SYSTEM.INI [386Enh] display=*vddvga` (configured stock VGA VDD).
+  Screenshot reports 640x480x8 known incompatible with that VDD,
+  640x400x8 unverified. Actual loaded VDD and behavior not confirmed.
 
-## New research finding
+## ROM research (user-uploaded et4kroms.zip)
 
-Microsoft KB80901 says Windows 3.1's standard VGA VDD demand-pages video
-RAM and is incompatible with SVGA display drivers using **more than 256 KiB**.
-The alternative is a manufacturer's VDD or bundled `VDDVGA30.386`, but
-compatibility must be measured, not assumed. Historical VGA DDK research
-also finds `VDDsetaddresses` / `DspDrvr_Addresses` service `0Ch` used in
-VDD cooperation and important during DOS-window mode switches. References:
-- https://www.betaarchive.com/wiki/index.php/Microsoft_KB_Archive/80901
-- https://www.os2museum.com/wp/windows-3-x-vddvga/
-- https://dos-help.soulsphere.org/ddag31qh.hlp/dispinit.html
+Six 32KiB option ROMs (generic V8.01X/V8.06X, V1.10X/V1.21X,
+TriGem V1.31X, Kasan V8.02X) have valid 55AA headers/checksums; two
+512KiB Korean ROMs are fonts. ROM disassembly shows register `37h` used
+for video-memory bus/chip configuration in BIOS memory checks. The V8
+BIOSes exempt certain extended modes (including 2Fh) from a higher-memory
+eligibility check, unlike the earlier V1 series. The BIOSes also perform
+**destructive memory tests during initialization**, which must never be
+copied into a live Windows driver. Static findings are in the earlier
+`et4k_audit.zip` (no proprietary ROM bytes in that artifact).
 
-## v0035 scope
+## v0036 additions
 
-- Same stable `windows/win31/paldiag.c` → `tests/exes/PALDIAG.EXE`.
-  v0033 STEP 0–4 and v0034 explicitly confirmed STEP 5 are preserved.
-  Declining STEP 5 now proceeds to **optional STEP 6** instead of exiting.
-- STEP 6 uses only Win16 `GetPrivateProfileString` to read
-  `SYSTEM.INI [386Enh] display=`. The result is only a **configuration
-  observation**, NOT evidence that the listed VDD is currently loaded.
-- New `windows/win31/pal_vdd.[ch]`: C89 Win3.x-only classifier. Recognizes
-  `*vddvga` and `VDDVGA.386` as stock, `VDDVGA30.386` as legacy, and
-  treats anything else as custom or unknown. In enhanced mode, if stock
-  is configured and framebuffer >262144 bytes, returns
-  `PAL_VDD_KNOWN_INCOMPATIBLE`. All other enhanced cases return
-  `PAL_VDD_UNVERIFIED`; no config string certifies compatibility.
-  640×480×8 uses 307200 bytes, 640×400×8 uses 256000 bytes. The latter
-  does not imply that a stock VGA VDD supports banked packed SVGA.
-- Host test compiles actual Win16 PALDIAG plus the classifier against mock
-  Win16 APIs. Includes independent BIOS/VRAM/VDD opt-ins, missing export,
-  truncation and static VDD classification cases. No actual VDD calls,
-  hardware access, mode setting or configuration modification in STEP 6.
-- Same 13 DDI exports; `PALSTAGE.DRV` is **NOT INSTALLABLE** and not modified.
-  Never select it in SYSTEM.INI. Native Win16 ET4000AX driver adapter is
-  still dormant; no new hardware activation or Windows VDD handshake.
+- `et4k_crtc37_snapshot` / `et4k_crtc37_decode` added to existing ET4000AX
+  backend. Exactly two CRTC INDEX-port writes (select 37h, restore saved
+  index); read miscellaneous output 3CCh to choose 3D4h/3D5h or 3B4h/3B5h.
+  No CRTC DATA writes, no bank/VRAM I/O, no BIOS or mode changes.
+- Decodes register bits 0–1 as an 8/16/32-bit bus, bit 3 as nominal
+  64K/256K chip depth, yielding a **candidate** memory organization in
+  bytes. The register may be protected, stale, or interpreted differently
+  by BIOS/boards, so this is NOT verified installed VRAM and never drives
+  `et4k_setup` or mode selection automatically.
+- The existing stable DOS executable `ET4KTEST.EXE` adds `INFO` option:
+  read-only CRTC37 plus a C000h ROM version/date signature hint, no mode
+  setting or framebuffer activity. `ET4KTEST 256|512|1024` behavior and
+  explicit VRAM requirement are preserved; those paths also print INFO.
+- `tests/test_et4k_crtc37.c` mocks all raw port I/O, verifies both active
+  CRTC port pairs, previous-index restoration, 8 bus/depth combinations,
+  failure on unavailable callbacks, and forbids CRTC DATA / bank writes.
+- Same 13 DDI exports; dormant native Win16 adapter remains unchanged;
+  `PALSTAGE.DRV` is STILL NOT INSTALLABLE (`Enable(style=0)` fails).
 
-## What to run
+## Testing and acceptance
+
+Host Linux C89 tests and ZIP overlay/UTC timestamp checks run by assistant;
+**Open Watcom builds and DOS INFO output of v0036 have NOT been verified
+by the maintainer yet**. The user has validated the v0035 Windows runtime
+VDD configuration step, which is unrelated to this DOS-only patch.
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal35.zip
-make -f Makefile.win31diag test
-sh windows/win31/build-paldiag.sh
+unzip -o ~/Downloads/pal36.zip
+make clean && make test
+make -f Makefile.et4k test
+make -f Makefile.et4kmodes test
+sh windows/win31/build-palddi.sh
+sh dos/build-et4k.sh
 ```
 
-In snapshot-restorable 86Box Windows 3.1 **with the existing working
-VGA driver**, replace the previous PALDIAG.EXE. Repeat STEP 0–3, optionally
-skip BIOS STEP 4 and **decline STEP 5** (one-byte VRAM read has already
-passed). Answer Yes at STEP 6 and record the entire dialog showing the
-configured VDD. Do not edit SYSTEM.INI or switch modes for this test.
-The `GetPrivateProfileString` Win16 application build and real Windows
-readback must be validated by the maintainer; host mocks cannot prove either.
+In **plain DOS**, in a recoverable ET4000AX 86Box VM (never a Windows DOS
+box), run `ET4KTEST INFO` at 256, 512 and 1024 KiB. Record complete
+CRTC37 raw value, decoded organization and reported C000h BIOS identity;
+record the actual selected ROM from 86Box settings. If convenient repeat
+under V8 and V1 BIOSes. The output is a clue, **not** permission to try
+unsafe modes or automatically select a VRAM size.
 
-## Future priority
+## Architecture and next priorities
 
-Confirm actual VDD configuration and a compatible VDD/grabber pairing, and
-study the `VDDsetaddresses` service contract against historical DDK sources.
-Then implement a safe, persistent GDI-owned PDEVICE and a controlled native
-mode lifecycle with VDD coordination and rollback. Keep shared C89 renderer,
-card-specific backend, four-OS architecture, fixed-width v#### tags, source-
-only incremental ZIPs, correct UTC extra/Chicago-local DOS ZIP timestamps,
-`tests/exes` output, comprehensive `make clean`, and strict distinction
-between host/Open Watcom/86Box results.
+Keep C89 renderer/common mode interface and card-specific ET4000 backend
+reusable for Win3.1, WfW3.11, Win95, Win98. No redundant raster implementation.
+The actual blocker for a desktop remains Win3.1 GDI startup: persistent
+GDI-owned PDEVICE, text/cursor and any remaining critical DDIs, native
+mode lifecycle, rollback, and VDD/grabber cooperation. `*vddvga` is
+incompatible with a >256 KiB SVGA framebuffer under Windows 3.1 386
+Enhanced mode (Microsoft KB 80901). 640x400x8 on 256 KiB is not thereby
+proved compatible. Do NOT install PALSTAGE or switch Windows display
+configuration until these are resolved. Preserve comprehensive `make clean`,
+`tests/exes`, fixed-width v#### labels, small incremental source-only ZIP,
+UTC 0x5455 plus America/Chicago-local DOS ZIP timestamps, and explicit
+host vs Open Watcom vs 86Box validation status.
