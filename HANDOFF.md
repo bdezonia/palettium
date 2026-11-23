@@ -1,105 +1,96 @@
-# Palettium — v0027 handoff
+# Palettium — v0028 handoff
 
-Date: 2026-11-23 UTC. Incremental **v0027**, apply `pal27.zip` over a
-**user-validated v0026** checkout. Production names stay stable, milestone
-numbers fixed-width, generated executables stay in `tests/exes/`.
-The patch is a fresh ZIP with correct Chicago-local DOS timestamps and UTC
-0x5455 extras, source files only.
+Date: 2026-11-23 UTC. Apply incremental `pal28.zip` over a **user-validated
+v0027** repository. Stable production filenames, fixed-width v0028 milestone,
+C89 common core, binaries under `tests/exes/`, fresh ZIP UTC 0x5455 timestamps
+and America/Chicago DOS ZIP local-clock fields are preserved.
 
-## Four-OS architecture and priority
+## Objective / architecture
 
-One C89 reusable graphics framework for Windows 3.1, WfW 3.11, Windows 95
-and Windows 98. First target is a real Windows 3.1 ET4000AX desktop.
-The generic `common/` drawing operations use `RG_Device`/`RG_Ops`, the
-hardware-neutral RG_Hardware interface and card backend `et4k.c`.
-Win3.1 segmented-far DDI pointers stay in `windows/win31/palddi.c`;
-card-specific port access and mode operations stay outside the common core.
-Other three OS adapters remain planned, not implemented.
+Build one reusable four-OS graphics driver framework (Windows 3.1, WfW 3.11,
+Windows 95, Windows 98), first getting a genuine Windows 3.1 ET4000AX desktop.
+The shared `RG_Device`/`RG_Ops` raster operations stay OS/card-independent.
+`windows/win31/` owns the segmented 16-bit display-DDI ABI. The hardware-neutral
+`RG_Hardware` API and ET4000AX backend keep read/write banks and palette/mode
+capabilities independent from the Windows adapter. Other OS adapters are
+planned, not functional.
 
-## Validated v0026 checkpoint
+## Confirmed maintainer v0027 checkpoint
 
-Maintainer's Open Watcom and Ubuntu test results 2026-11-23: Pixel/palette,
-pen/brush realization, clipped rectangle output, far-token BitBlt,
-ET4000AX banked VRAM and all 13 Win3.x exports PASS; wcc/wlink PASS without
-reported warnings. The 13 exports are BitBlt @1, ColorInfo @2,
-Disable @4, Enable @5, Output @8, Pixel @9, RealizeObject @10,
-ScanLR @12, SetPalette @22, GetPalette @23, SetPalTrans @24,
-GetPalTrans @25, UpdateColors @26. Root README was updated in v0025.
+User's Ubuntu/Open Watcom results 2026-11-23: Win31 Pixel/palette/objects,
+Output rectangle/scanlines/polyline, all 16 ROP2, ET4000AX banked VRAM,
+far-token BitBlt, wcc/wlink and `wdump` with 13 exports all PASS, without
+reported Win16 warnings. The exported ordinals remain:
+BitBlt @1, ColorInfo @2, Disable @4, Enable @5, Output @8, Pixel @9,
+RealizeObject @10, ScanLR @12, SetPalette @22, GetPalette @23,
+SetPalTrans @24, GetPalTrans @25, UpdateColors @26.
 
-## v0027 changes
+## New in v0028
 
-- **Output @8 implements GDI-mandatory screen primitives** OS_SCANLINES=4
-  and OS_POLYLINE=18, while retaining OS_RECTANGLE=6. The DDK requires
-  these two foundation primitives so GDI can synthesize unsupported shapes.
-  No additional exports are added (still 13).
-- OS_SCANLINES wire format: `POINT[0].y` is the common scan Y;
-  each remaining `POINT` stores one [left,right) pair in its x/y fields.
-  Preflight all pairs to reject malformed input before any writes.
-  Brush if given, otherwise pen; hats with transparent/opaque background;
-  all 16 binary ROP2s; clipping through the screen framebuffer.
-- OS_POLYLINE draws connected nominal 1px pen segments, excludes the
-  endpoint of each segment to avoid XOR double writes at joins. Bresenham
-  uses `long` (32-bit on Win16) for extreme signed-16 point differences.
-  No device-specific duplicate raster path. OS_BEGINNSCAN/ENDNSCAN are
-  safe no-op hints for a validated live screen.
-- A shared clip calculator and hardware pixel dispatch serve all three
-  shapes. Host `PAL_ScreenHost` centralizes lifecycle/token validation.
-- New host regression `tests/test_win31_lines.c` covers all 16 ROP2 values,
-  brush/pen selection, hatches, diagonal/steep/reversed lines, clipping,
-  exclusive endpoints, multi-segment XOR and coordinate extremes.
-  ET4000AX integration verifies real bank crossing by both primitives.
-- `README.md`, this handoff, Win31 README and patch notes updated.
-  `CHECKSUMS.sha256` is full-source-tree SHA256; incremental ZIP is small.
+- `windows/win31/pal_bitmap.c` validates 32-byte DDK PBITMAP for both 1bpp
+  packed monochrome and 8bpp INDEX8, requiring a single segment (total <=
+  65535 bytes, bmBits segment offset + byte count <= 65536, non-huge metadata).
+  No claims of compatibility for huge GDI bitmap segments or planar formats.
+- `pal_bitmap_device.c` binds the checked bitmap to an ordinary RG_Device
+  via byte callbacks; `palddi.c` owns Win16 `MK_FP`/segment:offset handling
+  and near copies of the 32-byte FAR bitmap header. The shared code never
+  dereferences a Win16 far pointer or duplicates the raster engine.
+- Output @8 directs OS_RECTANGLE, OS_SCANLINES and OS_POLYLINE to physical
+  screen or memory bitmap; `common/rg_gdi_output.c` handles INDEX1 as well
+  as INDEX8, retaining ROP2, clipping, hatches and endpoints.
+- BitBlt @1 supports same-format 1/8bpp screen/memory and memory/memory,
+  plus mono↔color conversion from DRAWMODE physical text/background colors.
+  Mono 1 means background, mono 0 means text; the reverse conversion maps
+  color equal to background to mono 1, all other colors to mono 0. Only
+  pattern-independent ROP3 are handled; unsupported operations return FALSE.
+  Memory aliasing uses the SAME RG_Device for correct overlapping copies.
+- New `tests/test_win31_mem.c`: header/segment validation, 1bpp packed data,
+  RGB/mono conversion, Output rectangles/scanlines/polylines, rejection
+  without writes and in-place overlap. ET4000AX integration checks both
+  conversion directions across 64 KiB VRAM read/write banks.
+- **No new exports**. Source-only small incremental ZIP; README and Win31
+  README updated. No change to unrelated OS adapters.
 
-## Validation and next maintainer test
+## Validation
 
-Linux host C89 `-Wall -Wextra -Werror` test targets:
+Linux host C89 `-Wall -Wextra -Werror` tests PASS:
 
 ```sh
 make -f Makefile.win31link test
 make -f Makefile.screen17 test
 make -f Makefile.win31ddi test
+make -f Makefile.bitmap test
 make clean && make test
 ```
 
-All tested successfully in the creation environment. **Open Watcom is not
-installed in the assistant's environment**: v0027 Win16 compile/link is
-UNVERIFIED until the maintainer runs:
+An auxiliary host C89 syntax check of `palddi.c` with stub Win16 headers
+passed; this does NOT validate Win16 ABI or Open Watcom. **Open Watcom v0028
+build is unverified** until the maintainer runs:
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal27.zip
+unzip -o ~/Downloads/pal28.zip
 make -f Makefile.win31link test
 make -f Makefile.screen17 test
 make -f Makefile.win31ddi test
+make -f Makefile.bitmap test
 sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-Expect 13 unchanged DDI exports, with Output @8 enhanced in behavior.
+## NOT INSTALLABLE / next actual startup work
 
-## NOT INSTALLABLE: Enable(style=0) remains gated
+`Enable(style=0)` intentionally fails; `PALSTAGE.DRV` must **not** be selected
+in SYSTEM.INI. The v0028 memory functionality is only reachable after a
+hypothetical successful screen host startup; hardware initialization and GDI
+PDEVICE binding are not wired to a real Win16 display driver yet. Major
+remaining contracts: >64 KiB segmented memory BITMAPs, memory BitmapBits,
+Pixel/ScanLR for memory, patterned brushes, text and cursor services,
+GDIINFO metrics/capability truthfulness, 16-bit ET4000AX BIOS/port/A000 mode
+setup/restoration, enhanced-mode switching. Prioritize a minimal functioning
+Win16 mode/host boot path and essential text/cursor without dropping four-OS
+reuse. Test startup first in a recoverable 86Box image, never on a primary OS.
 
-`PALSTAGE.DRV` is a staging NE Win16 DLL that links but **must not be
-selected as the Windows display driver**. `Enable(style=0)` always fails;
-`Enable(style=1)` returns only preliminary 110-byte GDIINFO with raster,
-bitmap, clipping and palette capabilities unadvertised. The new lines
-are screen-only and do **not** satisfy all DDK obligations for drawing to
-GDI-owned 1bpp memory bitmaps. Critical remaining gaps: monochrome/color
-memory BITMAP operations, fonts/text fallback, cursor services, GDI-owned
-PDEVICE lifecycle, real Win16 ET4000AX BIOS/ports/A000 banking, mode restore
-and 386 enhanced-mode coordination. Do not change SYSTEM.INI yet.
-
-## Recommended v0028 direction
-
-Implement **memory BITMAP drawing and blit contracts** so all foundational
-Output operations work on both screen and memory bitmaps. Prefer a small
-adapter for GDI's bitmap header and reuse `RG_Device`/`common` software
-algorithms, not a second raster engine. In parallel, map the real Win16
-hardware/mode lifecycle and test first boot in recoverable 86Box.
-Advance actual `Enable(style=0)` only when these responsibilities are met.
-
-References (historical DDK):
-- https://dos-help.soulsphere.org/ddag31qh.hlp/Output.html
-- https://dos-help.soulsphere.org/ddag31qh.hlp/dispoutput.html
-- https://www.pcjs.org/documents/books/mspl13/win/w3ddkadp/
+Historical sources: Windows 3.1 DDK BitBlt, BITMAP and display Output
+(https://dos-help.soulsphere.org/ddag31qh.hlp/BitBlt.html and
+https://dos-help.soulsphere.org/ddag31qh.hlp/dispoutput.html).

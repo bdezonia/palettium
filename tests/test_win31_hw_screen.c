@@ -4,6 +4,7 @@
 #include <string.h>
 #include "pal_screen_host.h"
 #include "et4k.h"
+#include "rg_gdi_blit.h"
 
 #define CAP 524288UL
 #define TOKEN 0x1A2B0040UL
@@ -67,6 +68,8 @@ int main(void)
     rg_offset a=65535UL, b=65536UL;
     PAL_U32 physical = 0, logical = 0;
     RG_Pen pen;
+    RG_Device mono;
+    rg_u8 mono_bytes[4];
     RG_Brush brush;
     RG_Rect rect, clip;
     unsigned short map[256];
@@ -185,6 +188,23 @@ int main(void)
     assert(rg_read_byte(&host.device,102UL*640UL+260UL)==63u);
     assert(rg_read_byte(&host.device,105UL*640UL+260UL)==0u);
     assert(m->bad==0);
+    /* v0028: mono <-> INDEX8 GDI DDB transfers, crossing A000 banks.
+     * This reuses the SAME ET4000 hardware pixel interface as Output. */
+    mono_bytes[0]=0xAA; mono_bytes[1]=0x55;
+    mono_bytes[2]=0xFF; mono_bytes[3]=0x00;
+    assert(rg_init(&mono,mono_bytes,32,1,4,4,RG_FMT_INDEX1));
+    assert(rg_gdi_blit_color(&host.device,&mono,248,102,0,0,32,1,
+                              0x00CC0020UL,11,7));
+    assert(rg_read_byte(&host.device,102UL*640UL+254UL)==7u);
+    assert(rg_read_byte(&host.device,102UL*640UL+255UL)==11u);
+    assert(rg_read_byte(&host.device,102UL*640UL+256UL)==11u);
+    assert(rg_read_byte(&host.device,102UL*640UL+257UL)==7u);
+    memset(mono_bytes,0,4);
+    assert(rg_gdi_blit_color(&mono,&host.device,0,0,248,102,32,1,
+                              0x00CC0020UL,11,7));
+    assert(mono_bytes[0]==0xAA && mono_bytes[1]==0x55 &&
+           mono_bytes[2]==0xFF && mono_bytes[3]==0x00);
+    assert(m->bad==0);
     pal_screen_host_stop(&host);
     assert(!pal_screen_host_output_ready(&host,TOKEN));
     assert(!pal_screen_host_scanline(&host,TOKEN,102,250,270,0,
@@ -207,6 +227,6 @@ int main(void)
     pal_screen_host_stop(&host);
     assert(m->restores==3);
     free(m);
-    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, palette, rectangle, scanlines, polylines");
+    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, palette, Output, mono/color banked BitBlt");
     return 0;
 }

@@ -19,6 +19,8 @@ common/rg_win31_screen.c
 windows/win31/pal_gdiinfo.c
 windows/win31/pal_pdevice.c
 windows/win31/pal_objects.c
+windows/win31/pal_bitmap.c
+windows/win31/pal_bitmap_device.c
 windows/win31/pal_enable.c
 windows/win31/pal_screen_ddi.c
 windows/win31/pal_screen_host.c
@@ -75,4 +77,4 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
 python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
 printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; memory bitmaps, text, cursor and native mode initialization remain missing.'
+    'NOT INSTALLABLE: Enable(style=0) still fails; text, cursor, huge bitmaps and native mode initialization remain missing.'

@@ -32,6 +32,7 @@ typedef struct PAL_BITMAP16 {
 #define PAL_TARGET_SCREEN  2
 
 /* Caller supplies the first word, not an untrusted near pointer cast.
+ * Supports single-segment 1bpp monochrome and 8bpp indexed bitmaps.
  * No pixel access, no mode switching, and no GDI exports occur here. */
 int pal_ddi_bitmap_layout_ok(void);
 int pal_ddi_memory_bitmap_ok(const PAL_BITMAP16 *bmp);

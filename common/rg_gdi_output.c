@@ -22,7 +22,8 @@ static int output_clip(RG_Device *dev, const RG_Rect *user,
                        RG_Rect *out)
 {
     if (!dev || !out || !dev->ops.pixel ||
-        dev->surface.format != RG_FMT_INDEX8 ||
+        (dev->surface.format != RG_FMT_INDEX8 &&
+         dev->surface.format != RG_FMT_INDEX1) ||
         !dev->surface.width || !dev->surface.height ||
         dev->surface.width > 32767u || dev->surface.height > 32767u)
         return 0;

@@ -26,6 +26,8 @@
 #include "pal_ddl_blit.h"
 #include "pal_enable.h"
 #include "pal_objects.h"
+#include "pal_bitmap_device.h"
+#include "rg_gdi_blit.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
 
@@ -37,21 +39,125 @@ void FAR PASCAL pal_win16_bind_host(PAL_ScreenHost *host)
     pal_active_host = host;
 }
 
+/* GDI memory bitmap operands are segmented FAR BITMAP16 headers. Decode
+ * them only after checking the first WORD and the 64 KiB header boundary.
+ * The bits themselves are accessed with offset-preserving callbacks, never
+ * by casting a Win16 far pointer to a flat/near RG_Surface.pixels. */
+typedef struct PAL_Win16Bits {
+    PAL_U32 address;
+} PAL_Win16Bits;
+
+static rg_u8 pal_win16_bits_read(void *ctx, rg_offset offset)
+{
+    PAL_Win16Bits *bits = (PAL_Win16Bits *)ctx;
+    const rg_u8 FAR *p=(const rg_u8 FAR *)MK_FP(
+        (unsigned)(bits->address >> 16),
+        (unsigned)((bits->address & 65535UL) + offset));
+    return *p;
+}
+
+static void pal_win16_bits_write(void *ctx, rg_offset offset, rg_u8 value)
+{
+    PAL_Win16Bits *bits = (PAL_Win16Bits *)ctx;
+    rg_u8 FAR *p=(rg_u8 FAR *)MK_FP((unsigned)(bits->address >> 16),
+        (unsigned)((bits->address & 65535UL) + offset));
+    *p=value;
+}
+
+static int pal_win16_device(LPVOID operand, RG_Device *storage,
+                             PAL_Win16Bits *bits, RG_Device **result)
+{
+    PAL_U32 token;
+    PAL_BITMAP16 bitmap;
+    const unsigned char FAR *from;
+    unsigned char *to;
+    RG_VramOps io;
+    unsigned i;
+    if (!pal_active_host || !pal_active_host->running || !operand ||
+        !pal_screen_host_output_ready(pal_active_host,
+                     pal_active_host->ddi.screen_token)) return 0;
+    token=pal_ddi_far_token((PAL_U16)FP_SEG(operand),
+                            (PAL_U16)FP_OFF(operand));
+    if (token == pal_active_host->ddi.screen_token) {
+        *result=&pal_active_host->device;
+        return 1;
+    }
+    if ((PAL_U32)(PAL_U16)FP_OFF(operand) +
+        (PAL_U32)sizeof(bitmap)>65536UL ||
+        *(const WORD FAR *)operand != 0u) return 0;
+    from=(const unsigned char FAR *)operand;
+    to=(unsigned char *)&bitmap;
+    for (i=0; i<sizeof(bitmap); ++i) to[i]=from[i];
+    if (!pal_ddi_memory_bitmap_ok(&bitmap)) return 0;
+    bits->address=bitmap.bmBits;
+    io.read_byte=pal_win16_bits_read;
+    io.write_byte=pal_win16_bits_write;
+    if (!pal_ddi_bitmap_device(storage,&bitmap,io,bits)) return 0;
+    *result=storage;
+    return 1;
+}
+
+/* The Win3.x DRAWMODE begins with Rop2, bkMode, bkColor (physical
+ * DWORD) and TextColor (physical DWORD). For mixed-depth bitmap blits
+ * we need both physical indices. Return failure for absent/invalid data;
+ * never guess colors when a conversion would change the result. */
+static int pal_win16_mode_colors(LPVOID mode, unsigned *text,
+                                 unsigned *background)
+{
+    const WORD FAR *w=(const WORD FAR *)mode;
+    PAL_U32 bg, fg;
+    if (!mode || !text || !background ||
+        (PAL_U32)(PAL_U16)FP_OFF(mode)+12UL>65536UL) return 0;
+    bg=(PAL_U32)w[2] | ((PAL_U32)w[3] << 16);
+    fg=(PAL_U32)w[4] | ((PAL_U32)w[5] << 16);
+    if (bg > 255UL || fg > 255UL) return 0;
+    *background=(unsigned)bg;
+    *text=(unsigned)fg;
+    return 1;
+}
+
 /* DDK: BitBlt(dest,dx,dy,src,sx,sy,w,h,rop,brush,drawmode).
- * Return zero for unsupported request. All GDI pointers remain opaque.
- * The host-side bridge rejects memory bitmap operands by identity.
- */
+ * Same-screen keeps the existing hardware blit path. All 1/8bpp
+ * memory combinations use shared software/hardware RG_Device operations.
+ * Pattern-dependent ROP3 still refuses without writing. */
 BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
                        LPVOID src, short sx, short sy,
                        short width, short height, DWORD rop,
                        LPVOID brush, LPVOID drawmode)
 {
-    (void)brush; (void)drawmode;
-    if (!pal_active_host) return FALSE;
-    return pal_ddi_bitblt_words(pal_active_host,
-               (PAL_U16)FP_SEG(dest), (PAL_U16)FP_OFF(dest), dx, dy,
-               (PAL_U16)FP_SEG(src), (PAL_U16)FP_OFF(src), sx, sy,
-               width, height, (unsigned long)rop) ? TRUE : FALSE;
+    PAL_U32 dt, st;
+    PAL_Win16Bits dbits, sbits;
+    RG_Device dmem, smem, *d, *s;
+    unsigned text=0, background=0;
+    (void)brush;
+    if (!pal_active_host || !dest || !src || width <= 0 || height <= 0)
+        return FALSE;
+    dt=pal_ddi_far_token((PAL_U16)FP_SEG(dest),(PAL_U16)FP_OFF(dest));
+    st=pal_ddi_far_token((PAL_U16)FP_SEG(src),(PAL_U16)FP_OFF(src));
+    if (dt == pal_active_host->ddi.screen_token && dt == st)
+        return pal_screen_host_bitblt(pal_active_host,dt,dx,dy,st,sx,sy,
+                                      width,height,(unsigned long)rop)
+                   ? TRUE : FALSE;
+    if (!pal_win16_device(dest,&dmem,&dbits,&d) ||
+        !pal_win16_device(src,&smem,&sbits,&s)) return FALSE;
+    if (dt == st) s=d; /* preserve overlap direction for in-place blits */
+    else if (d != &pal_active_host->device &&
+             s != &pal_active_host->device &&
+             dbits.address == sbits.address) {
+        /* Two distinct BITMAP headers may alias the same backing memory.
+         * Treat truly identical surfaces as one device for overlap-safe
+         * copies; refuse conflicting views of the same bytes. */
+        if (d->surface.width != s->surface.width ||
+            d->surface.height != s->surface.height ||
+            d->surface.stride != s->surface.stride ||
+            d->surface.format != s->surface.format) return FALSE;
+        s=d;
+    }
+    if (d->surface.format != s->surface.format &&
+        !pal_win16_mode_colors(drawmode,&text,&background)) return FALSE;
+    return rg_gdi_blit_color(d,s,dx,dy,sx,sy,width,height,
+                              (unsigned long)rop,text,background)
+               ? TRUE : FALSE;
 }
 
 /* Pixel @9: DRAWMODE starts with a 16-bit Rop2. A null DRAWMODE
@@ -148,22 +254,21 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
                         LPVOID points, LPVOID pen, LPVOID brush,
                         LPVOID drawmode, LPVOID cliprect)
 {
-    PAL_U32 token;
     const PAL_POINT16 FAR *pt;
     const PAL_Rect16 FAR *cr;
     const WORD FAR *draw;
     const unsigned char FAR *source;
-    unsigned char *target;
+    unsigned char *dst_bytes;
     RG_Pen near_pen;
     RG_Brush near_brush;
     RG_Rect bounds, clipped;
+    PAL_Win16Bits mbits;
+    RG_Device mdevice, *target;
     const RG_Rect *cptr=0;
     unsigned i, rop2, bgmode;
     if (!pal_active_host || !pal_active_host->running || !dest)
         return (WORD)-1;
-    token = pal_ddi_far_token((PAL_U16)FP_SEG(dest),
-                              (PAL_U16)FP_OFF(dest));
-    if (!pal_screen_host_output_ready(pal_active_host, token))
+    if (!pal_win16_device(dest,&mdevice,&mbits,&target))
         return (WORD)-1;
     /* Win3.x bracketing hints have no drawn pixels and can be ignored. */
     if (style == 80u || style == 81u) return 1u;
@@ -189,15 +294,30 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
     }
     if (pen) {
         source = (const unsigned char FAR *)pen;
-        target = (unsigned char *)&near_pen;
-        for (i=0; i<sizeof(near_pen); ++i) target[i]=source[i];
+        dst_bytes = (unsigned char *)&near_pen;
+        for (i=0; i<sizeof(near_pen); ++i) dst_bytes[i]=source[i];
         if (!rg_pen_valid(&near_pen)) return (WORD)-1;
     }
     if (brush) {
         source = (const unsigned char FAR *)brush;
-        target = (unsigned char *)&near_brush;
-        for (i=0; i<sizeof(near_brush); ++i) target[i]=source[i];
+        dst_bytes = (unsigned char *)&near_brush;
+        for (i=0; i<sizeof(near_brush); ++i) dst_bytes[i]=source[i];
         if (!rg_brush_valid(&near_brush)) return (WORD)-1;
+    }
+    if (target->surface.format == RG_FMT_INDEX1) {
+        unsigned text=0, background=0;
+        if (!pal_win16_mode_colors(drawmode,&text,&background))
+            return (WORD)-1;
+        /* Win3.x monochrome 1=background, 0=other (text). */
+        if (pen)
+            near_pen.color=(unsigned short)rg_gdi_mono_color(
+                                      near_pen.color,background);
+        if (brush) {
+            near_brush.foreground=(unsigned short)rg_gdi_mono_color(
+                                      near_brush.foreground,background);
+            near_brush.background=(unsigned short)rg_gdi_mono_color(
+                                      near_brush.background,background);
+        }
     }
     if (style == 4u) {
         /* Preflight every span before the first write: reject malformed
@@ -205,7 +325,7 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
         for (i=1u; i<(unsigned)count; ++i)
             if (pt[i].x > pt[i].y) return (WORD)-1;
         for (i=1u; i<(unsigned)count; ++i)
-            if (!pal_screen_host_scanline(pal_active_host, token,
+            if (!rg_gdi_output_scanline(target,
                     pt[0].y, pt[i].x, pt[i].y, cptr,
                     pen ? &near_pen : 0, brush ? &near_brush : 0,
                     rop2, bgmode)) return (WORD)-1;
@@ -213,14 +333,14 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
     }
     if (style == 18u) {
         for (i=1u; i<(unsigned)count; ++i)
-            if (!pal_screen_host_segment(pal_active_host, token,
+            if (!rg_gdi_output_segment(target,
                     pt[i-1u].x, pt[i-1u].y, pt[i].x, pt[i].y,
                     cptr, pen ? &near_pen : 0, rop2)) return (WORD)-1;
         return 1u;
     }
     bounds.left = pt[0].x; bounds.top = pt[0].y;
     bounds.right = pt[1].x; bounds.bottom = pt[1].y;
-    return pal_screen_host_rectangle(pal_active_host, token, bounds, cptr,
+    return rg_gdi_output_rectangle(target, bounds, cptr,
              pen ? &near_pen : 0, brush ? &near_brush : 0,
              rop2, bgmode) ? 1u : (WORD)-1;
 }

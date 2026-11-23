@@ -1,0 +1,44 @@
+Palettium v0028 — Win3.x GDI memory BITMAP drawing and BitBlt
+
+Incremental: apply over user-validated v0027:
+  cd ~/dev/palettium
+  unzip -o ~/Downloads/pal28.zip
+
+Changes:
+- Win3.x memory BITMAP (32-byte DDK header) validation now accepts one
+  plane, packed 1bpp monochrome or 8bpp INDEX8, with checked stride,
+  bmWidthPlanes, bmBits segment-boundary and single-segment layout.
+  Huge BITMAPs and additional planes/formats are explicitly refused.
+- New small Win3.x BITMAP -> RG_Device adapter binds byte callback I/O;
+  no FAR Win16 pointer is ever treated as a flat host pointer. Win16
+  DDI decodes GDI's segmented BITMAP header and protects memory layout.
+- Output @8 draws rectangles, scanlines and polylines to both GDI-owned
+  memory BITMAPs and the screen with the SAME common raster. Physical
+  palette-index pen/brush colors are converted to monochrome using the
+  DRAWMODE background index; hatch/clipping/ROP2 work without duplication.
+- BitBlt @1 supports screen↔memory and memory↔memory, 1/8bpp with
+  DDK mono 1=background / 0=text mapping and reverse color->mono mapping.
+  Same-depth copies reuse shared hardware/ROP paths; in-place memory
+  overlap retains source, and unsupported pattern-dependent ROP3 refuses.
+- ET4000AX hardware mock checks 1bpp↔8bpp transfers across the actual
+  64 KiB VRAM bank boundary. New tests/test_win31_mem.c validates the
+  memory layout, packed bit operations, three Output primitives, clipping,
+  mono/color conversions, refusal and overlap.
+- No exports added: 13 stable Win16 DDI exports remain.
+- README.md, Win31 README, HANDOFF.md, build script and checksums updated.
+
+Validated in assistant C89 environment with -Wall -Wextra -Werror:
+  make -f Makefile.win31link test
+  make -f Makefile.screen17 test
+  make -f Makefile.win31ddi test
+  make -f Makefile.bitmap test
+  make clean && make test
+
+Open Watcom Win16 v0028 link remains UNVERIFIED; maintainer to run:
+  sh windows/win31/build-palddi.sh
+  wdump -x tests/exes/PALSTAGE.DRV
+
+Still NOT INSTALLABLE: Enable(style=0) deliberately fails. Huge memory
+bitmaps, memory Pixel/ScanLR, text, cursor, complete drawing fallback,
+actual Win16 ET4000AX BIOS/ports/mode lifecycle and validated PDEVICE
+ownership still need work. Do NOT select PALSTAGE.DRV in SYSTEM.INI.

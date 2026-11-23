@@ -1,6 +1,6 @@
 #ifndef RG_GDI_OUTPUT_H
 #define RG_GDI_OUTPUT_H
-/* OS-independent INDEX8 GDI drawing primitives. Win16 DDI POINT arrays
+/* OS-independent INDEX8/INDEX1 GDI drawing primitives. Win16 DDI POINT arrays
  * are decoded only in the OS adapter. Coordinates and clipping are half-open.
  * A line segment draws its first point, but not its final endpoint (DDK).
  * All new primitive entry points refuse invalid arguments before writing.
