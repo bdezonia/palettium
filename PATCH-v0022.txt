@@ -1,0 +1,18 @@
+Palettium v0022: first real Win31 Enable(style=1) capability-copy path.
+
+REPLACED:
+  windows/win31/palddi.c
+  windows/win31/build-palddi.sh
+
+ADDED:
+  windows/win31/pal_enable.h
+  windows/win31/pal_enable.c
+  tests/test_win31_enable.c
+  Makefile.enable22
+  docs/v0022-enable.md
+
+Build: make -f Makefile.enable22 test
+Win16: sh windows/win31/build-palddi.sh
+
+NOT A COMPLETE DISPLAY DRIVER. DO NOT INSTALL IN WINDOWS.
+All executables and Win16 object files go under tests/exes/.

@@ -7,6 +7,7 @@
 #undef BitBlt
 #include <dos.h>
 #include "pal_ddl_blit.h"
+#include "pal_enable.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
 
@@ -35,16 +36,25 @@ BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
                width, height, (unsigned long)rop) ? TRUE : FALSE;
 }
 
-/* Win3.x display driver enablement is two-stage. Neither GDIINFO nor the
- * physical device is ready for Windows to consume, so refuse both stages.
- * Never call pal_win16_bind_host() from an unsuccessful initialization.
+/* Windows 3.x DDI: style 1 requests GDIINFO, style 0 requests
+ * physical initialization. Capability discovery is safe to exercise;
+ * actual enablement remains deliberately disabled until mandatory
+ * GDI services and enhanced-mode switching are implemented.
  */
 WORD FAR PASCAL Enable(LPVOID destination, WORD style,
                        LPSTR device_type, LPSTR output_file, LPVOID data)
 {
-    (void)destination; (void)style; (void)device_type;
-    (void)output_file; (void)data;
-    return 0;
+    PAL_GDIINFO candidate;
+    unsigned char FAR *out;
+    const unsigned char *in;
+    unsigned i;
+    (void)device_type; (void)output_file; (void)data;
+    if (style != 1u || !destination) return 0;
+    if (!pal_enable_capability(&candidate, 640u, 480u)) return 0;
+    out = (unsigned char FAR *)destination;
+    in = (const unsigned char *)&candidate;
+    for (i = 0; i < sizeof(candidate); ++i) out[i] = in[i];
+    return (WORD)sizeof(candidate);
 }
 
 void FAR PASCAL Disable(LPVOID physical_device)

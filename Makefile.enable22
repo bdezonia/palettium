@@ -1,0 +1,14 @@
+CC ?= cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror
+INCS = -Iwindows/win31
+SRC = windows/win31/pal_enable.c windows/win31/pal_gdiinfo.c \
+      windows/win31/pal_pdevice.c tests/test_win31_enable.c
+.PHONY: test clean
+test: tests/exes/enable22-test
+	./tests/exes/enable22-test
+tests/exes/enable22-test: $(SRC) windows/win31/pal_enable.h | tests/exes
+	$(CC) $(CFLAGS) $(INCS) $(SRC) -o $@
+tests/exes:
+	mkdir -p $@
+clean:
+	rm -f tests/exes/enable22-test
