@@ -1,0 +1,11 @@
+Palettium v0.8 - additive Win16 runtime test
+
+NEW:
+  windows/win31/paltest.c
+  windows/win31/build-paltest.sh
+  docs/v08-runtime-test.md
+
+No existing project files are replaced. Requires v0.7 and built PALCORE.DLL.
+Build: sh windows/win31/build-paltest.sh
+Run: copy PALTEST.EXE and PALCORE.DLL together to Windows 3.1; run PALTEST.EXE.
+This is not a display driver.
