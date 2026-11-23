@@ -1,0 +1,16 @@
+# Palettium v0017: host-side ET4000 + Windows adapter integration
+CC ?= cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror
+INC = -Iinclude -Iwindows/win31 -Ihardware/tseng/et4000ax
+SRC = common/rgfx.c common/rg_hardware.c common/rg_gdi_rop.c \
+      common/rg_gdi_blit.c common/rg_win31_screen.c \
+      windows/win31/pal_gdiinfo.c windows/win31/pal_pdevice.c \
+      windows/win31/pal_screen_ddi.c windows/win31/pal_screen_host.c \
+      hardware/tseng/et4000ax/et4k.c tests/test_win31_hw_screen.c
+.PHONY: test clean
+test: screen17-test
+	./screen17-test
+screen17-test: $(SRC) windows/win31/pal_screen_host.h
+	$(CC) $(CFLAGS) $(INC) $(SRC) -o $@
+clean:
+	rm -f screen17-test

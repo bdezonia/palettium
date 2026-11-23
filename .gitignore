@@ -8,6 +8,7 @@
 /pdevice-test
 /raster-test
 /raster-demo.ppm
+/screen17-test
 /win16-guard
 /win31-screen-test
 *.o

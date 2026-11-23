@@ -1,0 +1,11 @@
+Palettium v0017 - additive Windows 3.1 / hardware lifecycle integration
+
+New files only:
+  windows/win31/pal_screen_host.h
+  windows/win31/pal_screen_host.c
+  tests/test_win31_hw_screen.c
+  Makefile.screen17
+  docs/v0017-screen-lifecycle.md
+
+No existing source or build scripts modified. This is not an installable
+Windows display driver. Do not change SYSTEM.INI.
