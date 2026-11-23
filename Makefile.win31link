@@ -1,8 +1,9 @@
 .PHONY: test win16 clean
 
-test: tests/exes/win31-pixel-test tests/exes/win31-palette-test
+test: tests/exes/win31-pixel-test tests/exes/win31-palette-test tests/exes/win31-objects-test
 	./tests/exes/win31-pixel-test
 	./tests/exes/win31-palette-test
+	./tests/exes/win31-objects-test
 	python3 tests/test_win31_exportcheck.py
 
 tests/exes/win31-pixel-test: tests/test_win31_pixel.c windows/win31/pal_screen_ddi.c windows/win31/pal_pdevice.c windows/win31/pal_gdiinfo.c common/rgfx.c common/rg_gdi_blit.c common/rg_gdi_rop.c common/rg_win31_screen.c | tests/exes
@@ -11,6 +12,9 @@ tests/exes/win31-pixel-test: tests/test_win31_pixel.c windows/win31/pal_screen_d
 tests/exes/win31-palette-test: tests/test_win31_palette.c common/rg_palette.c common/rgfx.c include/rg_palette.h | tests/exes
 	$(CC) -std=c89 -O2 -Wall -Wextra -Werror -Iinclude common/rgfx.c common/rg_palette.c tests/test_win31_palette.c -o $@
 
+tests/exes/win31-objects-test: tests/test_win31_objects.c common/rg_objects.c common/rg_gdi_output.c common/rg_gdi_rop.c common/rg_palette.c common/rgfx.c windows/win31/pal_objects.c | tests/exes
+	$(CC) -std=c89 -O2 -Wall -Wextra -Werror -Iinclude -Iwindows/win31 common/rgfx.c common/rg_gdi_rop.c common/rg_palette.c common/rg_objects.c common/rg_gdi_output.c windows/win31/pal_objects.c tests/test_win31_objects.c -o $@
+
 tests/exes:
 	mkdir -p $@
 
@@ -18,4 +22,4 @@ win16:
 	sh windows/win31/build-palddi.sh
 
 clean:
-	rm -f tests/exes/PALSTAGE.DRV tests/exes/PALSTAGE.exports.txt tests/exes/win31-pixel-test tests/exes/win31-palette-test
+	rm -f tests/exes/PALSTAGE.DRV tests/exes/PALSTAGE.exports.txt tests/exes/win31-pixel-test tests/exes/win31-palette-test tests/exes/win31-objects-test

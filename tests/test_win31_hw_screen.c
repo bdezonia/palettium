@@ -66,6 +66,9 @@ int main(void)
     PAL_ScreenHost host;
     rg_offset a=65535UL, b=65536UL;
     PAL_U32 physical = 0, logical = 0;
+    RG_Pen pen;
+    RG_Brush brush;
+    RG_Rect rect, clip;
     unsigned short map[256];
     int found;
     unsigned i;
@@ -141,8 +144,25 @@ int main(void)
     map[255]=256;
     assert(!pal_screen_host_update_colors(&host,250,102,20,1,map));
     assert(!pal_screen_host_update_colors(&host,635,102,20,1,map));
+    /* v0026: real OS_RECTANGLE path draws through ET4000AX bank switching.
+     * Row 102 starts at offset 65280, so x=256 reaches the next bank. */
+    assert(rg_pen_realize(&host.palette,0,1,0xFF00003FUL,&pen));
+    assert(rg_brush_realize(&host.palette,RG_BRUSH_SOLID,
+                             0xFF00004DUL,0,0,0,0,&brush));
+    rect.left=250; rect.top=102; rect.right=270; rect.bottom=105;
+    clip.left=252; clip.top=102; clip.right=268; clip.bottom=105;
+    assert(!pal_screen_host_rectangle(&host,TOKEN+1,rect,&clip,
+                                       &pen,&brush,13,2));
+    assert(pal_screen_host_rectangle(&host,TOKEN,rect,&clip,
+                                     &pen,&brush,13,2));
+    assert(rg_read_byte(&host.device,102UL*640UL+252UL)==63u);
+    assert(rg_read_byte(&host.device,103UL*640UL+252UL)==77u);
+    assert(rg_read_byte(&host.device,103UL*640UL+256UL)==77u);
+    assert(rg_read_byte(&host.device,104UL*640UL+267UL)==63u);
     assert(m->changes>3 && m->bad==0);
     pal_screen_host_stop(&host);
+    assert(!pal_screen_host_rectangle(&host,TOKEN,rect,&clip,
+                                       &pen,&brush,13,2));
     assert(m->restores==2);
     assert(!pal_screen_host_bitblt(&host,TOKEN,0,0,TOKEN,0,0,
                                    5,5,0x00CC0020UL));
@@ -157,6 +177,6 @@ int main(void)
     pal_screen_host_stop(&host);
     assert(m->restores==3);
     free(m);
-    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, 20 static colors, UpdateColors");
+    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, palette, clipped Output rectangle");
     return 0;
 }

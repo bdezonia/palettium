@@ -11,11 +11,14 @@ mkdir -p tests/exes
 SOURCES='common/rgfx.c
 common/rg_hardware.c
 common/rg_palette.c
+common/rg_objects.c
+common/rg_gdi_output.c
 common/rg_gdi_rop.c
 common/rg_gdi_blit.c
 common/rg_win31_screen.c
 windows/win31/pal_gdiinfo.c
 windows/win31/pal_pdevice.c
+windows/win31/pal_objects.c
 windows/win31/pal_enable.c
 windows/win31/pal_screen_ddi.c
 windows/win31/pal_screen_host.c
@@ -52,6 +55,7 @@ export Disable.4
 export Enable.5
 export Output.8
 export Pixel.9
+export RealizeObject.10
 export ScanLR.12
 export SetPalette.22
 export GetPalette.23
@@ -71,4 +75,4 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
 python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
 printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; objects, text, bitmap, cursor and mode initialization remain missing.'
+    'NOT INSTALLABLE: Enable(style=0) still fails; patterned brushes, text, bitmap, cursor and mode initialization remain missing.'

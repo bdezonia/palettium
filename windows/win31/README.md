@@ -1,4 +1,4 @@
-# Windows 3.1 staging display driver (v0025)
+# Windows 3.1 staging display driver (v0026)
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -9,14 +9,16 @@ wdump -x tests/exes/PALSTAGE.DRV
 ```
 
 The module exports BitBlt @1, ColorInfo @2, Disable @4, Enable @5,
-Output @8, Pixel @9, ScanLR @12, and palette operations @22 through @26.
+Output @8, Pixel @9, **RealizeObject @10**, ScanLR @12, and palette
+operations @22 through @26. The v0026 `Output(OS_RECTANGLE)` now renders
+with the common pixel engine; all other styles still request simulation.
 See `README.md` in the project root for test commands and architecture.
 
 **This driver is NOT INSTALLABLE.** `Enable(style=0)` is deliberately disabled;
 `Enable(style=1)` returns a candidate GDIINFO with zero advertised drawing or
-palette capability bits. The new v0025 palette machinery is only reachable in
+palette capability bits. The new v0026 palette machinery is only reachable in
 an *already running* screen host. The Win16 ET4000AX mode initialization,
-active GDI PDEVICE, raster operations on memory bitmaps, RealizeObject, text,
+active GDI PDEVICE, raster operations on memory bitmaps, patterned brushes, scanlines, text,
 cursor and window switch paths remain unfinished. Never select PALSTAGE.DRV
 in SYSTEM.INI.
 

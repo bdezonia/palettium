@@ -1,0 +1,56 @@
+Palettium v0026 — physical pens/brushes + real Win31 rectangle output
+
+Apply over validated v0025 (not a full checkout):
+  cd ~/dev/palettium
+  unzip -o ~/Downloads/pal26.zip
+
+Win3.x DDI and shared renderer:
+- RealizeObject @10 now exported. DDK logical pen (10B) and brush (12B)
+  layout checks, with brush's DDK-specific lbBkColor at offset 8. Do not use
+  Win16 SDK LOGBRUSH, which does not carry the extra DDK background DWORD.
+- Supports OBJ_PEN, OBJ_BRUSH size query, realizing GDI-owned physical state
+  and deletion with no allocated side resources. Nominal solid 1px pens
+  for unsupported stroke widths/styles, null pens; solid, hollow and six
+  standard hatched brushes, with phase and physical palette translation.
+- OBJ_FONT still returns 0 (GDI-realized). Pattern brushes and device
+  bitmaps are unsupported. No new fonts/bitmap feature claim.
+- Output @8 implements OS_RECTANGLE (6), clip bounds and exclusive lower-
+  right corner, brush interior before pen border, transparent/opaque hatch
+  gaps, all 16 ROP2s and existing RG_Ops pixel acceleration overrides.
+  Unsupported output styles still return -1 for GDI simulation.
+- New shared modules include/rg_objects.h, common/rg_objects.c,
+  include/rg_gdi_output.h, common/rg_gdi_output.c; no card-specific code.
+  Existing Pixel and Output now share rg_gdi_rop2_byte to avoid duplicate
+  Boolean logic. All Win16 FAR memory copies remain in palddi.c.
+- Object handles and output requests require an active validated PDEVICE;
+  foreign tokens cannot reach VRAM. Nothing enables the driver prematurely.
+
+Tests and documentation:
+- New tests/test_win31_objects.c checks wire sizes/offsets, negative cases,
+  physical color translation, six hatches, nominal pens, rectangle clipping,
+  transparency, each ROP2 and single-application XOR border.
+- ET4000AX integration test draws a real rectangle across the 64KiB bank
+  boundary and verifies foreign-token/lifecycle refusal.
+- Build scripts, ordinal checker, Win31 README, root README and HANDOFF
+  updated. Expect 13 DDI exports (new REALIZEOBJECT @10).
+- No generated binaries inside the ZIP; targets remain under tests/exes.
+
+Host regression commands:
+  make -f Makefile.win31link test
+  make -f Makefile.screen17 test
+  make -f Makefile.win31ddi test
+  make clean && make test
+
+Please verify the **Win16** compile/link on the user's Open Watcom system:
+  sh windows/win31/build-palddi.sh
+  wdump -x tests/exes/PALSTAGE.DRV
+
+NOT INSTALLABLE: Enable(style=0) remains deliberately disabled. GDI's
+required scanlines/polylines, patterned brushes, text/memory bitmap,
+cursor, Win16 mode setup and screen transitions are still incomplete.
+Do not change SYSTEM.INI or install PALSTAGE.DRV.
+
+References: Windows 3.1 DDK RealizeObject and Output documentation:
+  https://dos-help.soulsphere.org/ddag31qh.hlp/RealizeObject.html
+  https://dos-help.soulsphere.org/ddag31qh.hlp/Output.html
+  https://www.pcjs.org/documents/books/mspl13/win/w3ddkadp/

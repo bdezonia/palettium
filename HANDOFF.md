@@ -1,105 +1,86 @@
-# Palettium — checkpoint v0025 handoff
+# Palettium — v0026 handoff
 
-Date: 2026-11-23 UTC. Base: validated v0024 (apply `pal25.zip` over
-`pal24.zip` / working v0024 repository). See `PATCH-v0025.txt` and root
-`README.md` for changed files and quick usage. Use fixed-width tags
-`v0025`, `v0026`, ...; preserve existing tags and stable production source
-names. Source-only incremental ZIP with verified UTC timestamps and test
-binaries under `tests/exes/`.
+Date: 2026-11-23 UTC. Incremental **v0026**, apply `pal26.zip` over a
+**validated v0025** working tree. Stable production filenames, fixed-width
+milestones and tests under `tests/exes/` are preserved. The source ZIP has
+correct UTC timestamp extras and America/Chicago DOS timestamps.
 
 ## Objective and architecture
 
-Reusable C89 graphics-driver building framework for **Win3.1, WfW3.11,
-Win95, Win98**. Goal is a small hardware backend for detection/mode/banking/
-palette combined with common raster fallbacks and thin OS-specific display
-DDI adapters. **Get an actual Win3.1 ET4000AX display driver running first**;
-allow performance overrides later. Do not fork code per OS or make a one-off
-ET4000 implementation. The WfW/Win95/Win98 adapters are placeholders.
+Build one reusable C89 graphics driver framework targeting **Windows 3.1,
+WfW 3.11, Windows 95 and Windows 98**. First priority: genuinely running
+Windows 3.1 ET4000AX display driver. Shared common/ renderer + RG_Ops
+hardware overrides + card backend (`et4k.c`) + OS-specific DDI adapter.
+Only the Win31 adapter knows the segmented/far pointer/GDI ABI; no OS code
+or duplicated pixel drawing in the ET4000 backend. Windows 95/98 adapters
+remain placeholders. `PALSTAGE.DRV` is **NOT INSTALLABLE**.
 
-Key components: `include/rgfx.h` and `common/rgfx.c` (10 format raw raster
-engine and RG_Ops overrides), `include/rg_hardware.h` / `common/rg_hardware.c`
-(hardware abstraction), `hardware/tseng/et4000ax/et4k.[ch]` (register 0x3CD
-read/write banks, DAC, 640x480x8 mode via platform callback), `common/
-rg_gdi_*.c` (GDI ROP/Blt), `windows/win31/` (real Win16 ABI staging).
-No Win16 far pointer or BIOS call belongs in the common/card backend.
+## User-confirmed validated baseline v0025
 
-## v0025 new work
+User ran all Win31 Pixel/palette/far-token/ET4000 banked VRAM tests under
+Linux and built the 12-export Win16 PALSTAGE.DRV using Open Watcom.
+`wdump` confirmed BITBLT @1, COLORINFO @2, DISABLE @4, ENABLE @5,
+OUTPUT @8, PIXEL @9, SCANLR @12, and SET/GETPALETTE @22/@23,
+SET/GETPALTRANS @24/@25, UPDATECOLORS @26. Previous W124 compiler warnings
+were absent. `Enable(style=0)` still deliberately rejects initialization.
 
-- `include/rg_palette.h`, `common/rg_palette.c`: shared INDEX8 palette
-  state and 20 static Windows RGB colors in slots 0-9 and 246-255; 236
-  dynamic colors; GDI logical-to-physical and deterministic inverse maps,
-  exact static-vs-dynamic ColorInfo conversions, rectangle reindexing via
-  existing RG_Ops. Uses long arithmetic for squared RGB differences to
-  avoid **16-bit int overflow** in Win16 builds. No new OS-specific
-  duplicated renderer.
-- Extended existing `PAL_ScreenHost` to hold this palette and program 20
-  reserved DAC colors **after** successful hardware/PDEVICE mode setup.
-  Requires palette callback for Win3.x INDEX8 mode but leaves the generic
-  RG_Hardware palette callback optional for other OS adapters. Dynamic
-  palette entry writes pass through the existing hardware palette hook.
-- `windows/win31/palddi.c` now supplies 12 DDI exports:
-  BitBlt @1, ColorInfo @2, Disable @4, Enable @5, Output @8, Pixel @9,
-  ScanLR @12, SetPalette @22, GetPalette @23, SetPalTrans @24,
-  GetPalTrans @25, UpdateColors @26. Palette DDIs with no PDEVICE
-  argument are inactive until the host is running. ColorInfo/ScanLR check
-  the Win16 far PDEVICE identity; real Win16 Far/near data stays in adapter.
-- `ScanLR`: physical INDEX8 color test, scan left/right, equal/unequal,
-  -1 for not found, 0x8000 at Win16 boundary for invalid input. `UpdateColors`
-  honors a 256-word phys-to-phys map and uses hardware/RG_Ops pixel path.
-- Updated `README.md` and Win31 README to reflect actual current work.
-- Fixed the two tautological comparisons from 16-bit Open Watcom warnings
-  with `UINT_MAX` preprocessor guards while preserving host overflow checks.
+## New in v0026
 
-## Test status
+- **RealizeObject @10**: DDK object protocol (size query, creation, resource-
+  free deletion) for `OBJ_PEN` and `OBJ_BRUSH`, Win3.x 10-byte LOGPEN and
+  12-byte DDK LOGBRUSH with 32-bit hatch background. The adapter copies
+  Win16 far-memory fields; core `rg_objects` normalizes to GDI-owned physical
+  8-byte pens and 14-byte brushes. Pens are nominal solid 1px or null; brushes
+  solid/hollow/hatched (six patterns; 8px phase), physical palette mapping.
+  Unsupported `OBJ_FONT` and `OBJ_PBITMAP` return 0 (RC_DEVBITS unclaimed).
+  Pattern brushes are currently unsupported; never claim realization.
+- **Output @8 OS_RECTANGLE (style=6)**: actual INDEX8 rendering, half-open
+  bounds, clipping, transparent/opaque hatched background, pen border and
+  brush interior, all 16 ROP2 operations. Existing RG_Ops pixel overrides
+  used; drawmode/objects marshalled at Win16 boundary. Other Output styles
+  still return -1 for GDI simulation. Border pixels get ROP exactly once.
+- Pixel ROP2 shares the single common implementation in `rg_gdi_rop.c`.
+- Screen host checks PDEVICE identity/lifecycle before output writes.
+- Host C89 unit tests cover exact DDK layout, physical objects, hatches,
+  translation and ROP2. ET4000AX host integration verifies rectangle
+  drawing across 64KiB bank boundary and invalid-token refusal.
+- New exports count **13**, with REALIZEOBJECT @10. Build, ordinal check,
+  README and changelog updated. No numbered duplicate production sources.
 
-- v0024 user Open Watcom validation: linked NE `PALSTAGE.DRV`; `wdump` showed
-  BITBLT @1, DISABLE @4, ENABLE @5, OUTPUT @8, PIXEL @9. v0024 host
-  Pixel all 16 ROP2, invalid token/bounds, override, screen17 ET4000 PASS.
-- v0025 host C89 (Ubuntu/gcc in assistant environment): `make clean &&
-  make test`, Makefiles .et4k/.gdi/.gdiblt/.gdiinfo/.pdevice/.bitmap/
-  .win31blit/.ddi16/.screen17/.win31ddi/.enable22/.win31link all PASS.
-  v0025 new unit covers static/dynamic RGB, ColorInfo and indexed mapping,
-  duplicate inverse mapping, validation-before-write for UpdateColors.
-  v0025 ET4000AX host test confirms 20 DAC reserved entries, DAC 6-bit
-  values, palette write, ScanLR and UpdateColors crossing 64K banks.
-- **v0025 Win16 Open Watcom link is not tested here**: tools are not
-  installed in assistant environment. User should run commands below and
-  send full output. Export checker updated for 12 ordinals, not real
-  loader execution proof. The GDIINFO layout is a 110-byte candidate, not
-  validated operational capability metrics.
+## Validation and open tests
 
-## NOT INSTALLABLE — safe boundary remains
+Assistant host regression: `make -f Makefile.win31link test`, `.screen17`,
+`.win31ddi` and all project Makefile test targets PASS on Linux/gcc C89
+`-Wall -Wextra -Werror`. Open Watcom `wcc`/`wlink` **not installed in this
+workspace**, so **v0026 Win16 compilation and linking are unverified**;
+the user must run them on the maintainer's machine. The v0025 Win16 binary
+link was user-confirmed, not v0026.
 
-`PALSTAGE.DRV` still deliberately fails `Enable(style=0)`; `Enable(style=1)`
-produces a preliminary GDIINFO, with no RC_PALETTE claim. The entrypoints
-can operate only when a host is already hardware-bound; there is **no
-production Win16 ET4000 mode init / PDEVICE installation**. RealizeObject
-pens/brushes, memory bitmap support, GDI text, cursor, other required DDI,
-and enhanced-mode/standard-mode screen switching are not yet provided. Do
-not tell user to edit SYSTEM.INI, install PALSTAGE.DRV, or remove the
-Enable(style=0) safety gate prematurely.
+## NOT INSTALLABLE — DO NOT REMOVE SAFETY GATE
 
-## Most important next development task — v0026+
+`Enable(style=0)` returns failure. `Enable(style=1)` emits only preliminary
+110-byte GDIINFO without drawing/palette capability claims. No production
+Win16 ET4000AX BIOS mode set, port/aperture callbacks, genuine GDI-owned
+PDEVICE lifecycle, cursor, bitmap/memory DC or text drawing. GDI-required
+OS_SCANLINES / OS_POLYLINE need implementing even though rectangles now draw.
+Pattern brushes (GDI common) need memory bitmap support. Do not change
+Windows SYSTEM.INI or install PALSTAGE.DRV yet.
 
-1. Audit actual Windows 3.1 DDK `RealizeObject`/brush/pen physical layouts
-   and the GDI simulation contract for Output/BitBlt. Implement functional
-   minimal physical object realization and the bitmap/text fallback paths,
-   tested with strict Win16 ABI, rather than stubs that claim success.
-2. Once mandatory services are ready, integrate platform-specific ET4000AX
-   mode initialization, banked A0000h far aperture I/O, PDEVICE binding,
-   screen enable/disable, and a safe VGA fallback for 86Box startup.
-3. Audit Enhanced Mode VDD/grabber behavior; validate Windows 3.1 startup
-   on disposable emulator image before broad install recommendations.
-4. Keep 4-OS reuse in view. The palette/shared renderer are OS-neutral;
-   Win3.x far pointers and GDI ordinals stay in the Win31 adapter.
+## Most important next step: v0027+
 
-## User commands
+Implement GDI-required `Output(OS_SCANLINES)` and `Output(OS_POLYLINE)`
+against shared raster with correct pen/brush/memory DC contracts. Investigate
+minimal memory bitmap and text fallback (`ExtTextOut` / `StrBlt`) prior to
+real `Enable(style=0)`. In parallel design actual Win16 ET4000AX port I/O,
+banked far A000 aperture and native mode init with safe restoration. Test in a
+recoverable 86Box image, including standard/enhanced-mode VDD/grabber concerns.
+Keep Win95/Win98 adapter reuse; no one-off ET4000AX graphics duplication.
 
-Use Downloads path explicitly (previous v0024 instructions forgot it):
+## Maintainer commands
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal25.zip
+unzip -o ~/Downloads/pal26.zip
 make -f Makefile.win31link test
 make -f Makefile.screen17 test
 make -f Makefile.win31ddi test
@@ -107,18 +88,7 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-Optional full test: `make clean && make test`. Expect 12 DDI exports.
-No generated `.DRV`, `.OBJ` or host executable in incremental ZIP. User's
-Open Watcom is installed on their Linux machine, not available here.
-
-## Historical milestones
-
-v0023: linked PALSTAGE.DRV staging exports @1/@4/@5. v0024: @8 Output
-GDI simulation fallback and @9 Pixel (all 16 ROP2), confirmed on user
-machine. v0025: ColorInfo, ScanLR, static palette and 5 palette operations.
-Source README through v0023 was stale; rewritten here. Keep historical
-`PATCH-*` source notes, avoid reintroducing retired numbered palddi files.
-
-Historical reference: Windows 3.0/3.1 DDK Display Palette section, ScanLR
-and ColorInfo reference, and Windows 3.0 DDK adaptation guide via PCjs.
-No additional GDIINFO palette capability flags until installable.
+Optional broader suite: `make clean && make test`; other Makefiles also have
+`test` targets. Expect 13 NE exports including `REALIZEOBJECT @10`.
+Check `PATCH-v0026.txt`, `README.md`. ZIP contains only changed source files,
+not binaries, and checksum manifest covers all repository source files.

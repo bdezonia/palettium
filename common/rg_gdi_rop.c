@@ -29,3 +29,16 @@ int rg_gdi_rop3_to_rop2(unsigned rop3)
     if (((rop3 >> 4) & 15U) != lo) return -1;
     return (int)lo;
 }
+
+rg_u8 rg_gdi_rop2_byte(unsigned rop2, rg_u8 pen, rg_u8 dest)
+{
+    unsigned truth, b, out = 0;
+    if (rop2 < 1u || rop2 > 16u) return dest;
+    truth = rop2 - 1u;
+    for (b=0; b<8u; ++b) {
+        unsigned bit = (((unsigned)pen >> b) & 1u) * 2u +
+                       (((unsigned)dest >> b) & 1u);
+        out |= ((truth >> bit) & 1u) << b;
+    }
+    return (rg_u8)out;
+}

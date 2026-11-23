@@ -3,6 +3,7 @@
  * No ET4000-specific code. Enable deliberately fails until ready.
  */
 /* SDK names sometimes overlap Win16 display-DDI exports. */
+#define RealizeObject PalWinApiRealizeObject
 #define BitBlt PalWinApiBitBlt
 #define ColorInfo PalWinApiColorInfo
 #define ScanLR PalWinApiScanLR
@@ -12,6 +13,7 @@
 #define GetPalTrans PalWinApiGetPalTrans
 #define UpdateColors PalWinApiUpdateColors
 #include <windows.h>
+#undef RealizeObject
 #undef BitBlt
 #undef ColorInfo
 #undef ScanLR
@@ -23,6 +25,7 @@
 #include <dos.h>
 #include "pal_ddl_blit.h"
 #include "pal_enable.h"
+#include "pal_objects.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
 
@@ -74,17 +77,119 @@ DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
     return (DWORD)result;
 }
 
-/* Output @8: returning -1 is the DDK-defined instruction for GDI to
- * simulate the unsupported figure. Returning 0 would mean hard failure.
- * It is safe to export while no drawing styles are yet accelerated.
+/* RealizeObject @10: Win3.x DDK, GDI-owned physical storage. Pens and
+ * solid/hollow/hatched brushes are private, WORD-aligned objects shared
+ * with the common renderer. The DDK LOGBRUSH has a physical background
+ * DWORD at byte 8 (unlike the SDK structure). No indirect allocations:
+ * deletions are no-ops. Fonts remain GDI-realized; device bitmaps are off.
+ */
+DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
+                               LPVOID output, LPVOID text_xform)
+{
+    PAL_U32 token;
+    const PAL_LogicalPen FAR *in_pen;
+    const PAL_LogicalBrush FAR *in_brush;
+    const PAL_POINT16 FAR *phase;
+    RG_Pen phys_pen;
+    RG_Brush phys_brush;
+    const unsigned char *source;
+    unsigned char FAR *target;
+    unsigned i, size;
+    if (!pal_active_host || !pal_active_host->running || !dest ||
+        !pal_object_layout_ok()) return 0;
+    token = pal_ddi_far_token((PAL_U16)FP_SEG(dest),
+                              (PAL_U16)FP_OFF(dest));
+    if (token != pal_active_host->ddi.screen_token) return 0;
+    if (style == -1 || style == -2) return 1; /* no owned resources */
+    if (!input) return 0;
+    source = 0;
+    size = 0;
+    if (style == 1) { /* OBJ_PEN */
+        in_pen = (const PAL_LogicalPen FAR *)input;
+        if (!rg_pen_realize(&pal_active_host->palette, in_pen->style,
+                            in_pen->width.x, (rg_pixel)in_pen->color,
+                            &phys_pen)) return 0;
+        source = (const unsigned char *)&phys_pen;
+        size = sizeof(phys_pen);
+    } else if (style == 2) { /* OBJ_BRUSH */
+        unsigned x_phase=0, y_phase=0, background=0;
+        in_brush = (const PAL_LogicalBrush FAR *)input;
+        if (text_xform) {
+            phase = (const PAL_POINT16 FAR *)text_xform;
+            x_phase = (unsigned)phase->x & 7u;
+            y_phase = (unsigned)phase->y & 7u;
+        }
+        if (in_brush->style == RG_BRUSH_HATCHED &&
+            !pal_object_background(&pal_active_host->palette,
+                                    in_brush->background, &background)) return 0;
+        if (!rg_brush_realize(&pal_active_host->palette, in_brush->style,
+                              (rg_pixel)in_brush->color, background,
+                              in_brush->hatch, x_phase, y_phase,
+                              &phys_brush)) return 0;
+        source = (const unsigned char *)&phys_brush;
+        size = sizeof(phys_brush);
+    } else return 0; /* no fonts, device bitmaps or unknown styles */
+    if (output) {
+        target = (unsigned char FAR *)output;
+        for (i=0; i<size; ++i) target[i]=source[i];
+    }
+    return (DWORD)size;
+}
+
+/* Output @8: first real shape, OS_RECTANGLE, using our realized objects,
+ * shared ROP2 and indexed screen renderer. Everything not fully supported
+ * requests DDK-defined GDI simulation (-1), never claims partial output.
  */
 WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
                         LPVOID points, LPVOID pen, LPVOID brush,
                         LPVOID drawmode, LPVOID cliprect)
 {
-    (void)dest; (void)style; (void)count; (void)points;
-    (void)pen; (void)brush; (void)drawmode; (void)cliprect;
-    return (WORD)-1;
+    PAL_U32 token;
+    const PAL_POINT16 FAR *pt;
+    const PAL_Rect16 FAR *cr;
+    const WORD FAR *draw;
+    const unsigned char FAR *source;
+    unsigned char *target;
+    RG_Pen near_pen;
+    RG_Brush near_brush;
+    RG_Rect bounds, clipped;
+    const RG_Rect *cptr=0;
+    unsigned i, rop2, bgmode;
+    if (!pal_active_host || !pal_active_host->running || !dest)
+        return (WORD)-1;
+    token = pal_ddi_far_token((PAL_U16)FP_SEG(dest),
+                              (PAL_U16)FP_OFF(dest));
+    if (token != pal_active_host->ddi.screen_token || style != 6u ||
+        count != 2u || !points || !drawmode || !pal_object_layout_ok())
+        return (WORD)-1;
+    pt = (const PAL_POINT16 FAR *)points;
+    bounds.left = pt[0].x; bounds.top = pt[0].y;
+    bounds.right = pt[1].x; bounds.bottom = pt[1].y;
+    draw = (const WORD FAR *)drawmode;
+    rop2 = draw[0]; bgmode = draw[1];
+    if (rop2 < 1u || rop2 > 16u || bgmode < 1u || bgmode > 2u)
+        return (WORD)-1;
+    if (cliprect) {
+        cr = (const PAL_Rect16 FAR *)cliprect;
+        clipped.left = cr->left; clipped.top = cr->top;
+        clipped.right = cr->right; clipped.bottom = cr->bottom;
+        cptr = &clipped;
+    }
+    if (pen) {
+        source = (const unsigned char FAR *)pen;
+        target = (unsigned char *)&near_pen;
+        for (i=0; i<sizeof(near_pen); ++i) target[i]=source[i];
+        if (!rg_pen_valid(&near_pen)) return (WORD)-1;
+    }
+    if (brush) {
+        source = (const unsigned char FAR *)brush;
+        target = (unsigned char *)&near_brush;
+        for (i=0; i<sizeof(near_brush); ++i) target[i]=source[i];
+        if (!rg_brush_valid(&near_brush)) return (WORD)-1;
+    }
+    return pal_screen_host_rectangle(pal_active_host, token, bounds, cptr,
+             pen ? &near_pen : 0, brush ? &near_brush : 0,
+             rop2, bgmode) ? 1u : (WORD)-1;
 }
 
 /* Windows 3.x DDI: style 1 requests GDIINFO, style 0 requests

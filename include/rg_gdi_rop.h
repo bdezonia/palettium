@@ -10,6 +10,10 @@
 rg_u8 rg_gdi_rop3_byte(unsigned rop3, rg_u8 pattern,
                       rg_u8 source, rg_u8 dest);
 
+/* GDI ROP2 range 1..16: 13 is R2_COPYPEN. Both inputs are
+ * physical 8-bit colors. This is the single shared ROP2 implementation. */
+rg_u8 rg_gdi_rop2_byte(unsigned rop2, rg_u8 pen, rg_u8 dest);
+
 /* Extract ROP3 from a Windows DWORD raster-op code (e.g. 0x00CC0020UL).
  * Does NOT validate the non-truth-table bits of a GDI command.
  */

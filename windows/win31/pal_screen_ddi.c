@@ -1,5 +1,6 @@
 #include <string.h>
 #include "pal_screen_ddi.h"
+#include "rg_gdi_rop.h"
 
 int pal_screen_ddi_attach(PAL_ScreenDDI *bridge, PAL_PDEVICE *pd,
                           RG_Device *device, PAL_U32 far_token)
@@ -49,7 +50,6 @@ int pal_screen_ddi_pixel(PAL_ScreenDDI *bridge, PAL_U32 device_token,
 {
     RG_Device *device;
     rg_pixel old, value;
-    unsigned truth;
     if (!result || !bridge || !bridge->installed || !bridge->pdevice ||
         !bridge->screen_token || device_token != bridge->screen_token ||
         !pal_pd_valid(bridge->pdevice) ||
@@ -76,13 +76,8 @@ int pal_screen_ddi_pixel(PAL_ScreenDDI *bridge, PAL_U32 device_token,
     if (rop2 == 13u) value = (rg_pixel)physical_color; /* R2_COPYPEN */
     else {
         if (!rg_get_pixel(device, x, y, &old)) return 0;
-        truth = rop2 - 1u;
-        value = 0;
-        if (truth & 1u) value |= ~(rg_pixel)physical_color & ~old;
-        if (truth & 2u) value |= ~(rg_pixel)physical_color & old;
-        if (truth & 4u) value |= (rg_pixel)physical_color & ~old;
-        if (truth & 8u) value |= (rg_pixel)physical_color & old;
-        value &= 255UL;
+        value = rg_gdi_rop2_byte(rop2, (rg_u8)physical_color,
+                                 (rg_u8)old);
     }
     device->ops.pixel(device, x, y, value);
     *result = 1UL;

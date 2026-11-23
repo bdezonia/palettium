@@ -3,7 +3,7 @@ CC ?= cc
 CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror
 INCS = -Iinclude -Iwindows/win31
 SRC = common/rgfx.c common/rg_hardware.c common/rg_gdi_rop.c \
-      common/rg_gdi_blit.c common/rg_palette.c common/rg_win31_screen.c \
+      common/rg_gdi_blit.c common/rg_palette.c common/rg_objects.c common/rg_gdi_output.c common/rg_win31_screen.c \
       windows/win31/pal_gdiinfo.c windows/win31/pal_pdevice.c \
       windows/win31/pal_screen_ddi.c windows/win31/pal_screen_host.c \
       windows/win31/pal_ddl_blit.c tests/test_win31_farblt.c

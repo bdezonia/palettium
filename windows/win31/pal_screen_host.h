@@ -6,6 +6,7 @@
 #include "pal_screen_ddi.h"
 #include "rg_hardware.h"
 #include "rg_palette.h"
+#include "rg_gdi_output.h"
 
 typedef struct PAL_ScreenHost {
     PAL_PDEVICE pdevice;
@@ -41,4 +42,9 @@ int pal_screen_host_update_colors(PAL_ScreenHost *host,
 int pal_screen_host_scanlr(PAL_ScreenHost *host, PAL_U32 token,
                            int x, int y, PAL_U32 physical,
                            unsigned style, int *found);
+/* Screen-only OS_RECTANGLE. Physical objects come from RealizeObject. */
+int pal_screen_host_rectangle(PAL_ScreenHost *host, PAL_U32 token,
+                              RG_Rect bounds, const RG_Rect *clip,
+                              const RG_Pen *pen, const RG_Brush *brush,
+                              unsigned rop2, unsigned background_mode);
 #endif

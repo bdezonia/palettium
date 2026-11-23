@@ -128,3 +128,22 @@ int pal_screen_host_scanlr(PAL_ScreenHost *host, PAL_U32 token,
     return pal_screen_ddi_scanlr(&host->ddi, token, x, y,
                                  physical, style, found);
 }
+
+int pal_screen_host_rectangle(PAL_ScreenHost *host, PAL_U32 token,
+                              RG_Rect bounds, const RG_Rect *clip,
+                              const RG_Pen *pen, const RG_Brush *brush,
+                              unsigned rop2, unsigned background_mode)
+{
+    if (!host || !host->running || !token || !host->ddi.installed ||
+        token != host->ddi.screen_token ||
+        !pal_pd_valid(&host->pdevice) ||
+        host->pdevice.state != PAL_PD_ACTIVE ||
+        host->ddi.pdevice != &host->pdevice ||
+        !host->ddi.screen.active ||
+        host->ddi.screen.device != &host->device ||
+        host->pdevice.width != host->device.surface.width ||
+        host->pdevice.height != host->device.surface.height ||
+        host->pdevice.pitch != host->device.surface.stride) return 0;
+    return rg_gdi_output_rectangle(&host->device, bounds, clip,
+                                    pen, brush, rop2, background_mode);
+}
