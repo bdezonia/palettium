@@ -1,0 +1,4 @@
+LIBRARY PALGDI
+EXPORTS
+    ENABLE                                      @1
+    DISABLE                                     @2

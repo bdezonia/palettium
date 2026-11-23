@@ -1,0 +1,7 @@
+Palettium v0.10 - additive Win16 GDI ABI shell.
+Adds:
+  windows/win31/palgdi.c
+  windows/win31/build-palgdi.sh
+  docs/v10-gdi-shell.md
+Does not replace existing files. NEVER install PALGDI.DRV as display driver.
+Build: sh windows/win31/build-palgdi.sh
