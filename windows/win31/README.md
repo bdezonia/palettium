@@ -1,4 +1,4 @@
-# Windows 3.1 staging display driver (v0032)
+# Windows 3.1 staging display driver (v0033)
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -88,27 +88,35 @@ From the project root, `make clean` now deletes all generated artifacts
 under `tests/exes/` and `build/`, plus historical Win16 probe DLL, EXE and
 OBJ files, without removing `.LNK`, `.c`, or `.h` sources.
 
-## v0032 protected-mode diagnostic (separate application)
+## v0033 PALDIAG crash-isolation revision
 
-Build `PALDIAG.EXE` (not a `.DRV`) on the Linux/Open Watcom workstation:
+The maintainer's v0032 `PALDIAG.EXE` build succeeded, but running it in
+Windows 3.1 raised a GPF in `KRNL386.EXE` at `0001:2272` before any dialog.
+That alone does **not** identify the failing API. The original diagnostic
+called `GetSelectorBase` for words passing an incomplete selector-pattern
+check; the Win3.1 kernel can fault on an invalid descriptor. The new
+v0033 diagnostic **does not call `GetSelectorBase` at all**.
+
+`PALDIAG.EXE` now shows STEP 0 at the beginning of `WinMain` without any
+KERNEL probe. Each next probe requires a separate Yes: `GetWinFlags`,
+`GetModuleHandle("KERNEL")`, then `GetProcAddress("__A000H")`.
+After a successful STEP 3, record raw high:low address and the documented
+low-word selector. Decline the optional BIOS query on the first run.
+If any step crashes Windows, note **the last dialog seen and whether Yes
+was pressed**. If STEP 0 never appears, investigate EXE loader/entry/ABI
+rather than assuming that `GetSelectorBase` is responsible. Run in a
+recoverable 86Box VM with the existing display driver. PALSTAGE.DRV must
+not be installed.
 
 ```sh
 make -f Makefile.win31diag test
 sh windows/win31/build-paldiag.sh
 ```
 
-Copy **only** `tests/exes/PALDIAG.EXE` into a recoverable Windows 3.1
-86Box VM; run it from File Manager (File → Run) or Program Manager.
-The first dialog reports `KERNEL.__A000H`'s returned high/low words,
-possible `GetSelectorBase` mappings, and `GetWinFlags`. **Copy the full
-result**. It does not touch A000h or change the display. A second dialog
-asks whether to run read-only `INT 10h AH=0Fh`; press **No** for the most
-conservative first run, or **Yes** to record mode AL, columns AH and page BH.
-BIOS mode reporting can be virtualized in 386 enhanced mode. Record whether
-Windows is running in standard or enhanced mode. **Do not install**
-`PALSTAGE.DRV` or change `SYSTEM.INI`. The native adapter is still dormant.
+## v0032 diagnostic (superseded)
 
-The v0030 adapter currently takes the low word of `GetProcAddress` as its
-selector. This is **unverified**; PALDIAG deliberately exposes both words
-and selector-base values rather than dereferencing either. Resolve this
-from actual Windows results before activating mode programming.
+The initial `PALDIAG.EXE` inspected both words of `__A000H` and tried
+selector-base calls based on a bit-pattern heuristic. It compiled with
+Open Watcom but caused a KRNL386 GP fault before its first report dialog
+under Windows 3.1. Do not use that version; the revised v0033 program
+above is intended to identify the faulting call without unsafe base queries.

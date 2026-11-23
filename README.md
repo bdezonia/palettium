@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0032** (incremental tags are fixed-width).
+Current development milestone: **v0033** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -99,16 +99,24 @@ driver**. Palettium is *not* yet an installable driver package.
   machine. No DDI, raster or mode
   behavior was changed, and the driver is still not installable.
 
-- **v0032 (Windows runtime diagnostic):** a self-contained **PALDIAG.EXE**
-  Win16 application, separate from the display driver. It inspects KERNEL's
-  `__A000H` pseudo-export, shows both words of its address and, when available,
-  the corresponding `GetSelectorBase` values and `GetWinFlags`. It never
-  dereferences A000h, writes video memory, sends port I/O or changes video
-  modes. A BIOS current-mode query (`INT 10h AH=0Fh`) is **optional** and
-  must be confirmed through a second dialog; enhanced Windows can virtualize
-  the answer. Build with `sh windows/win31/build-paldiag.sh` and run only
-  inside a recoverable Windows 3.1 VM. The v0031 driver build was **confirmed
-  by the maintainer** with all 13 exports. PALSTAGE.DRV remains non-installable.
+- **v0032 (maintainer-tested Win16 build, Windows runtime FAILED):**
+  The standalone Win16 `PALDIAG.EXE` compiled and linked under Open Watcom,
+  alongside the 13-export staging display driver. The first attempt to run
+  PALDIAG inside Windows 3.1 instead raised **GP fault KRNL386.EXE
+  0001:2272**, before a diagnostic dialog appeared. Its previous use of
+  `GetSelectorBase` on bit-pattern-selected words is not an adequate
+  validity check; the precise faulting call is **not established**.
+
+- **v0033 (crash-isolating PALDIAG revision, not yet Windows-tested):**
+  The same `PALDIAG.EXE` now displays STEP 0 immediately on entering WinMain,
+  then separately asks permission before `GetWinFlags`, `GetModuleHandle`
+  and `GetProcAddress(KERNEL, "__A000H")`. It displays the low/high export
+  words but never calls `GetSelectorBase`, never dereferences A000 memory,
+  and never changes registers or mode. Optional BIOS mode readback remains
+  a separately confirmed final step. If a GP fault recurs, the last
+  displayed checkpoint isolates the suspect call. Host tests pass; actual
+  Open Watcom build and Windows 3.1 runtime are **unverified for v0033**.
+  The live display driver remains *non-installable*.
 
 ## Architecture
 
@@ -167,7 +175,7 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0032 retains
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0033 retains
 **13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
 The 13-export **v0029** build passed on the maintainer's Open Watcom

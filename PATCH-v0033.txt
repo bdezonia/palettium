@@ -1,0 +1,24 @@
+Palettium v0033 — PALDIAG Win3.1 startup GP-fault isolation
+
+Incremental source-only patch over v0032. The maintainer's v0032
+PALDIAG.EXE built successfully but faulted inside KRNL386.EXE at
+0001:2272 before the first result dialog.
+
+- Same PALDIAG.EXE output; no new Win16 staging DDI exports.
+- STEP 0 appears before any KERNEL probe; subsequent calls require
+  individual confirmation: GetWinFlags, GetModuleHandle, GetProcAddress.
+- Removed unsafe heuristic GetSelectorBase queries entirely.
+- Optional read-only BIOS mode query still requires separate Yes.
+- Host test exercises stage gating, early exits, missing exports, BIOS opt-in.
+- README, Win31 README and HANDOFF updated.
+
+Test and run:
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal33.zip
+make -f Makefile.win31diag test
+sh windows/win31/build-paldiag.sh
+
+Copy tests/exes/PALDIAG.EXE into a disposable Windows 3.1 VM, with the
+existing display driver installed. Report the last checkpoint displayed.
+If STEP 0 never appears, suspect Win16 program loading/entry rather than
+KERNEL selector probes. The staged PALSTAGE.DRV is NOT INSTALLABLE.
