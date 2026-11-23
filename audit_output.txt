@@ -1,0 +1,22 @@
+ET4000.BIN: 32768 bytes; valid PC option ROM checksum; version=V8.01X date=04/07/93
+  sha256=d8b09dd8dbd350524cfff8baf9a950dd442924c03362d8feed5d1f18bb0be4dd
+  VRAM display text=0x0C58; 4K test-pattern writer=0x0C30; byte test writer=0x0C07; extended mode-list fragment=0x0D8D
+et4000_kasan16.bin: 32768 bytes; valid PC option ROM checksum; version=V8.02X date=06/13/90
+  sha256=32b2b93688b4db6021c4ceb79cf84efb12411db2ef25e1aa68cde1ecad9a31f4
+  VRAM display text=0x0B2B; 4K test-pattern writer=0x0B18; byte test writer=0x0AF4; extended mode-list fragment=0x0C6A
+ET4000_V8_06.BIN: 32768 bytes; valid PC option ROM checksum; version=V8.06X date=04/15/92
+  sha256=db2f8461274922026acc8b2a4fe1b0675d8ce7d6430108b74196527f36ed2c09
+  VRAM display text=0x0C17; 4K test-pattern writer=0x0BEF; byte test writer=0x0BCB; extended mode-list fragment=0x0D4C
+kasan_ksc5601.rom: 524288 bytes; not a 32KB PC BIOS; version=- date=-
+  sha256=58bc87b2b230533865ef5fa7f3b7858a09cb89f1282d3f399822663c09088cf8
+tg_ksc5601.rom: 524288 bytes; not a 32KB PC BIOS; version=- date=-
+  sha256=2836238b8ed3f381fb24f3265c9fa3e24d0c8de3b60bfcd41d3501cdbc569619
+tgkorvga.bin: 32768 bytes; valid PC option ROM checksum; version=V1.31X date=05/29/92
+  sha256=c85eb3132a0570c35a153fc3ae4f1461c70508220f41a41f077f087959a7e980
+  VRAM display text=0x0B82; 4K test-pattern writer=0x0B6F; byte test writer=0x0B4B; extended mode-list fragment=0x0CB4
+Tseng_Labs_VGA-4000_BIOS_V1.1.bin: 32768 bytes; valid PC option ROM checksum; version=V1.10X date=09/26/90
+  sha256=17a7190b36108bf9da61b06a4d459e629882a67c507c189e346dcb3c4eac984c
+  VRAM display text=0x0BD3; 4K test-pattern writer=0x0BC0; byte test writer=0x0B9C; extended mode-list fragment=0x0D1A
+Tseng_Labs_VGA-4000_BIOS_V1.21.bin: 32768 bytes; valid PC option ROM checksum; version=V1.21X date=02/12/91
+  sha256=0cfe1bb58bc563082030006c90cf2b6df91b2f1deb85513edcbeb5c72bc7d414
+  VRAM display text=0x0B51; 4K test-pattern writer=0x0B29; byte test writer=0x0B05; extended mode-list fragment=0x0C76
