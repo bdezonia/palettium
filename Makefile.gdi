@@ -1,0 +1,12 @@
+CC = cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude
+.PHONY: test clean
+
+gdi-rop-test: common/rg_gdi_rop.c tests/test_gdi_rop.c include/rg_gdi_rop.h include/rgfx.h
+	$(CC) $(CFLAGS) common/rg_gdi_rop.c tests/test_gdi_rop.c -o $@
+
+test: gdi-rop-test
+	./gdi-rop-test
+
+clean:
+	rm -f gdi-rop-test

@@ -3,6 +3,7 @@
 /raster-test
 /banked-test
 /raster-demo.ppm
+/gdi-rop-test
 *.o
 *.obj
 *.exe

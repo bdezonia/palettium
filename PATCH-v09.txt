@@ -1,0 +1,8 @@
+Palettium v0.9 incremental patch — GDI raster-operation translation
+NEW include/rg_gdi_rop.h
+NEW common/rg_gdi_rop.c
+NEW tests/test_gdi_rop.c
+NEW docs/v09-gdi-boundary.md
+NEW Makefile.gdi
+No existing files overwritten. No Windows driver binary included.
+Run: make test && make -f Makefile.gdi test
