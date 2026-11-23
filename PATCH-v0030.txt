@@ -1,0 +1,10 @@
+Palettium v0030 — Win16 ET4000AX bridge, capacity-aware session, safe rollback
+
+Incremental over v0029. Keep existing production filenames and 13 DDI
+ordinals. The Win16 adapter offers KERNEL-provided A000 selector access,
+port I/O and BIOS INT 10h mode/rollback callbacks. It is linked but NOT
+activated by the DDI. PALSTAGE.DRV is NOT INSTALLABLE. Do not modify
+SYSTEM.INI or call the native mode setter from an active desktop.
+
+For installation and tests see HANDOFF.md. v0030 Open Watcom Win16
+compile/link remains to be checked by maintainer; host tests use mocks.

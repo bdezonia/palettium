@@ -4,17 +4,86 @@
 #define ET4K_DAC_WRITE 0x3C8
 #define ET4K_DAC_DATA  0x3C9
 
-/* This version deliberately supports up to sixteen 64K pages (1 MiB).
- * The port interface may be extended for larger later chipsets.
- */
+/* The 4-bit bank selector addresses at most 1 MiB. ET4000AX ROM modes
+ * 2Eh (640x480x8) and 2Fh (640x400x8) use packed bytes, so 256K cards
+ * can use the latter without inventing a planar framebuffer layout.
+ * BIOS support and VRAM size are separate checks. */
+static int et4k_valid_capacity(unsigned long bytes)
+{
+    return bytes == 262144UL || bytes == 524288UL || bytes == 1048576UL;
+}
+
+unsigned long et4k_probe_capacity(ET4K_State *s)
+{
+    unsigned long detected;
+    if (!s) return 0;
+    if (et4k_valid_capacity(s->capacity)) return s->capacity;
+    /* A wrongly specified nonzero size is a configuration error. */
+    if (s->capacity || !s->io.query_capacity) return 0;
+    detected=s->io.query_capacity(s->io.cookie);
+    if (!et4k_valid_capacity(detected)) return 0;
+    s->capacity=detected;
+    return detected;
+}
+
+int et4k_mode_info(unsigned width, unsigned height, RG_PixelFormat format,
+                   ET4K_ModeInfo *info)
+{
+    ET4K_ModeInfo found;
+    if (format != RG_FMT_INDEX8 || width != 640u) return 0;
+    found.width = width;
+    found.height = height;
+    found.format = RG_FMT_INDEX8;
+    if (height == 480u) {
+        found.bios_mode = ET4K_BIOS_640X480X8;
+        found.minimum_vram = 307200UL;
+    } else if (height == 400u) {
+        found.bios_mode = ET4K_BIOS_640X400X8;
+        found.minimum_vram = 256000UL;
+    } else return 0;
+    if (info) *info = found;
+    return 1;
+}
+
+int et4k_mode_eligible(const ET4K_State *s,
+                       const ET4K_ModeInfo *info)
+{
+    ET4K_ModeInfo known;
+    if (!s || !info || !et4k_valid_capacity(s->capacity) ||
+        !et4k_mode_info(info->width, info->height, info->format, &known) ||
+        known.bios_mode != info->bios_mode ||
+        s->capacity < known.minimum_vram) return 0;
+    return !s->io.query_mode ||
+           s->io.query_mode(s->io.cookie, known.bios_mode);
+}
+
+int et4k_preferred_mode(ET4K_State *s, RG_Mode *mode)
+{
+    ET4K_ModeInfo info;
+    if (!mode || !et4k_probe_capacity(s)) return 0;
+    if (!et4k_mode_info(640u,480u,RG_FMT_INDEX8,&info) ||
+        !et4k_mode_eligible(s,&info)) {
+        if (!et4k_mode_info(640u,400u,RG_FMT_INDEX8,&info) ||
+            !et4k_mode_eligible(s,&info)) return 0;
+    }
+    mode->width=info.width;
+    mode->height=info.height;
+    mode->format=info.format;
+    mode->stride=0;
+    mode->capacity=0;
+    return 1;
+}
 static int et4k_init(void *ctx)
 {
     ET4K_State *s = (ET4K_State *)ctx;
     if (!s || !s->io.in_port || !s->io.out_port ||
-        !s->io.mem_read || !s->io.mem_write || !s->io.set_mode ||
-        s->capacity < 307200UL || s->capacity > 1048576UL)
+        !s->io.mem_read || !s->io.mem_write || !s->io.set_mode)
         return 0;
+    /* Capacity query is a non-destructive platform callback. Never infer
+     * 512K from a successful BIOS request, and never alias-probe VRAM. */
+    if (!et4k_probe_capacity(s)) return 0;
     s->bank_valid = 0;
+    s->mode_attempted = 0;
     s->active = 1;
     return 1;
 }
@@ -22,12 +91,16 @@ static int et4k_init(void *ctx)
 static int et4k_mode(void *ctx, RG_Mode *mode)
 {
     ET4K_State *s = (ET4K_State *)ctx;
-    if (!s->active || mode->format != RG_FMT_INDEX8 ||
-        mode->width != 640 || mode->height != 480 ||
-        (unsigned long)mode->width * mode->height > s->capacity)
-        return 0;
-    if (!s->io.set_mode(s->io.cookie, 640, 480)) return 0;
-    mode->stride = 640;
+    ET4K_ModeInfo info;
+    if (!s || !mode || !s->active ||
+        !et4k_mode_info(mode->width, mode->height, mode->format, &info) ||
+        !et4k_mode_eligible(s, &info)) return 0;
+    /* A BIOS call can partially alter the hardware even when it reports
+     * failure. Roll it back on shutdown. A VRAM/ROM preflight refusal,
+     * by contrast, must NOT restore or disturb the existing display. */
+    s->mode_attempted = 1;
+    if (!s->io.set_mode(s->io.cookie, info.width, info.height)) return 0;
+    mode->stride = info.width;
     mode->capacity = s->capacity;
     /* Reset both bank selectors to zero after firmware mode setup. */
     s->read_bank = s->write_bank = 0;
@@ -39,7 +112,9 @@ static int et4k_mode(void *ctx, RG_Mode *mode)
 static void et4k_shutdown(void *ctx)
 {
     ET4K_State *s = (ET4K_State *)ctx;
-    if (s->active && s->io.restore) s->io.restore(s->io.cookie);
+    if (s->active && s->mode_attempted && s->io.restore)
+        s->io.restore(s->io.cookie);
+    s->mode_attempted = 0;
     s->active = 0;
     s->bank_valid = 0;
 }
@@ -89,6 +164,7 @@ void et4k_setup(ET4K_State *s, ET4K_Port io, unsigned long capacity)
     s->read_bank = 0;
     s->write_bank = 0;
     s->bank_valid = 0;
+    s->mode_attempted = 0;
     s->active = 0;
 }
 

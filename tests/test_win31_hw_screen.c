@@ -90,7 +90,7 @@ int main(void)
     assert(!pal_screen_host_start(&host,&hw,640,480,TOKEN));
     et4k_make_hardware(&et,&hw);
     assert(!pal_screen_host_start(&host,&hw,800,600,TOKEN));
-    assert(m->restores==1);
+    assert(m->restores==0);
     assert(pal_screen_host_start(&host,&hw,640,480,TOKEN));
     assert(!pal_screen_host_start(&host,&hw,640,480,TOKEN));
     assert(host.pdevice.state==PAL_PD_ACTIVE);
@@ -213,19 +213,19 @@ int main(void)
                                      0,&pen,7));
     assert(!pal_screen_host_rectangle(&host,TOKEN,rect,&clip,
                                        &pen,&brush,13,2));
-    assert(m->restores==2);
+    assert(m->restores==1);
     assert(!pal_screen_host_bitblt(&host,TOKEN,0,0,TOKEN,0,0,
                                    5,5,0x00CC0020UL));
     assert(!pal_screen_host_palette(&host,12,0,0,0));
     assert(!pal_screen_host_colorinfo(&host,TOKEN,0,0,&logical,&physical));
     assert(!pal_screen_host_pixel(&host,TOKEN,0,0,0,0,&physical));
     pal_screen_host_stop(&host);
-    assert(m->restores==2);
+    assert(m->restores==1);
     assert(pal_screen_host_start(&host,&hw,640,480,TOKEN));
     assert(m->palette==164);
     assert(host.palette.entries[12].red==0); /* reset on restart */
     pal_screen_host_stop(&host);
-    assert(m->restores==3);
+    assert(m->restores==2);
     free(m);
     puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, palette, Output, mono/color banked BitBlt");
     return 0;

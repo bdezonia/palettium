@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0028** (incremental tags are fixed-width).
+Current development milestone: **v0030** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -17,11 +17,14 @@ driver**. Palettium is *not* yet an installable driver package.
   XRGB/ARGB storage. Framebuffer offsets are 32-bit or larger.
 - Byte-callback framebuffers with bank-switching, host simulation, and an
   **ET4000AX backend** (`hardware/tseng/et4000ax/`) supporting native
-  **640×480×8** mode, independent 64 KiB read/write banks and a 6-bit DAC.
-  Video-mode selection and actual port/aperture I/O come from the platform
-  callbacks; no VESA requirement is baked into the hardware backend.
-- The ET4000AX DOS demo was previously run on **86Box** (display and VRAM
-  readback passed). Earlier PALCORE/PALTEST Win16 graphics tests also passed
+  **640×480×8** (requires at least 512 KiB) and **640×400×8** (fits
+  256 KiB) packed modes, independent 64 KiB read/write banks and a 6-bit
+  DAC. Mode selection considers verified VRAM capacity and optionally BIOS
+  support; actual port/aperture I/O comes from platform callbacks. Planar
+  VGA 640×480×16 is not yet rendered by this backend; no VESA requirement.
+- The ET4000AX DOS demo was **run by the maintainer in 86Box with 256, 512
+  and 1024 KiB VRAM**, and the graphics appeared correct in all three
+  configurations (November 23, 2026). Earlier PALCORE/PALTEST Win16 graphics tests also passed
   in Windows 3.1. These are *not* proof of a working display driver.
 - A linked Open Watcom NE staging module `PALSTAGE.DRV` with Windows 3.x DDI
   exports. v0024 exports for BitBlt, Enable, Disable, Output and Pixel passed
@@ -50,7 +53,7 @@ driver**. Palettium is *not* yet an installable driver package.
   every ROP2, XOR joins, extreme signed coordinates and ET4000AX VRAM
   bank crossing. The maintainer **validated the v0027 Open Watcom Win16
   build and 13 exports on November 23, 2026**.
-- **New in v0028 (host-tested, Win16 not yet maintainer-validated):**
+- **v0028 (maintainer-validated Win16, November 23, 2026):**
   1bpp and 8bpp GDI-owned memory BITMAPs with checked 32-byte Win3.x
   headers and single-segment byte callbacks. `Output` now supports
   rectangle/scanline/polyline drawing to memory BITMAPs as well as screens.
@@ -59,6 +62,31 @@ driver**. Palettium is *not* yet an installable driver package.
   The common raster and existing ET4000AX hardware path are reused,
   including bank crossing; patterned ROP3 still refuses. Huge segmented
   BITMAPs and memory-bitmap Pixel/ScanLR are **not** implemented.
+- **v0029 (maintainer-validated, November 23, 2026):** ET4000AX mode catalog and
+  memory-capacity gates. 256 KiB cards can use the 640×400×256 packed mode
+  (Tseng BIOS 2Fh) without pretending 640×480×256 fits. For 512 KiB or
+  1 MiB cards, 640×480×256 (Tseng BIOS 2Eh) is preferred; a firmware
+  refusal can trigger a 640×400 candidate fallback. Known capacity can be
+  supplied by the OS adapter, or a strictly read-only platform query can
+  discover it. **The actual firmware mode-set callback must succeed**;
+  capacity by itself does not guarantee that an individual card's BIOS
+  supports either mode. The Win3.1 PDEVICE/GDIINFO host path now passes
+  640×400 geometry tests. The existing DOS smoke test now requires an
+  explicit `ET4KTEST 256|512|1024` argument matching a disposable 86Box
+  VM's VRAM setting and uses BIOS 2Fh or 2Eh as appropriate. The Win16
+  staging binary does **not** yet negotiate modes or initialize the native
+  ET4000AX hardware.
+
+- **New in v0030 (host-tested; Win16 verification pending):** a protected-mode
+  Windows 3.1 ET4000AX platform adapter uses KERNEL's `__A000H` mapped
+  selector rather than a real-mode `A000h` pointer, along with native byte
+  port I/O and an INT 10h mode-set/readback callback. A platform-neutral
+  Win3.x ET4000AX session coordinator chooses GDIINFO geometry from
+  **verified** VRAM, starts/stops the existing screen host, and rolls back
+  failed firmware attempts. Pure preflight refusals no longer reset the
+  user's video mode. **The native adapter is only compiled/linked, not
+  activated by the DDI**: VDD coordination, GDI-owned PDEVICE binding,
+  cursor/text and mode configuration are still needed before installation.
 
 ## Architecture
 
@@ -96,6 +124,8 @@ make -f Makefile.win31ddi test
 make -f Makefile.bitmap test
 make -f Makefile.enable22 test
 make -f Makefile.et4k test
+make -f Makefile.et4kmodes test
+make -f Makefile.win31native test
 ```
 
 Tests compile with a host C89 compiler; generated executables and artifacts go
@@ -111,28 +141,29 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0028 expects
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0029 expects
 **13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
-The 13-export **v0027** build passed on the maintainer's Open Watcom
-system; the **v0028 Win16 link is not yet validated** there.
+The 13-export **v0028** build passed on the maintainer's Open Watcom
+system; the **v0029 Win16 link is not yet validated** there. v0029 only
+changes the common ET4000AX backend and host tests, not the Win16 link list.
 
 When applying an incremental patch downloaded through your browser:
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal28.zip
+unzip -o ~/Downloads/pal29.zip
 ```
 
 The archive contains **repository-relative paths** (no enclosing directory).
-Apply it over a **validated v0027** tree. Source ZIPs carry exact UTC timestamps in the
+Apply it over a **validated v0028** tree. Source ZIPs carry exact UTC timestamps in the
 extended ZIP field and the local DOS ZIP header timestamp for America/Chicago.
 
 ## Important: NOT INSTALLABLE
 
 **Do not copy `PALSTAGE.DRV` into Windows' display-driver configuration or
 change `SYSTEM.INI` to select it.** The `Enable(style=0)` screen initialization
-path deliberately fails. v0028 adds single-segment 1/8-bit memory
+path deliberately fails. v0029 adds ET4000AX mode/capacity selection; v0028 added 1/8-bit memory
 bitmaps to GDI `Output` and `BitBlt`, but huge/planar bitmaps, memory
 `Pixel`/`ScanLR`, patterned brushes, text, cursor management, the complete
 GDI contract and real Win16 mode setting/screen switching are missing. `Enable(style=1)` returns only a *candidate* GDIINFO; it intentionally does **not** advertise RC_PALETTE
@@ -140,12 +171,15 @@ until the rest of the palette-capable display DDI is integrated and validated.
 
 ### Next engineering priorities
 
-Finish huge BITMAP/remaining bitmap DDIs and minimum cursor/text contracts;
-connect Win16 ET4000AX mode set, VRAM aperture and lifecycle to a real
-GDI-owned PDEVICE; then implement the remaining required services and test
-startup in a recoverable 86Box Windows 3.1 environment (standard and 386
-Enhanced Mode). Keep port access OS-specific and share code with WfW/9x
-where their driver contracts allow.
+Complete the Win16 platform-specific **read-only VRAM discovery** and **BIOS
+mode-acceptance verification**, then wire native mode set, VRAM aperture,
+GDIINFO geometry selection and the active PDEVICE lifecycle into an actually
+operational driver. The interim v0029 backend accepts known 256K/512K/1M
+capacities but does not detect chips itself. Develop planar 640×480×16
+separately if a 480-line desktop on 256K boards is required. Add minimum
+text/cursor and missing bitmap DDIs and test Win3.1 standard-mode startup
+first, then 386 enhanced mode with the appropriate VDD and screen switching,
+in a recoverable 86Box VM. Preserve shared code across the four OS targets.
 
-Check `HANDOFF.md` and `PATCH-v0028.txt` for precise checkpoint status and
+Check `HANDOFF.md` and `PATCH-v0029.txt` for precise checkpoint status and
 remaining test gaps. Earlier `docs/` and patch notes document the milestones.

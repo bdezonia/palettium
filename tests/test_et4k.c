@@ -115,7 +115,8 @@ int main(void)
     mode.format = RG_FMT_RGB565;
     mode.capacity = 0;
     CHECK(!rg_hw_open(&binding, &dev, &hw, &mode));
-    CHECK(m->restore_calls == 2);
+    /* Unsupported format never reached BIOS mode setting. */
+    CHECK(m->restore_calls == 1);
     free(m);
     puts("PASS: ET4000AX bank register, independent read/write banks, framebuffer, palette and lifecycle");
     return 0;

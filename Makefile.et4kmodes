@@ -1,0 +1,19 @@
+# v0029 ET4000AX mode/VRAM + Windows 3.1 host tests, Linux C89.
+CC ?= cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror
+INC = -Iinclude -Ihardware/tseng/et4000ax -Iwindows/win31
+SRC = common/rgfx.c common/rg_hardware.c common/rg_gdi_rop.c \
+ common/rg_gdi_blit.c common/rg_palette.c common/rg_objects.c \
+ common/rg_gdi_output.c common/rg_win31_screen.c \
+ windows/win31/pal_gdiinfo.c windows/win31/pal_pdevice.c \
+ windows/win31/pal_screen_ddi.c windows/win31/pal_screen_host.c \
+ hardware/tseng/et4000ax/et4k.c tests/test_et4k_modes.c
+.PHONY: test clean
+test: tests/exes/et4k-modes-test
+	./tests/exes/et4k-modes-test
+tests/exes/et4k-modes-test: $(SRC) hardware/tseng/et4000ax/et4k.h | tests/exes
+	$(CC) $(CFLAGS) $(INC) $(SRC) -o $@
+tests/exes:
+	mkdir -p $@
+clean:
+	rm -f tests/exes/et4k-modes-test

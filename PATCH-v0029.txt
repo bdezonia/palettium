@@ -1,0 +1,18 @@
+Palettium v0029 incremental patch — apply over validated v0028
+Date: 2026-11-23 UTC
+
+- ET4000AX capacity-aware packed INDEX8 modes: 640x400 for 256 KiB,
+  640x480 for >=512 KiB, BIOS modes 2Fh and 2Eh respectively.
+- Mode catalog plus preferred-mode selector, optional read-only VRAM and
+  firmware-mode probes; no destructive alias probing or unsupported 4bpp
+  planar compatibility claims.
+- All modes require a successful actual platform set_mode callback.
+- Simulated Win31 256KiB screen/GDIINFO, bank crossings, 256/512/1MiB,
+  unknown/invalid capacity, firmware failures tested in new target.
+- DOS ET4KTEST no longer assumes 1 MiB VRAM; explicit 256/512/1024 KiB
+  startup argument, mode 2Fh vs 2Eh, drawing limited to active geometry.
+- Updated README, Win31 README, docs/et4000ax.md and HANDOFF.
+
+Not installable: physical Win16 startup, text/cursor, BIOS port integration,
+VDD switching are unfinished. No new NE exports. Run test instructions in
+HANDOFF.md. Binaries are not included.

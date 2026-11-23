@@ -1,0 +1,20 @@
+# v0030 Win3.x ET4000AX platform-session smoke test (host mocks)
+CC ?= cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror
+INCS = -Iinclude -Iwindows/win31 -Ihardware/tseng/et4000ax
+SOURCES = common/rgfx.c common/rg_hardware.c common/rg_gdi_rop.c \
+ common/rg_gdi_blit.c common/rg_palette.c common/rg_objects.c \
+ common/rg_gdi_output.c common/rg_win31_screen.c \
+ windows/win31/pal_gdiinfo.c windows/win31/pal_pdevice.c \
+ windows/win31/pal_enable.c windows/win31/pal_screen_ddi.c \
+ windows/win31/pal_screen_host.c windows/win31/pal_et4k_session.c \
+ hardware/tseng/et4000ax/et4k.c tests/test_win31_native.c
+.PHONY: test clean
+test: tests/exes/win31-native-test
+	./tests/exes/win31-native-test
+tests/exes/win31-native-test: $(SOURCES) | tests/exes
+	$(CC) $(CFLAGS) $(INCS) $(SOURCES) -o $@
+tests/exes:
+	mkdir -p $@
+clean:
+	rm -f tests/exes/win31-native-test
