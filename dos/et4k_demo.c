@@ -76,7 +76,7 @@ int main(void)
     et4k_make_hardware(&card, &hardware);
     mode.width = 640;
     mode.height = 480;
-    mode.depth = 8;
+    mode.format = RG_FMT_INDEX8;
     mode.stride = 0;
     if (!rg_hw_open(&binding, &device, &hardware, &mode)) {
         puts("ET4000AX setup failed. Check selected 86Box adapter.");

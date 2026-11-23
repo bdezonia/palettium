@@ -59,7 +59,7 @@ int main(void)
     memcpy(expected, actual, N);
     pal_bank_init(&bank,actual,N);
     access.read_byte=pal_bank_read; access.write_byte=pal_bank_write;
-    if (!rg_init_vram(&dst,W,H,W,access,&bank) || !rg_init(&src,other,W,H,W)) return 1;
+    if (!rg_init_vram(&dst, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8, access, &bank) || !rg_init(&src, other, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8)) return 1;
     for (rop=0;rop<16;++rop) {
         if (!run_case(&dst,&dst,0,103,0,101,640,80,rop,0)) return 2;
         if (!run_case(&dst,&dst,20,100,0,100,600,65,rop,0)) return 3;

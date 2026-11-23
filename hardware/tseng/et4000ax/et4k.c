@@ -22,12 +22,13 @@ static int et4k_init(void *ctx)
 static int et4k_mode(void *ctx, RG_Mode *mode)
 {
     ET4K_State *s = (ET4K_State *)ctx;
-    if (!s->active || mode->depth != 8 ||
+    if (!s->active || mode->format != RG_FMT_INDEX8 ||
         mode->width != 640 || mode->height != 480 ||
         (unsigned long)mode->width * mode->height > s->capacity)
         return 0;
     if (!s->io.set_mode(s->io.cookie, 640, 480)) return 0;
     mode->stride = 640;
+    mode->capacity = s->capacity;
     /* Reset both bank selectors to zero after firmware mode setup. */
     s->read_bank = s->write_bank = 0;
     s->io.out_port(s->io.cookie, ET4K_BANK_PORT, 0);

@@ -2,7 +2,7 @@ CC = cc
 CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude -Ihardware/sim_bank
 
 .PHONY: all test clean
-all: raster-test banked-test blit-test win16-guard hardware-test
+all: raster-test banked-test blit-test win16-guard hardware-test format-test hardware-format-test
 raster-test: common/rgfx.c tests/test_raster.c include/rgfx.h
 	$(CC) $(CFLAGS) common/rgfx.c tests/test_raster.c -o $@
 banked-test: common/rgfx.c hardware/sim_bank/sim_bank.c tests/test_banked.c include/rgfx.h hardware/sim_bank/sim_bank.h
@@ -15,11 +15,19 @@ test: all
 	./blit-test
 	./win16-guard
 	./hardware-test
+	./format-test
+	./hardware-format-test
 clean:
-	rm -f raster-test banked-test blit-test win16-guard hardware-test raster-demo.ppm
+	rm -f raster-test banked-test blit-test win16-guard hardware-test format-test hardware-format-test raster-demo.ppm
 
 win16-guard: common/rgfx.c tests/test_win16_geometry.c include/rgfx.h
 	$(CC) $(CFLAGS) common/rgfx.c tests/test_win16_geometry.c -o $@
 
 hardware-test: common/rgfx.c common/rg_hardware.c hardware/sim_bank/sim_bank.c tests/test_hardware.c include/rgfx.h include/rg_hardware.h hardware/sim_bank/sim_bank.h
 	$(CC) $(CFLAGS) common/rgfx.c common/rg_hardware.c hardware/sim_bank/sim_bank.c tests/test_hardware.c -o $@
+
+format-test: common/rgfx.c hardware/sim_bank/sim_bank.c tests/test_formats_unified.c include/rgfx.h hardware/sim_bank/sim_bank.h
+	$(CC) $(CFLAGS) common/rgfx.c hardware/sim_bank/sim_bank.c tests/test_formats_unified.c -o $@
+
+hardware-format-test: common/rgfx.c common/rg_hardware.c tests/test_hardware_formats.c
+	$(CC) $(CFLAGS) common/rgfx.c common/rg_hardware.c tests/test_hardware_formats.c -o $@

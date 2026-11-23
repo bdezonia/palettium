@@ -1,0 +1,28 @@
+PALETTIUM v0018 — REPLACEMENT, BREAKING API CHANGE
+
+Replace existing source files from this ZIP. DO NOT apply the earlier
+additive pal18.zip approach after this patch.
+
+Changed: common/rgfx.c, common/rg_hardware.c, common/rg_gdi_blit.c,
+common/rg_win31_screen.c, include/rgfx.h, include/rg_hardware.h,
+hardware/tseng/et4000ax/et4k.c, top-level Makefile,
+DOS test client, Win16 core probe / screen host, and client tests.
+New: tests/test_formats_unified.c, tests/test_hardware_formats.c,
+docs/v0018-unified-core.md.
+
+The index8 hardware driver was migrated immediately; there is no
+parallel RG_Pixmap rasterization engine in this release.
+
+If the earlier pal18.zip was applied, remove the four obsolete paths:
+  include/rg_pixmap.h
+  common/rg_pixmap.c
+  tests/test_pixmap.c
+  Makefile.pixmap
+(Review local modifications before deleting.)
+
+Local tests: Linux make test and all existing specialized makefiles PASS.
+Target tests: Open Watcom DOS/Win16 builds and 86Box run are pending.
+No display-driver installation is safe at this stage.
+
+Packaging: actual current UTC with Info-ZIP extended UTC timestamp field;
+confirmed by extracting under America/Chicago and checking file mtimes.

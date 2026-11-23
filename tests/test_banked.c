@@ -28,11 +28,11 @@ int main(void)
     pal_bank_init(&sim, banked, sizeof(banked));
     access.read_byte = pal_bank_read;
     access.write_byte = pal_bank_write;
-    if (!rg_init(&a, linear, W, H, W) ||
-        !rg_init_vram(&b, W, H, W, access, &sim)) return 1;
+    if (!rg_init(&a, linear, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8) ||
+        !rg_init_vram(&b, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8, access, &sim)) return 1;
     { RG_VramOps invalid; invalid.read_byte = 0; invalid.write_byte = 0;
-      if (rg_init_vram(&b, W, H, W, invalid, &sim)) return 2; }
-    if (!rg_init_vram(&b, W, H, W, access, &sim)) return 3;
+      if (rg_init_vram(&b, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8, invalid, &sim)) return 2; }
+    if (!rg_init_vram(&b, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8, access, &sim)) return 3;
 
     /* Cross 64-KiB boundary inside a scanline (65536 / 640 = 102 r256). */
     a.ops.fill(&a, 0, 100, W, 7, 77);

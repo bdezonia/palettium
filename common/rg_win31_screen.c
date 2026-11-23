@@ -3,7 +3,7 @@
 int rg_win31_screen_bind(RG_Win31Screen *screen, RG_Device *device,
                          unsigned width, unsigned height, unsigned pitch)
 {
-    if (!screen || !device || !width || !height || pitch < width ||
+    if (!screen || !device || !width || !height || (rg_offset)pitch < rg_min_stride(device->surface.format, width) ||
         device->surface.width != width || device->surface.height != height ||
         device->surface.stride != pitch || !device->ops.blit ||
         (!device->surface.pixels &&

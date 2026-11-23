@@ -8,21 +8,22 @@ int rg_hw_open(RG_HwBinding *binding, RG_Device *device,
         return 0;
     if (!hardware->initialize || !hardware->set_mode ||
         !hardware->read_byte || !hardware->write_byte ||
-        !mode->width || !mode->height || mode->depth != 8)
+        !mode->width || !mode->height || !rg_pixel_bits(mode->format))
         return 0;
     if (!hardware->initialize(hardware->context)) return 0;
     if (!hardware->set_mode(hardware->context, mode)) {
         if (hardware->shutdown) hardware->shutdown(hardware->context);
         return 0;
     }
-    if (!mode->width || !mode->height || mode->depth != 8) {
+    if (!mode->width || !mode->height || !rg_pixel_bits(mode->format)) {
         if (hardware->shutdown) hardware->shutdown(hardware->context);
         return 0;
     }
     vram.read_byte = hardware->read_byte;
     vram.write_byte = hardware->write_byte;
     if (!rg_init_vram(device, mode->width, mode->height,
-                      mode->stride, vram, hardware->context)) {
+                      mode->stride, mode->capacity, mode->format,
+                      vram, hardware->context)) {
         if (hardware->shutdown) hardware->shutdown(hardware->context);
         return 0;
     }

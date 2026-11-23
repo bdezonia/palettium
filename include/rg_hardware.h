@@ -11,8 +11,9 @@
 typedef struct RG_Mode {
     unsigned width;
     unsigned height;
-    unsigned depth;     /* revision 1: only 8-bit indexed color */
-    unsigned stride;    /* actual bytes per scanline, supplied by backend */
+    RG_PixelFormat format;  /* actual hardware pixel layout */
+    rg_offset stride; /* bytes per scanline */
+    rg_offset capacity; /* backing framebuffer bytes */
 } RG_Mode;
 
 struct RG_Hardware;

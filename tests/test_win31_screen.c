@@ -23,7 +23,7 @@ static void seed(void)
     for (i = 0; i < sizeof(data); ++i)
         data[i] = (rg_u8)((i * 71U + 39U) & 255U);
     memcpy(ref, data, sizeof(data));
-    assert(rg_init(&device, data, WIDTH, HEIGHT, WIDTH));
+    assert(rg_init(&device, data, WIDTH, HEIGHT, WIDTH, (rg_offset)WIDTH * HEIGHT, RG_FMT_INDEX8));
     assert(rg_win31_screen_bind(&screen, &device, WIDTH, HEIGHT, WIDTH));
 }
 static void reference(int dx,int dy,int sx,int sy,int w,int h,unsigned rop3)

@@ -9,7 +9,7 @@ static unsigned intercepted_lines = 0;
 
 /* A mock card accelerator: this override delegates to software. */
 static void mock_line(RG_Device *dev, int x0, int y0,
-                      int x1, int y1, rg_u8 color)
+                      int x1, int y1, rg_pixel color)
 {
     ++intercepted_lines;
     rg_software_line(dev, x0, y0, x1, y1, color);
@@ -35,7 +35,7 @@ int main(void)
 {
     RG_Device dev;
     memset(framebuffer, 0, sizeof(framebuffer));
-    if (!rg_init(&dev, framebuffer, W, H, W)) return 1;
+    if (!rg_init(&dev, framebuffer, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8)) return 1;
     dev.ops.fill(&dev, 10, 10, 140, 100, 40);
     dev.ops.fill(&dev, 25, 25, 110, 70, 100);
     dev.ops.fill(&dev, -10, -10, 30, 30, 160); /* clipping */

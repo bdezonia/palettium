@@ -3,8 +3,10 @@
 /blit-gdi-test
 /blit-test
 /ddi16-test
+/format-test
 /gdi-rop-test
 /gdiinfo-test
+/hardware-format-test
 /pdevice-test
 /raster-test
 /raster-demo.ppm

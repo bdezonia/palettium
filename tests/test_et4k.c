@@ -82,7 +82,7 @@ int main(void)
     et4k_setup(&state, io, VRAM_SIZE);
     et4k_make_hardware(&state, &hw);
     memset(&binding, 0, sizeof binding);
-    mode.width = 640; mode.height = 480; mode.depth = 8; mode.stride = 0;
+    mode.width = 640; mode.height = 480; mode.format = RG_FMT_INDEX8; mode.stride = 0;
     CHECK(rg_hw_open(&binding, &dev, &hw, &mode));
     CHECK(mode.stride == 640 && m->mode_calls == 1);
     CHECK(m->reg == 0);
@@ -111,6 +111,11 @@ int main(void)
     CHECK(m->invalid == 0);
     rg_hw_close(&binding);
     CHECK(m->restore_calls == 1);
+    /* Same backend MUST reject a pixel format its silicon does not support. */
+    mode.format = RG_FMT_RGB565;
+    mode.capacity = 0;
+    CHECK(!rg_hw_open(&binding, &dev, &hw, &mode));
+    CHECK(m->restore_calls == 2);
     free(m);
     puts("PASS: ET4000AX bank register, independent read/write banks, framebuffer, palette and lifecycle");
     return 0;

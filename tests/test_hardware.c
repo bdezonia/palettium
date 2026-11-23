@@ -25,8 +25,9 @@ static int mode(void *v, RG_Mode *m)
     Fixture *f = (Fixture *)v;
     ++f->modes;
     if (f->fail_mode || m->width != WIDTH || m->height != HEIGHT ||
-        m->depth != 8) return 0;
+        m->format != RG_FMT_INDEX8) return 0;
     m->stride = WIDTH;
+    m->capacity = SIZE;
     pal_bank_init(&f->sim, f->memory, SIZE);
     return 1;
 }
@@ -41,7 +42,7 @@ static void palette(void *v, unsigned i, rg_u8 r, rg_u8 g, rg_u8 b)
     (void)i; (void)r; (void)g; (void)b;
     ++f->palettes;
 }
-static void fast_fill(RG_Device *d, int x, int y, int w, int h, rg_u8 c)
+static void fast_fill(RG_Device *d, int x, int y, int w, int h, rg_pixel c)
 {
     Fixture *f = (Fixture *)d->card_data;
     ++f->accelerations;
@@ -80,12 +81,12 @@ int main(void)
     hw.install_accel = install;
     selected.width = WIDTH;
     selected.height = HEIGHT;
-    selected.depth = 8;
+    selected.format = RG_FMT_INDEX8;
     selected.stride = 0;
     ok &= check(rg_hw_open(&binding, &dev, &hw, &selected), "open");
     ok &= check(!rg_hw_open(&binding, &dev, &hw, &selected), "double open rejected");
     ok &= check(selected.stride == WIDTH, "actual stride");
-    ok &= check(rg_init(&linear, expected, WIDTH, HEIGHT, WIDTH), "linear init");
+    ok &= check(rg_init(&linear, expected, WIDTH, HEIGHT, WIDTH, (rg_offset)WIDTH * HEIGHT, RG_FMT_INDEX8), "linear init");
     dev.ops.fill(&dev, 2, 100, 550, 190, 0x5a);
     linear.ops.fill(&linear, 2, 100, 550, 190, 0x5a);
     dev.ops.line(&dev, 1, 1, 638, 479, 0xf1);

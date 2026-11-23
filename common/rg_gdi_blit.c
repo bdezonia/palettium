@@ -9,8 +9,9 @@ int rg_gdi_blit_rop3(RG_Device *dst, RG_Device *src,
     if (!dst || !src || width <= 0 || height <= 0) return 0;
     if (!dst->surface.width || !dst->surface.height ||
         !src->surface.width || !src->surface.height ||
-        dst->surface.stride < dst->surface.width ||
-        src->surface.stride < src->surface.width) return 0;
+        dst->surface.stride < rg_min_stride(dst->surface.format, dst->surface.width) ||
+        src->surface.stride < rg_min_stride(src->surface.format, src->surface.width) ||
+        dst->surface.format != src->surface.format) return 0;
     if ((!dst->surface.pixels && (!dst->vram.read_byte || !dst->vram.write_byte)) ||
         (!src->surface.pixels && (!src->vram.read_byte || !src->vram.write_byte)))
         return 0;

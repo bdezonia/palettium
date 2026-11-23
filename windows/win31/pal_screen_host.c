@@ -17,8 +17,9 @@ int pal_screen_host_start(PAL_ScreenHost *host, RG_Hardware *hardware,
     memset(&host->binding, 0, sizeof(host->binding));
     mode.width = width;
     mode.height = height;
-    mode.depth = 8;
+    mode.format = RG_FMT_INDEX8;
     mode.stride = 0;
+    mode.capacity = 0;
     if (!rg_hw_open(&host->binding, &host->device, hardware, &mode))
         return 0;
     if (!pal_pd_prepare(&host->pdevice, mode.width, mode.height,

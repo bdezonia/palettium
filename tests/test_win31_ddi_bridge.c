@@ -30,7 +30,7 @@ int main(void)
     unsigned i;
     memset(&bridge,0,sizeof(bridge));
     seed();
-    assert(rg_init(&dev,pixels,W,H,W));
+    assert(rg_init(&dev, pixels, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8));
     assert(pal_pd_prepare(&pd,W,H,W));
     assert(!pal_screen_ddi_attach(&bridge,&pd,&dev,TOKEN));
     assert(pal_pd_activate(&pd));

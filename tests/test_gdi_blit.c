@@ -19,8 +19,8 @@ static void seed(void)
 {
     unsigned i;
     for(i=0;i<sizeof(a);++i) { a[i]=(unsigned char)((i*53U+7U)&255U); b[i]=a[i]; }
-    assert(rg_init(&da,a,W,H,W));
-    assert(rg_init(&db,b,W,H,W));
+    assert(rg_init(&da, a, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8));
+    assert(rg_init(&db, b, W, H, W, (rg_offset)W * H, RG_FMT_INDEX8));
 }
 static void reference(int dx,int dy,int sx,int sy,int ww,int hh,unsigned rop3)
 {

@@ -40,7 +40,7 @@ WORD FAR PASCAL __export PalettiumCoreSelfTest(void)
     ops.read_byte = test_read;
     ops.write_byte = test_write;
     if (!rg_init_vram(&dev, TEST_WIDTH, TEST_HEIGHT,
-                      TEST_WIDTH, ops, test_buffer)) return 0x8000;
+                      TEST_WIDTH, TEST_COUNT, RG_FMT_INDEX8, ops, test_buffer)) return 0x8000;
 
     dev.ops.pixel(&dev, 1, 2, 17);
     if (test_buffer[2 * TEST_WIDTH + 1] != 17) failures |= 2;
