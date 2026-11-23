@@ -1,0 +1,11 @@
+Palettium v0020 - Win16 DDI far-pointer marshaling
+ADDED windows/win31/pal_ddl_blit.h
+ADDED windows/win31/pal_ddl_blit.c
+ADDED windows/win31/palddi20.c
+ADDED windows/win31/build-palddi20.sh
+ADDED tests/test_win31_farblt.c
+ADDED Makefile.far20
+ADDED docs/v0020-win16-marshalling.md
+
+No existing files changed. No additional test binaries at repo root.
+The Win16 object is emitted to tests/exes/. No DRV is installable yet.
