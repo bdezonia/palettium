@@ -1,0 +1,14 @@
+Palettium v0012 (previous informal milestone v0.12)
+ADDITIVE PATCH. Requires the preceding pal11.zip (v0.11) files.
+No existing files are overwritten. All new paths:
+ windows/win31/pal_pdevice.h
+ windows/win31/pal_pdevice.c
+ windows/win31/paldev.c
+ windows/win31/build-paldev.sh
+ tests/test_win31_pdevice.c
+ Makefile.pdevice
+ docs/v0012-pdevice.md
+
+Tags: starting now, use v0012, v0013, ... v0099, v0100.
+Existing tags are preserved; do not retag automatically.
+See docs/v0012-pdevice.md. NOT AN INSTALLABLE DISPLAY DRIVER.

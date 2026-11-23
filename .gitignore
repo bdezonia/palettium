@@ -1,10 +1,11 @@
-/blit-test
-/win16-guard
-/raster-test
 /banked-test
-/raster-demo.ppm
+/blit-test
 /gdi-rop-test
 /gdiinfo-test
+/pdevice-test
+/raster-test
+/raster-demo.ppm
+/win16-guard
 *.o
 *.O
 *.obj
