@@ -128,7 +128,7 @@ python3 tools/check_win31_modname.py "$OUTPUT"
 python3 tools/check_win31_imports.py "$OUTPUT"
 python3 tools/check_win31_exports.py "tests/exes/$NAME.exports.txt"
 if [ "$NAME" = PALTRIAL ]; then
-    printf '%s\n' 'PASS: linked PALTRIAL.DRV (experimental 256KiB Standard-mode GDI boot ONLY).' \
+    printf '%s\n' 'PASS: linked PALTRIAL.DRV (experimental 256/512KiB Standard-mode GDI boot ONLY).' \
         'WARNING: unverified Windows runtime. Use snapshot and DOS recovery; no enhanced mode.'
 else
     printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \

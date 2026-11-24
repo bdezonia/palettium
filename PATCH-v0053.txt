@@ -1,0 +1,12 @@
+v0053: permit explicitly configured 512KiB Standard-mode trial.
+DOS PALBIOS reported 03 -> 2F -> 03 (request 2F rejected) at 256KiB;
+with 512KiB user reports original/request/actual/restored 03/2F/2F/03.
+Gate now accepts 256 or 512KiB, still requires protected Standard mode
+and key 4401; 1MiB, enhanced mode and PALSTAGE activation remain blocked.
+Existing planner unchanged: 512KiB Standard mode selects 640x480x8 (2Eh),
+not the DOS-tested 640x400x8 (2Fh). BIOS verification/rollback unchanged.
+Set actual emulator VRAM and SYSTEM.INI VRAMKiB to 512. Retain v0052
+tracing and v0050 local VGA resource binding. No donor assets distributed.
+Host gate tests cover all low six flag bits for both supported capacities,
+wrong keys and unsupported capacities. Full host suite unavailable because
+source snapshot omits include/. Watcom and VM runtime untested here.

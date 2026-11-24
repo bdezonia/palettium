@@ -226,7 +226,7 @@ void FAR PASCAL CheckCursor(void)
 /* ONLY the separately named PALTRIAL.DRV build may request a first GDI
  * boot in a disposable 86Box guest. Default PALSTAGE.DRV always refuses.
  * Require BOTH the explicit trial key and actual Windows Standard mode,
- * plus exact 256 KiB configured VRAM; no enhanced-mode VDD paths permitted.
+ * plus explicit 256 or 512 KiB configured VRAM; no enhanced-mode VDD paths permitted.
  * This is an experimental boot gate, NOT a claim of driver correctness. */
 static int pal_win16_install_ready(void)
 {

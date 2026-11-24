@@ -44,7 +44,7 @@ static void win16_write(void *ctx, unsigned offset, rg_u8 value)
  * Use a narrowly scoped, register-preserving INT 10h wrapper instead of
  * linking the entire dynamic `int86` runtime dispatcher.  The old int86
  * implementation ultimately executed INT 10h as well.  This does NOT
- * certify BIOS/VDD correctness; the trial remains Standard/256KiB gated.
+ * certify BIOS/VDD correctness; the trial remains Standard/256-or-512KiB gated.
  * Keep the OS-specific assembly here, not in the shared ET4000AX backend.
  *
  * The host branch is solely to permit alternate compilers to syntax-check

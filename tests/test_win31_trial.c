@@ -11,7 +11,10 @@ int main(void)
     CHECK(!pal_win31_trial_permitted(0x0031UL,256u,4401u));
     CHECK(!pal_win31_trial_permitted(0UL,256u,4401u));
     CHECK(!pal_win31_trial_permitted(0x0010UL,256u,4401u));
-    CHECK(!pal_win31_trial_permitted(0x0011UL,512u,4401u));
+    CHECK(pal_win31_trial_permitted(0x0011UL,512u,4401u));
+    CHECK(!pal_win31_trial_permitted(0x0C29UL,512u,4401u));
+    CHECK(!pal_win31_trial_permitted(0x0011UL,512u,0u));
+    CHECK(!pal_win31_trial_permitted(0x0011UL,512u,4402u));
     CHECK(!pal_win31_trial_permitted(0x0011UL,1024u,4401u));
     CHECK(!pal_win31_trial_permitted(0x0011UL,0u,4401u));
     CHECK(!pal_win31_trial_permitted(0x0011UL,256u,0u));
@@ -20,7 +23,9 @@ int main(void)
         f=(unsigned long)i;
         CHECK(pal_win31_trial_permitted(f,256u,4401u)==
               ((f&0x0031UL)==0x0011UL));
+        CHECK(pal_win31_trial_permitted(f,512u,4401u)==
+              ((f&0x0031UL)==0x0011UL));
     }
-    puts("PASS: v0044 trial gate only Standard protected mode, 256KiB, key 4401");
+    puts("PASS: v0053 trial gate only Standard protected mode, 256/512KiB, key 4401");
     return 0;
 }
