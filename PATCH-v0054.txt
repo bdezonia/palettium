@@ -1,0 +1,5 @@
+Palettium v0054: bounded synchronous DDI startup tracing.
+Apply over v0053. Hardware, gate, GDIINFO values and DDI return semantics unchanged.
+Logs GDIINFO sizes, geometry, raster flags, PDEVICE copied type and size, Enable0 return, and first 64 synchronous DDI calls with return values. Cursor interrupt callbacks deliberately not traced. Trace budget shared across attempts; a missing marker can also mean budget exhausted or file I/O failure.
+No Microsoft assets included. Continue local v0050 resource-binding procedure.
+Host GDIINFO and PDEVICE tests passed; full suite unavailable (include directory missing from snapshot); Watcom and runtime not tested here.

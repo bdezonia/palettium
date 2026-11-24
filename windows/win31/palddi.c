@@ -65,6 +65,17 @@
 #include "pal_boottrace.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
+#if defined(PAL_WIN31_BOOTTRACE)
+static unsigned pal_ddi_trace_budget = 64u;
+static int pal_ddi_trace_enter(const char *name)
+{
+    if (!pal_ddi_trace_budget) return 0;
+    --pal_ddi_trace_budget;
+    pal_boottrace(name);
+    return 1;
+}
+#endif
+
 /* Persistent storage: GDI owns only the published 20-byte PDEVICE. */
 static PAL_ET4KSession pal_native_session;
 static PAL_Win16ET4K pal_native_adapter;
@@ -116,6 +127,8 @@ int FAR PASCAL pal_win16_publish_host(PAL_ScreenHost *host,
     for (i=0; i<sizeof(image); ++i) target[i]=source[i];
     pal_cursor16_bind(&pal_win16_cursor,&host->device);
     pal_active_host=host;
+    pal_boottrace_hex("PDEVICE TYPE", (unsigned)target[0] | ((unsigned)target[1]<<8));
+    pal_boottrace_hex("PDEVICE SIZE", sizeof(image));
     pal_boottrace("PUBLISH OK");
     return 1;
 }
@@ -482,11 +495,19 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
     return ((DWORD)(WORD)font.height<<16) | (DWORD)(WORD)space_adjust;
 }
 
+#if defined(PAL_WIN31_BOOTTRACE)
+static DWORD FAR PASCAL pal_trace_impl_ExtTextOut(LPVOID dest, short x, short y,
+                            LPVOID clip_rect, LPSTR text, short count,
+                            LPVOID font, LPVOID drawmode,
+                            LPVOID text_transform, LPVOID widths,
+                            LPVOID opaque_rect, WORD options)
+#else
 DWORD FAR PASCAL ExtTextOut(LPVOID dest, short x, short y,
                             LPVOID clip_rect, LPSTR text, short count,
                             LPVOID font, LPVOID drawmode,
                             LPVOID text_transform, LPVOID widths,
                             LPVOID opaque_rect, WORD options)
+#endif
 {
     DWORD result;
     if (count>0 || (options&2u)) pal_cursor_draw_begin();
@@ -495,12 +516,33 @@ DWORD FAR PASCAL ExtTextOut(LPVOID dest, short x, short y,
     if (count>0 || (options&2u)) pal_cursor_draw_end();
     return result;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+DWORD FAR PASCAL ExtTextOut(LPVOID dest, short x, short y,
+                            LPVOID clip_rect, LPSTR text, short count,
+                            LPVOID font, LPVOID drawmode,
+                            LPVOID text_transform, LPVOID widths,
+                            LPVOID opaque_rect, WORD options)
+{
+    DWORD result;
+    int traced = pal_ddi_trace_enter("DDI ExtTextOut ENTER");
+    result = pal_trace_impl_ExtTextOut(dest, x, y, clip_rect, text, count, font, drawmode, text_transform, widths, opaque_rect, options);
+    if (traced) pal_boottrace_hex("DDI ExtTextOut RETURN LO", (unsigned)result);
+    if (traced) pal_boottrace_hex("DDI ExtTextOut RETURN HI", (unsigned)(result >> 16));
+    return result;
+}
+#endif
 
 /* Legacy DDI @11 is mandatory for pre-GDI20 clients; share exactly
  * the same checked implementation, without extended opaque options. */
+#if defined(PAL_WIN31_BOOTTRACE)
+static DWORD FAR PASCAL pal_trace_impl_StrBlt(LPVOID dest, short x, short y,
+                         LPVOID clip_rect, LPSTR text, short count,
+                         LPVOID font, LPVOID drawmode, LPVOID text_transform)
+#else
 DWORD FAR PASCAL StrBlt(LPVOID dest, short x, short y,
                          LPVOID clip_rect, LPSTR text, short count,
                          LPVOID font, LPVOID drawmode, LPVOID text_transform)
+#endif
 {
     DWORD result;
     if (count>0) pal_cursor_draw_begin();
@@ -509,6 +551,19 @@ DWORD FAR PASCAL StrBlt(LPVOID dest, short x, short y,
     if (count>0) pal_cursor_draw_end();
     return result;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+DWORD FAR PASCAL StrBlt(LPVOID dest, short x, short y,
+                         LPVOID clip_rect, LPSTR text, short count,
+                         LPVOID font, LPVOID drawmode, LPVOID text_transform)
+{
+    DWORD result;
+    int traced = pal_ddi_trace_enter("DDI StrBlt ENTER");
+    result = pal_trace_impl_StrBlt(dest, x, y, clip_rect, text, count, font, drawmode, text_transform);
+    if (traced) pal_boottrace_hex("DDI StrBlt RETURN LO", (unsigned)result);
+    if (traced) pal_boottrace_hex("DDI StrBlt RETURN HI", (unsigned)(result >> 16));
+    return result;
+}
+#endif
 
 /* DDK: BitBlt(dest,dx,dy,src,sx,sy,w,h,rop,brush,drawmode).
  * Same-screen keeps the existing hardware blit path. All 1/8bpp
@@ -554,10 +609,17 @@ static BOOL pal_win16_bitblt_impl(LPVOID dest, short dx, short dy,
                ? TRUE : FALSE;
 }
 
+#if defined(PAL_WIN31_BOOTTRACE)
+static BOOL FAR PASCAL pal_trace_impl_BitBlt(LPVOID dest, short dx, short dy,
+                       LPVOID src, short sx, short sy,
+                       short width, short height, DWORD rop,
+                       LPVOID brush, LPVOID drawmode)
+#else
 BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
                        LPVOID src, short sx, short sy,
                        short width, short height, DWORD rop,
                        LPVOID brush, LPVOID drawmode)
+#endif
 {
     BOOL result;
     pal_cursor_draw_begin(); /* exclude from BOTH screen read and write */
@@ -566,6 +628,19 @@ BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
     pal_cursor_draw_end();
     return result;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
+                       LPVOID src, short sx, short sy,
+                       short width, short height, DWORD rop,
+                       LPVOID brush, LPVOID drawmode)
+{
+    BOOL result;
+    int traced = pal_ddi_trace_enter("DDI BitBlt ENTER");
+    result = pal_trace_impl_BitBlt(dest, dx, dy, src, sx, sy, width, height, rop, brush, drawmode);
+    if (traced) pal_boottrace_hex("DDI BitBlt RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
 
 /* Pixel @9: DRAWMODE starts with a 16-bit Rop2. A null DRAWMODE
  * requests a read, for which the color argument is ignored.
@@ -590,8 +665,13 @@ static DWORD pal_win16_pixel_impl(LPVOID dest, short x, short y,
     return (DWORD)result;
 }
 
+#if defined(PAL_WIN31_BOOTTRACE)
+static DWORD FAR PASCAL pal_trace_impl_Pixel(LPVOID dest, short x, short y,
+                       DWORD physical_color, LPVOID drawmode)
+#else
 DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
                        DWORD physical_color, LPVOID drawmode)
+#endif
 {
     DWORD result;
     pal_cursor_draw_begin(); /* reads must omit composited mouse bits */
@@ -599,6 +679,18 @@ DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
     pal_cursor_draw_end();
     return result;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
+                       DWORD physical_color, LPVOID drawmode)
+{
+    DWORD result;
+    int traced = pal_ddi_trace_enter("DDI Pixel ENTER");
+    result = pal_trace_impl_Pixel(dest, x, y, physical_color, drawmode);
+    if (traced) pal_boottrace_hex("DDI Pixel RETURN LO", (unsigned)result);
+    if (traced) pal_boottrace_hex("DDI Pixel RETURN HI", (unsigned)(result >> 16));
+    return result;
+}
+#endif
 
 /* RealizeObject @10: Win3.x DDK, GDI-owned physical storage. Pens and
  * solid/hollow/hatched brushes are private, WORD-aligned objects shared
@@ -606,8 +698,13 @@ DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
  * DWORD at byte 8 (unlike the SDK structure). No indirect allocations:
  * deletions are no-ops. Fonts remain GDI-realized; device bitmaps are off.
  */
+#if defined(PAL_WIN31_BOOTTRACE)
+static DWORD FAR PASCAL pal_trace_impl_RealizeObject(LPVOID dest, short style, LPVOID input,
+                               LPVOID output, LPVOID text_xform)
+#else
 DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
                                LPVOID output, LPVOID text_xform)
+#endif
 {
     PAL_U32 token;
     const PAL_LogicalPen FAR *in_pen;
@@ -658,6 +755,21 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
     }
     return (DWORD)size;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
+                               LPVOID output, LPVOID text_xform)
+{
+    DWORD result;
+    int traced = pal_ddi_trace_enter("DDI RealizeObject ENTER");
+    if (traced) pal_boottrace_hex("  style", (unsigned)style);
+    if (traced) pal_boottrace_hex("  (input != 0)", (unsigned)(input != 0));
+    if (traced) pal_boottrace_hex("  (output != 0)", (unsigned)(output != 0));
+    result = pal_trace_impl_RealizeObject(dest, style, input, output, text_xform);
+    if (traced) pal_boottrace_hex("DDI RealizeObject RETURN LO", (unsigned)result);
+    if (traced) pal_boottrace_hex("DDI RealizeObject RETURN HI", (unsigned)(result >> 16));
+    return result;
+}
+#endif
 
 /* Output @8: GDI's required OS_SCANLINES (4) and OS_POLYLINE (18),
  * the existing OS_RECTANGLE (6), plus harmless BEGIN/END scan hints.
@@ -762,9 +874,15 @@ static WORD pal_win16_output_impl(LPVOID dest, WORD style, WORD count,
              rop2, bgmode) ? 1u : (WORD)-1;
 }
 
+#if defined(PAL_WIN31_BOOTTRACE)
+static WORD FAR PASCAL pal_trace_impl_Output(LPVOID dest, WORD style, WORD count,
+                        LPVOID points, LPVOID pen, LPVOID brush,
+                        LPVOID drawmode, LPVOID cliprect)
+#else
 WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
                         LPVOID points, LPVOID pen, LPVOID brush,
                         LPVOID drawmode, LPVOID cliprect)
+#endif
 {
     WORD result;
     if (style==80u || style==81u) return
@@ -776,6 +894,19 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
     pal_cursor_draw_end();
     return result;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
+                        LPVOID points, LPVOID pen, LPVOID brush,
+                        LPVOID drawmode, LPVOID cliprect)
+{
+    WORD result;
+    int traced = pal_ddi_trace_enter("DDI Output ENTER");
+    if (traced) pal_boottrace_hex("  style", (unsigned)style);
+    result = pal_trace_impl_Output(dest, style, count, points, pen, brush, drawmode, cliprect);
+    if (traced) pal_boottrace_hex("DDI Output RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
 
 /* DDK GDI bootstrap and compatibility DDIs. These were missing in v0044
  * although our export validator reported all 19 *known* exports. GDI may
@@ -784,8 +915,13 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
  * Deliberately unsupported features return documented failures, never
  * pretend an operation drew anything or dereference an unknown PDEVICE.
  */
+#if defined(PAL_WIN31_BOOTTRACE)
+static WORD FAR PASCAL pal_trace_impl_Control(LPVOID device, WORD escape, LPVOID input,
+                        LPVOID output)
+#else
 WORD FAR PASCAL Control(LPVOID device, WORD escape, LPVOID input,
                         LPVOID output)
+#endif
 {
     const WORD FAR *which=(const WORD FAR *)input;
     (void)device; (void)output;
@@ -794,15 +930,48 @@ WORD FAR PASCAL Control(LPVOID device, WORD escape, LPVOID input,
         (PAL_U32)(PAL_U16)FP_OFF(input)+2UL>65536UL) return 0;
     return *which==8u ? 1u : 0u;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+WORD FAR PASCAL Control(LPVOID device, WORD escape, LPVOID input,
+                        LPVOID output)
+{
+    WORD result;
+    int traced = pal_ddi_trace_enter("DDI Control ENTER");
+    if (traced) pal_boottrace_hex("  escape", (unsigned)escape);
+    result = pal_trace_impl_Control(device, escape, input, output);
+    if (traced) pal_boottrace_hex("DDI Control RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
+#if defined(PAL_WIN31_BOOTTRACE)
+static WORD FAR PASCAL pal_trace_impl_EnumDFonts(LPVOID device, LPVOID face,
+                           FARPROC callback, LPVOID client)
+#else
 WORD FAR PASCAL EnumDFonts(LPVOID device, LPVOID face,
                            FARPROC callback, LPVOID client)
+#endif
 {
     (void)device; (void)face; (void)callback; (void)client;
     /* No DEVICE fonts; GDI owns its raster and TrueType fonts. */
     return 1u; /* documented no-device-fonts enumeration result */
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+WORD FAR PASCAL EnumDFonts(LPVOID device, LPVOID face,
+                           FARPROC callback, LPVOID client)
+{
+    WORD result;
+    int traced = pal_ddi_trace_enter("DDI EnumDFonts ENTER");
+    result = pal_trace_impl_EnumDFonts(device, face, callback, client);
+    if (traced) pal_boottrace_hex("DDI EnumDFonts RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
+#if defined(PAL_WIN31_BOOTTRACE)
+static WORD FAR PASCAL pal_trace_impl_EnumObj(LPVOID device, WORD style, FARPROC callback,
+                        LPVOID client)
+#else
 WORD FAR PASCAL EnumObj(LPVOID device, WORD style, FARPROC callback,
                         LPVOID client)
+#endif
 {
     (void)device; (void)style; (void)callback; (void)client;
     /* No enumerated DEVICE pen/brush catalog yet; GDI stock objects
@@ -810,9 +979,26 @@ WORD FAR PASCAL EnumObj(LPVOID device, WORD style, FARPROC callback,
      * with a guessed LOGPEN/LOGBRUSH wire layout. */
     return 1u; /* documented no-device-objects enumeration result */
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+WORD FAR PASCAL EnumObj(LPVOID device, WORD style, FARPROC callback,
+                        LPVOID client)
+{
+    WORD result;
+    int traced = pal_ddi_trace_enter("DDI EnumObj ENTER");
+    result = pal_trace_impl_EnumObj(device, style, callback, client);
+    if (traced) pal_boottrace_hex("DDI EnumObj RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
+#if defined(PAL_WIN31_BOOTTRACE)
+static WORD FAR PASCAL pal_trace_impl_GetCharWidth(LPVOID device, LPVOID buffer,
+                             WORD first, WORD last, LPVOID font_address,
+                             LPVOID drawmode, LPVOID text_transform)
+#else
 WORD FAR PASCAL GetCharWidth(LPVOID device, LPVOID buffer,
                              WORD first, WORD last, LPVOID font_address,
                              LPVOID drawmode, LPVOID text_transform)
+#endif
 {
     PAL_Win16FontBytes fb;
     PAL_Font16 font;
@@ -841,29 +1027,90 @@ WORD FAR PASCAL GetCharWidth(LPVOID device, LPVOID buffer,
     }
     return 1u;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+WORD FAR PASCAL GetCharWidth(LPVOID device, LPVOID buffer,
+                             WORD first, WORD last, LPVOID font_address,
+                             LPVOID drawmode, LPVOID text_transform)
+{
+    WORD result;
+    int traced = pal_ddi_trace_enter("DDI GetCharWidth ENTER");
+    result = pal_trace_impl_GetCharWidth(device, buffer, first, last, font_address, drawmode, text_transform);
+    if (traced) pal_boottrace_hex("DDI GetCharWidth RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
+#if defined(PAL_WIN31_BOOTTRACE)
+static WORD FAR PASCAL pal_trace_impl_DeviceBitmap(LPVOID device, WORD command,
+                             LPVOID bitmap, LPVOID data)
+#else
 WORD FAR PASCAL DeviceBitmap(LPVOID device, WORD command,
                              LPVOID bitmap, LPVOID data)
+#endif
 {
     (void)device; (void)command; (void)bitmap; (void)data;
     /* DDK-required stub. Never advertise RC_DEVBITS. */
     return 0u;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+WORD FAR PASCAL DeviceBitmap(LPVOID device, WORD command,
+                             LPVOID bitmap, LPVOID data)
+{
+    WORD result;
+    int traced = pal_ddi_trace_enter("DDI DeviceBitmap ENTER");
+    result = pal_trace_impl_DeviceBitmap(device, command, bitmap, data);
+    if (traced) pal_boottrace_hex("DDI DeviceBitmap RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
 /* FastBorder is present for historical ordinal compatibility but not yet
  * supported by our renderer. Nonzero signals failure; no pixels touched. */
+#if defined(PAL_WIN31_BOOTTRACE)
+static DWORD FAR PASCAL pal_trace_impl_FastBorder(LPVOID rect, WORD hx, WORD vy, DWORD rop,
+                            LPVOID device, LPVOID brush, LPVOID mode,
+                            LPVOID clip)
+#else
 DWORD FAR PASCAL FastBorder(LPVOID rect, WORD hx, WORD vy, DWORD rop,
                             LPVOID device, LPVOID brush, LPVOID mode,
                             LPVOID clip)
+#endif
 {
     (void)rect; (void)hx; (void)vy; (void)rop;
     (void)device; (void)brush; (void)mode; (void)clip;
     return 1UL;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+DWORD FAR PASCAL FastBorder(LPVOID rect, WORD hx, WORD vy, DWORD rop,
+                            LPVOID device, LPVOID brush, LPVOID mode,
+                            LPVOID clip)
+{
+    DWORD result;
+    int traced = pal_ddi_trace_enter("DDI FastBorder ENTER");
+    result = pal_trace_impl_FastBorder(rect, hx, vy, rop, device, brush, mode, clip);
+    if (traced) pal_boottrace_hex("DDI FastBorder RETURN LO", (unsigned)result);
+    if (traced) pal_boottrace_hex("DDI FastBorder RETURN HI", (unsigned)(result >> 16));
+    return result;
+}
+#endif
+#if defined(PAL_WIN31_BOOTTRACE)
+static WORD FAR PASCAL pal_trace_impl_SetAttribute(LPVOID device, WORD a, WORD b, WORD c)
+#else
 WORD FAR PASCAL SetAttribute(LPVOID device, WORD a, WORD b, WORD c)
+#endif
 {
     (void)device; (void)a; (void)b; (void)c;
     /* Reserved function required by GDI: must return zero. */
     return 0u;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+WORD FAR PASCAL SetAttribute(LPVOID device, WORD a, WORD b, WORD c)
+{
+    WORD result;
+    int traced = pal_ddi_trace_enter("DDI SetAttribute ENTER");
+    result = pal_trace_impl_SetAttribute(device, a, b, c);
+    if (traced) pal_boottrace_hex("DDI SetAttribute RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
 
 /* Windows 3.x DDI: style 1 requests GDIINFO, style 0 requests physical
  * initialization. Production staging build ALWAYS rejects style 0; only an
@@ -883,6 +1130,7 @@ WORD FAR PASCAL Enable(LPVOID destination, WORD style,
         if (!pal_win16_install_ready()) return 0;
         started=pal_win16_activate(destination);
         pal_boottrace(started ? "ENABLE0 OK" : "ENABLE0 FAIL");
+        pal_boottrace_hex("ENABLE0 RETURN", started ? 1u : 0u);
         return started ? 1u : 0u;
     }
     if (style != 1u || !destination) {
@@ -905,6 +1153,11 @@ WORD FAR PASCAL Enable(LPVOID destination, WORD style,
     out = (unsigned char FAR *)destination;
     in = (const unsigned char *)&candidate;
     for (i = 0; i < sizeof(candidate); ++i) out[i] = in[i];
+    pal_boottrace_hex("GDIINFO SIZE", sizeof(candidate));
+    pal_boottrace_hex("GDIINFO PDEVICE SIZE", candidate.dpDEVICEsize);
+    pal_boottrace_hex("GDIINFO RASTER", candidate.dpRaster);
+    pal_boottrace_hex("GDIINFO WIDTH", candidate.dpHorzRes);
+    pal_boottrace_hex("GDIINFO HEIGHT", candidate.dpVertRes);
     pal_boottrace("ENABLE1 OK");
     return (WORD)sizeof(candidate);
 }
@@ -936,7 +1189,11 @@ void FAR PASCAL Disable(LPVOID physical_device)
  * explicit 0xFF00iiii palette index. Physical color is the framebuffer
  * index, NOT a DAC RGB value. Avoid dereferencing foreign PDEVICEs.
  */
+#if defined(PAL_WIN31_BOOTTRACE)
+static DWORD FAR PASCAL pal_trace_impl_ColorInfo(LPVOID device, DWORD color, LPVOID physical)
+#else
 DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
+#endif
 {
     PAL_U32 logical, index;
     PAL_U32 token;
@@ -948,12 +1205,28 @@ DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
     if (physical) *(DWORD FAR *)physical = (DWORD)index;
     return (DWORD)logical;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
+{
+    DWORD result;
+    int traced = pal_ddi_trace_enter("DDI ColorInfo ENTER");
+    result = pal_trace_impl_ColorInfo(device, color, physical);
+    if (traced) pal_boottrace_hex("DDI ColorInfo RETURN LO", (unsigned)result);
+    if (traced) pal_boottrace_hex("DDI ColorInfo RETURN HI", (unsigned)(result >> 16));
+    return result;
+}
+#endif
 
 /* ScanLR @12, flood-fill horizontal search. Signed -1 means not found;
  * 0x8000 means invalid device, coordinates, or unsupported bitmap.
  */
+#if defined(PAL_WIN31_BOOTTRACE)
+static WORD FAR PASCAL pal_trace_impl_ScanLR(LPVOID device, short x, short y,
+                       DWORD physical, WORD style)
+#else
 WORD FAR PASCAL ScanLR(LPVOID device, short x, short y,
                        DWORD physical, WORD style)
+#endif
 {
     int found;
     PAL_U32 token;
@@ -969,12 +1242,27 @@ WORD FAR PASCAL ScanLR(LPVOID device, short x, short y,
     pal_cursor_draw_end();
     return (WORD)found;
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+WORD FAR PASCAL ScanLR(LPVOID device, short x, short y,
+                       DWORD physical, WORD style)
+{
+    WORD result;
+    int traced = pal_ddi_trace_enter("DDI ScanLR ENTER");
+    result = pal_trace_impl_ScanLR(device, x, y, physical, style);
+    if (traced) pal_boottrace_hex("DDI ScanLR RETURN LO", (unsigned)result);
+    return result;
+}
+#endif
 
 /* Win3.x palette DDIs have no PDEVICE argument; they are valid only
  * after the screen host has completed hardware and PDEVICE startup.
  * Keep Win16 far-memory copying here; core palette owns color policy.
  */
+#if defined(PAL_WIN31_BOOTTRACE)
+static void FAR PASCAL pal_trace_impl_SetPalette(short start, short count, LPVOID palette)
+#else
 void FAR PASCAL SetPalette(short start, short count, LPVOID palette)
+#endif
 {
     const unsigned char FAR *src = (const unsigned char FAR *)palette;
     PAL_ScreenHost *host = pal_active_host;
@@ -1001,8 +1289,22 @@ void FAR PASCAL SetPalette(short start, short count, LPVOID palette)
                 src[off], src[off+1u], src[off+2u]);
     }
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+void FAR PASCAL SetPalette(short start, short count, LPVOID palette)
+{
+    int traced = pal_ddi_trace_enter("DDI SetPalette ENTER");
+    if (traced) pal_boottrace_hex("  start", (unsigned)start);
+    if (traced) pal_boottrace_hex("  count", (unsigned)count);
+    pal_trace_impl_SetPalette(start, count, palette);
+    if (traced) pal_boottrace("DDI SetPalette RETURN");
+}
+#endif
 
+#if defined(PAL_WIN31_BOOTTRACE)
+static void FAR PASCAL pal_trace_impl_GetPalette(short start, short count, LPVOID palette)
+#else
 void FAR PASCAL GetPalette(short start, short count, LPVOID palette)
+#endif
 {
     unsigned char FAR *dst = (unsigned char FAR *)palette;
     RG_Color color;
@@ -1020,8 +1322,22 @@ void FAR PASCAL GetPalette(short start, short count, LPVOID palette)
         dst[off+3u] = 0;
     }
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+void FAR PASCAL GetPalette(short start, short count, LPVOID palette)
+{
+    int traced = pal_ddi_trace_enter("DDI GetPalette ENTER");
+    if (traced) pal_boottrace_hex("  start", (unsigned)start);
+    if (traced) pal_boottrace_hex("  count", (unsigned)count);
+    pal_trace_impl_GetPalette(start, count, palette);
+    if (traced) pal_boottrace("DDI GetPalette RETURN");
+}
+#endif
 
+#if defined(PAL_WIN31_BOOTTRACE)
+static void FAR PASCAL pal_trace_impl_SetPalTrans(LPVOID translation)
+#else
 void FAR PASCAL SetPalTrans(LPVOID translation)
+#endif
 {
     const WORD FAR *src = (const WORD FAR *)translation;
     unsigned short table[256];
@@ -1031,8 +1347,20 @@ void FAR PASCAL SetPalTrans(LPVOID translation)
     (void)rg_palette_set_translation(&pal_active_host->palette,
                                       src ? table : 0);
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+void FAR PASCAL SetPalTrans(LPVOID translation)
+{
+    int traced = pal_ddi_trace_enter("DDI SetPalTrans ENTER");
+    pal_trace_impl_SetPalTrans(translation);
+    if (traced) pal_boottrace("DDI SetPalTrans RETURN");
+}
+#endif
 
+#if defined(PAL_WIN31_BOOTTRACE)
+static void FAR PASCAL pal_trace_impl_GetPalTrans(LPVOID translation)
+#else
 void FAR PASCAL GetPalTrans(LPVOID translation)
+#endif
 {
     WORD FAR *dst = (WORD FAR *)translation;
     unsigned i;
@@ -1040,13 +1368,26 @@ void FAR PASCAL GetPalTrans(LPVOID translation)
     for (i=0; i<256u; ++i)
         dst[i] = (WORD)pal_active_host->palette.logical_to_physical[i];
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+void FAR PASCAL GetPalTrans(LPVOID translation)
+{
+    int traced = pal_ddi_trace_enter("DDI GetPalTrans ENTER");
+    pal_trace_impl_GetPalTrans(translation);
+    if (traced) pal_boottrace("DDI GetPalTrans RETURN");
+}
+#endif
 
 /* UpdateColors @26: x/y/extents, followed by a 256-WORD physical-index
  * translation table. Bounds and all 256 values are validated by core
  * BEFORE the first pixel is touched.
  */
+#if defined(PAL_WIN31_BOOTTRACE)
+static void FAR PASCAL pal_trace_impl_UpdateColors(WORD x, WORD y, WORD width, WORD height,
+                             LPVOID translation)
+#else
 void FAR PASCAL UpdateColors(WORD x, WORD y, WORD width, WORD height,
                              LPVOID translation)
+#endif
 {
     const WORD FAR *src = (const WORD FAR *)translation;
     unsigned short table[256];
@@ -1058,3 +1399,12 @@ void FAR PASCAL UpdateColors(WORD x, WORD y, WORD width, WORD height,
                                         width, height, table);
     pal_cursor_draw_end();
 }
+#if defined(PAL_WIN31_BOOTTRACE)
+void FAR PASCAL UpdateColors(WORD x, WORD y, WORD width, WORD height,
+                             LPVOID translation)
+{
+    int traced = pal_ddi_trace_enter("DDI UpdateColors ENTER");
+    pal_trace_impl_UpdateColors(x, y, width, height, translation);
+    if (traced) pal_boottrace("DDI UpdateColors RETURN");
+}
+#endif
