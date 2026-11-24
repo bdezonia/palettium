@@ -10,6 +10,7 @@
 #include <dos.h>
 #include <conio.h>
 #include "pal_et4k_win16.h"
+#include "pal_boottrace.h"
 
 static rg_u8 win16_in(void *ctx, unsigned port)
 {
@@ -79,29 +80,42 @@ static void win16_bios_set(unsigned mode)
 static int win16_set_mode(void *ctx, unsigned width, unsigned height)
 {
     PAL_Win16ET4K *w=(PAL_Win16ET4K *)ctx;
-    unsigned wanted;
+    unsigned wanted,actual;
+    pal_boottrace("BIOS MODE ENTER");
     if (!w || !w->aperture_selector || width != 640u ||
-        (height != 400u && height != 480u)) return 0;
+        (height != 400u && height != 480u)) {
+        pal_boottrace("BIOS PRECHECK FAIL");
+        return 0;
+    }
     wanted=height==400u ? ET4K_BIOS_640X400X8 : ET4K_BIOS_640X480X8;
     /* Save the previous BIOS video mode BEFORE any attempt. Neither RAM
      * size nor ROM support is inferred from a returned BIOS mode number. */
     if (!w->previous_valid) {
+        pal_boottrace("BIOS SAVE ENTER");
         w->saved_bios_mode=win16_bios_current_mode();
+        pal_boottrace_hex("BIOS SAVED",w->saved_bios_mode);
         if (w->saved_bios_mode > 0x7Fu) return 0;
         w->previous_valid=1;
     }
     w->bios_mode_attempted=1;
+    pal_boottrace_hex("BIOS REQUEST",wanted);
     win16_bios_set(wanted);
+    pal_boottrace("BIOS SET RETURN");
     /* INT 10h AH=00h has no standardized success return. If AH=0Fh
      * does not report our requested mode, fail closed; shutdown restores.
      * This verification has NOT yet been tested inside Windows 3.1. */
-    return win16_bios_current_mode() == wanted;
+    actual=win16_bios_current_mode();
+    pal_boottrace_hex("BIOS ACTUAL",actual);
+    pal_boottrace(actual==wanted ? "BIOS VERIFY OK" : "BIOS VERIFY FAIL");
+    return actual == wanted;
 }
 static void win16_restore(void *ctx)
 {
     PAL_Win16ET4K *w=(PAL_Win16ET4K *)ctx;
     if (!w || !w->bios_mode_attempted || !w->previous_valid) return;
+    pal_boottrace_hex("BIOS RESTORE REQUEST",w->saved_bios_mode);
     win16_bios_set(w->saved_bios_mode);
+    pal_boottrace("BIOS RESTORE RETURN");
     w->previous_valid=0;
     w->bios_mode_attempted=0;
 }

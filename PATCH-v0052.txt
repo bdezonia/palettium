@@ -1,0 +1,14 @@
+Palettium v0052 -- isolate ET4000 session startup failure
+Apply over v0051. No gate changes, BIOS mode changes, or shared renderer changes.
+Observed v0051: GDI loads; gate FLAGS=00000419 VRAM=0100 KEY=1131 passes;
+ACT PLAN OK; ACT PORT OK; ACT SESSION FAIL twice. USER fails CreateDC.
+Trace points now distinguish transaction preflight, capacity and eligibility,
+BIOS save/request/readback/restore, hardware open, PDEVICE prepare/activate,
+DDI attach, static palette setup, snapshot and publication. BIOS values are hex.
+The hardware-open trace encloses rg_hw_open; it does not independently prove
+that every port operation succeeded. Preserve resource binding from v0050.
+Only trial builds with PAL_TRIAL_TRACE=1 emit the new trace.
+Host trace mock test passed (including hexadecimal output). Full host test
+blocked: supplied snapshot omitted include/. Watcom and guest runtime untested.
+Use only disposable Standard-mode 256 KiB ET4000AX trial VM. Do not distribute
+borrowed VGA resources. Delete stale PALBOOT.TXT and BOOTLOG.TXT before boot.

@@ -27,4 +27,18 @@ void pal_boottrace(const char *event)
     (void)_lwrite(file,"\r\n",2u);
     (void)_lclose(file);
 }
+/* Keep the diagnostic independent of printf and additional runtime imports. */
+void pal_boottrace_hex(const char *event, unsigned value)
+{
+    char message[80];
+    static const char hex[]="0123456789ABCDEF";
+    unsigned n=0,i;
+    if (!event) return;
+    while (n<73u && event[n]) { message[n]=event[n]; ++n; }
+    message[n++]='=';
+    for (i=0;i<4u;++i)
+        message[n++]=hex[(value >> (12u-4u*i)) & 15u];
+    message[n]=0;
+    pal_boottrace(message);
+}
 #endif

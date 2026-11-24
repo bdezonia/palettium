@@ -1,4 +1,5 @@
 #include "pal_et4k_session.h"
+#include "pal_boottrace.h"
 #include "pal_enable.h"
 #include "pal_vdd.h"
 #include <string.h>
@@ -18,6 +19,7 @@ static int pal_et4k_open_prepared(PAL_ET4KSession *session,
                                    PAL_U32 token,
                                    unsigned width, unsigned height)
 {
+    pal_boottrace("SESSION OPEN PREPARED");
     et4k_make_hardware(&session->card,&session->hardware);
     return pal_screen_host_start(&session->host,&session->hardware,
                                   width,height,token);
@@ -43,11 +45,19 @@ int pal_et4k_session_start_mode(PAL_ET4KSession *session, ET4K_Port io,
                                 unsigned width, unsigned height)
 {
     ET4K_ModeInfo info;
+    pal_boottrace("SESSION START MODE ENTER");
     if (!session || !pdevice_token || session->host.running ||
         !et4k_mode_info(width,height,RG_FMT_INDEX8,&info)) return 0;
     et4k_setup(&session->card,io,installed_bytes);
-    if (!et4k_probe_capacity(&session->card) ||
-        !et4k_mode_eligible(&session->card,&info)) return 0;
+    if (!et4k_probe_capacity(&session->card)) {
+        pal_boottrace("SESSION CAPACITY FAIL");
+        return 0;
+    }
+    if (!et4k_mode_eligible(&session->card,&info)) {
+        pal_boottrace("SESSION ELIGIBILITY FAIL");
+        return 0;
+    }
+    pal_boottrace("SESSION ELIGIBILITY OK");
     return pal_et4k_open_prepared(session,pdevice_token,width,height);
 }
 
@@ -131,6 +141,7 @@ int pal_et4k_session_start_published(PAL_ET4KSession *session,
 {
     ET4K_ModeInfo geometry;
     PAL_PDEVICE image;
+    pal_boottrace("SESSION TRANSACTION ENTER");
     if (!platform_authorized || !session || !plan || !pdevice_token ||
         !publish || session->host.running ||
         plan->status != PAL_ET4K_PLAN_OK ||
@@ -142,12 +153,23 @@ int pal_et4k_session_start_published(PAL_ET4KSession *session,
                         plan->mode.format,&geometry) ||
         geometry.bios_mode != plan->bios_mode ||
         geometry.minimum_vram != plan->framebuffer_bytes ||
-        plan->configured_bytes < geometry.minimum_vram) return 0;
+        plan->configured_bytes < geometry.minimum_vram) {
+        pal_boottrace("SESSION PREFLIGHT FAIL");
+        return 0;
+    }
+    pal_boottrace("SESSION PREFLIGHT OK");
     if (!pal_et4k_session_start_mode(session,io,plan->configured_bytes,
                                      pdevice_token,plan->mode.width,
                                      plan->mode.height)) return 0;
-    if (!pal_screen_host_gdi_snapshot(&session->host,pdevice_token,&image) ||
-        !publish(context,&image)) {
+    pal_boottrace("SESSION HOST OK");
+    if (!pal_screen_host_gdi_snapshot(&session->host,pdevice_token,&image)) {
+        pal_boottrace("SESSION SNAPSHOT FAIL");
+        pal_et4k_session_stop(session);
+        return 0;
+    }
+    pal_boottrace("SESSION SNAPSHOT OK");
+    if (!publish(context,&image)) {
+        pal_boottrace("SESSION PUBLISH FAIL");
         pal_et4k_session_stop(session);
         return 0;
     }

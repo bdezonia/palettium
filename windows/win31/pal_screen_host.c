@@ -1,5 +1,6 @@
 #include <string.h>
 #include "pal_screen_host.h"
+#include "pal_boottrace.h"
 
 int pal_screen_host_start(PAL_ScreenHost *host, RG_Hardware *hardware,
                           unsigned width, unsigned height,
@@ -8,6 +9,7 @@ int pal_screen_host_start(PAL_ScreenHost *host, RG_Hardware *hardware,
     RG_Mode mode;
     unsigned i;
     RG_Color color;
+    pal_boottrace("HOST ENTER");
     if (!host || !hardware || host->running || !pdevice_token ||
         !width || !height || width > 32767u || height > 32767u)
         return 0;
@@ -26,18 +28,34 @@ int pal_screen_host_start(PAL_ScreenHost *host, RG_Hardware *hardware,
     mode.format = RG_FMT_INDEX8;
     mode.stride = 0;
     mode.capacity = 0;
-    if (!rg_hw_open(&host->binding, &host->device, hardware, &mode))
+    pal_boottrace("HOST HW OPEN ENTER");
+    if (!rg_hw_open(&host->binding, &host->device, hardware, &mode)) {
+        pal_boottrace("HOST HW OPEN FAIL");
         return 0;
-    if (!pal_pd_prepare(&host->pdevice, mode.width, mode.height,
-                        mode.stride) ||
-        !pal_pd_activate(&host->pdevice) ||
-        !pal_screen_ddi_attach(&host->ddi, &host->pdevice,
-                               &host->device, pdevice_token)) {
+    }
+    pal_boottrace("HOST HW OPEN OK");
+    {
+        int prepared=pal_pd_prepare(&host->pdevice, mode.width, mode.height,
+                                     mode.stride);
+        int activated=0, attached=0;
+        pal_boottrace(prepared ? "HOST PD PREP OK" : "HOST PD PREP FAIL");
+        if (prepared) {
+            activated=pal_pd_activate(&host->pdevice);
+            pal_boottrace(activated ? "HOST PD ACTIVE OK" : "HOST PD ACTIVE FAIL");
+        }
+        if (activated) {
+            attached=pal_screen_ddi_attach(&host->ddi, &host->pdevice,
+                                           &host->device, pdevice_token);
+            pal_boottrace(attached ? "HOST ATTACH OK" : "HOST ATTACH FAIL");
+        }
+        if (!attached) {
         rg_hw_close(&host->binding);
         memset(&host->ddi, 0, sizeof(host->ddi));
         memset(&host->pdevice, 0, sizeof(host->pdevice));
         return 0;
+        }
     }
+    pal_boottrace("HOST PALETTE ENTER");
     /* Initialize exactly the 20 static Windows colors after the mode set.
      * GDI owns the remaining 236 dynamic entries. */
     for (i=0; i<256u; ++i) {
@@ -45,12 +63,14 @@ int pal_screen_host_start(PAL_ScreenHost *host, RG_Hardware *hardware,
         rg_palette_get_entry(&host->palette, i, &color);
         if (!rg_hw_palette(&host->binding, i,
                            color.red, color.green, color.blue)) {
+            pal_boottrace_hex("HOST PALETTE FAIL INDEX",i);
             pal_screen_ddi_detach(&host->ddi);
             pal_pd_stop(&host->pdevice);
             rg_hw_close(&host->binding);
             return 0;
         }
     }
+    pal_boottrace("HOST PALETTE OK");
     host->running = 1;
     return 1;
 }

@@ -44,6 +44,9 @@ int main(void)
     pal_boottrace("ENABLE1 OK");
     assert(!strcmp(output,"LIBMAIN OK\r\nENABLE1 ENTER\r\nENABLE1 OK\r\n"));
     assert(opens==3 && closes==3 && writes==6 && !active);
+    pal_boottrace_hex("BIOS REQUEST",0x002fu);
+    assert(!strcmp(output,"LIBMAIN OK\r\nENABLE1 ENTER\r\nENABLE1 OK\r\nBIOS REQUEST=002F\r\n"));
+    assert(opens==4 && closes==4 && writes==8 && !active);
     puts("PASS: Win16 trial-only KERNEL boottrace create/append/close markers");
     return 0;
 }
