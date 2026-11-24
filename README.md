@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0038** (incremental tags are fixed-width).
+Current development milestone: **v0039** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -178,7 +178,7 @@ driver**. Palettium is *not* yet an installable driver package.
   Enhanced mode unless an actual VDD coordination path is developed.
   **`Enable(style=0)` still fails; do not install PALSTAGE.DRV.**
 
-- **v0038 (host-tested; Open Watcom validation pending):** the Win16
+- **v0038 (maintainer-validated Ubuntu/Open Watcom, November 23, 2026):** the Win16
   adapter now has an opt-in, **dormant GDI-owned PDEVICE publication** step.
   Only a fully started screen host matching the caller's exact segment:offset
   token may produce the 20-byte physical-device image. The Win16 adapter
@@ -193,6 +193,24 @@ driver**. Palettium is *not* yet an installable driver package.
   tests cover publication success/failure, stale/mismatched devices and
   standard metric transforms. The card-specific hardware/backend and shared
   C89 rendering remain unchanged.
+
+- **v0039 (host-tested; Open Watcom validation pending):** connects the
+  existing native ET4000AX mode session to a **transactional GDI PDEVICE
+  publication** API. With separate platform authorization, it starts the
+  requested mode, completes hardware/palette initialization, validates the
+  exact far-pointer token, and invokes an atomic PDEVICE commit callback.
+  Failure rolls back hardware and restores the previous BIOS mode. A live
+  session can be stopped exactly once; `Disable` now has the native-session
+  cleanup branch rather than merely forgetting the active host pointer.
+  The Win16 callback stores the GDI FAR pointer inside a typed C context;
+  casting GDI's FAR pointer to `void *` would have lost the segment.
+  **No automatic installation**: the Win16 readiness gate still refuses
+  `Enable(style=0)`. In particular, Windows 3.1's text `ExtTextOut` and
+  compatibility `StrBlt` functions and the cursor implementation remain
+  mandatory unfinished work. An unverified 386 Enhanced-mode VDD is never
+  allowed to authorize native mode setting. Unit tests verify preflight
+  refusals before I/O, publication failure rollback, repeated startup,
+  and 256/512/1024 KiB host commits.
 
 ## Architecture
 
@@ -251,7 +269,7 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0038 retains
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0039 retains
 **13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
 The 13-export **v0029** build passed on the maintainer's Open Watcom

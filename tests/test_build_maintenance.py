@@ -22,6 +22,12 @@ def check_win16_recipe():
     assert "pal_win16_et4k_profile_plan(&plan)" in win16_entry, (
         "GDI style-1 must use configured VRAM/VDD plan")
     assert "style != 1u" in win16_entry, "stage-only Enable(style=0) gate lost"
+    assert "pal_win16_install_ready()) return 0" in win16_entry, (
+        "mandatory DDI installation gate removed")
+    assert "pal_et4k_session_start_published(&pal_native_session" in win16_entry, (
+        "native transaction no longer integrated into Win16 Enable path")
+    assert "pal_et4k_session_stop(&pal_native_session)" in win16_entry, (
+        "Win16 Disable no longer releases the native session")
     assert "pal_win16_publish_host" in win16_entry and \
            "pal_screen_host_gdi_snapshot(host,token,&image)" in win16_entry, (           "Win16 GDI-owned PDEVICE must publish through checked snapshot")
     assert "pal_win16_bind_host" not in win16_entry, (           "unchecked device host binding must not be restored")

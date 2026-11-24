@@ -116,6 +116,111 @@ static void exercise(Mock *m, unsigned long bytes, unsigned height)
     pal_et4k_session_stop(&session);
     CHECK(m->restored==old_restores+1 && m->bad==0);
 }
+/* GDI commits must be all-or-nothing. This mock stands in for Win16's
+ * validated FAR allocation, and is deliberately separate from host state. */
+typedef struct Publication {
+    PAL_PDEVICE device;
+    unsigned calls;
+    int fail;
+} Publication;
+static int publish_device(void *context, const PAL_PDEVICE *pd)
+{
+    Publication *pub=(Publication *)context;
+    ++pub->calls;
+    if (pub->fail) return 0;
+    pub->device=*pd;
+    return 1;
+}
+static void test_published_start(Mock *m)
+{
+    PAL_ET4KSession session;
+    PAL_ET4KPlan plan;
+    Publication pub;
+    ET4K_Port io=make_port(m);
+    unsigned modes=m->attempted, restores=m->restored;
+    unsigned n;
+    memset(&session,0,sizeof(session));
+    memset(&pub,0xA5,sizeof(pub));
+    pub.calls=0;
+    pub.fail=0;
+    m->bytes=SIZE256;
+    m->allow400=1;
+    m->allow480=1;
+    CHECK(pal_et4k_plan(&plan,SIZE256,SIZE256,1u,"*vddvga"));
+    CHECK(plan.vdd_assessment==PAL_VDD_NOT_ENHANCED);
+    /* No independent platform authorization => zero hardware activity. */
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                             publish_device,&pub,0));
+    CHECK(m->attempted==modes && pub.calls==0);
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,0,
+                                             publish_device,&pub,1));
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                             0,&pub,1));
+    CHECK(m->attempted==modes && pub.calls==0);
+    /* Rejected enhanced mode, even if a caller passes authorization. */
+    CHECK(pal_et4k_plan(&plan,SIZE256,SIZE256,0x0C29UL,"*vddvga"));
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                             publish_device,&pub,1));
+    CHECK(m->attempted==modes && pub.calls==0);
+    CHECK(pal_et4k_plan(&plan,SIZE256,SIZE256,1UL,"*vddvga"));
+    /* Mismatched mode metadata cannot trigger a BIOS attempt. */
+    ++plan.bios_mode;
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                             publish_device,&pub,1));
+    --plan.bios_mode;
+    CHECK(m->attempted==modes);
+    pub.fail=1;
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                             publish_device,&pub,1));
+    CHECK(m->attempted==modes+1 && m->restored==restores+1);
+    CHECK(pub.calls==1 && !session.host.running);
+    CHECK(pub.device.type==0xA5A5u);
+    /* Success publishes a live device ONLY after hardware and palette. */
+    pub.fail=0;
+    CHECK(pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                            publish_device,&pub,1));
+    CHECK(pub.calls==2 && pub.device.magic==PAL_PD_MAGIC &&
+          pub.device.state==PAL_PD_ACTIVE && pub.device.height==400u);
+    CHECK(session.host.running && m->attempted==modes+2);
+    n=pub.calls;
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                             publish_device,&pub,1));
+    CHECK(pub.calls==n && m->attempted==modes+2);
+    pal_et4k_session_stop(&session);
+    CHECK(!session.host.running && m->restored==restores+2);
+    pal_et4k_session_stop(&session);
+    CHECK(m->restored==restores+2 && m->bad==0);
+    /* Same committed lifecycle for 512 KiB and 1 MiB native candidates.
+     * A second candidate is not permission to touch the VDD. */
+    {
+        unsigned long capacities[2]={SIZE512,SIZE1M};
+        unsigned j;
+        for (j=0; j<2; ++j) {
+            m->bytes=capacities[j];
+            memset(&session,0,sizeof(session));
+            CHECK(pal_et4k_plan(&plan,capacities[j],capacities[j],1UL,
+                                "*vddvga"));
+            CHECK(plan.mode.height==480u);
+            n=m->attempted;
+            CHECK(pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                                    publish_device,&pub,1));
+            CHECK(m->attempted==n+1 && pub.device.height==480u);
+            pal_et4k_session_stop(&session);
+        }
+    }
+    /* Even a failed BIOS mode transition cannot call GDI publication. */
+    m->bytes=SIZE512;
+    memset(&session,0,sizeof(session));
+    CHECK(pal_et4k_plan(&plan,SIZE512,0UL,1UL,"*vddvga"));
+    m->force_failure=1;
+    n=pub.calls;
+    modes=m->restored;
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+                                             publish_device,&pub,1));
+    CHECK(m->restored==modes+1 && pub.calls==n && !session.host.running);
+    m->force_failure=0;
+    CHECK(m->bad==0);
+}
 int main(void)
 {
     Mock m;
@@ -232,7 +337,9 @@ int main(void)
                                        640u,480u));
     CHECK(m.attempted==before && !session.host.running);
 
+    test_published_start(&m);
+
     free(m.vram);
-    puts("PASS: v0037 VRAM/VDD GDI plan, explicit-mode session, rollback and 256K/512K/1M host");
+    puts("PASS: v0039 transactional GDI publication, VDD/permit gates, rollback, and VRAM-aware host");
     return 0;
 }

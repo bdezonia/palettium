@@ -1,0 +1,30 @@
+Palettium v0039 — Native ET4000AX / GDI PDEVICE transaction
+
+Apply over v0038:
+  cd ~/dev/palettium
+  unzip -o ~/Downloads/pal39.zip
+
+Adds a tested, fail-closed native mode session + GDI-owned PDEVICE
+publication transaction to the existing Win31 coordinator. Failed GDI
+publication, BIOS set or palette startup causes hardware rollback. The
+Win16 DDI entry source now connects the permanent session, checked FAR
+PDEVICE publisher, and matching Disable cleanup behind the still-closed
+installation gate. The GDI far pointer is carried in a typed C context struct
+rather than truncated into a untyped void*. Enhanced-mode native initialization
+is refused even when a plan has plausible geometry.
+
+The 13 exported Win16 DDI ordinals are unchanged. No bitmap/raster clone.
+NO installable driver yet: Enable(style=0) still returns zero, missing
+functional ExtTextOut/StrBlt and cursor and an enhanced-mode VDD contract.
+Do not modify the 86Box Windows installation to test PALSTAGE.DRV.
+
+Tests:
+  make clean && make test
+  make -f Makefile.win31native test
+  make -f Makefile.win31link test
+  make -f Makefile.screen17 test
+  sh windows/win31/build-palddi.sh
+  wdump -x tests/exes/PALSTAGE.DRV
+
+Host C89 tests and ZIP verification performed by assistant. Win16 build
+awaits maintainer's Open Watcom installation.

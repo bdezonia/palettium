@@ -62,4 +62,23 @@ int pal_et4k_session_start_mode(PAL_ET4KSession *session, ET4K_Port io,
                                 PAL_U32 pdevice_token,
                                 unsigned width, unsigned height);
 
+/* Transactional GDI publication. The platform validates the REAL GDI FAR
+ * buffer and makes an atomic copy of the PDEVICE bytes in commit(). This
+ * never treats a Win16 FAR address as a C near pointer. The callback MUST
+ * leave its destination unchanged on failure. The session is rolled back
+ * after failed mode setup, snapshot or commit, including video-mode restore.
+ *
+ * PLATFORM AUTHORIZATION IS NOT CONFERRED BY A PLAN. The caller must obtain
+ * it separately and this API refuses all 386 Enhanced configurations until
+ * a verified VDD contract exists. Win16 Enable(style=0) does NOT call this
+ * path until mandatory text/cursor DDIs have been completed. */
+typedef int (*PAL_ET4KPublish)(void *context, const PAL_PDEVICE *image);
+int pal_et4k_session_start_published(PAL_ET4KSession *session,
+                                     ET4K_Port io,
+                                     const PAL_ET4KPlan *plan,
+                                     PAL_U32 pdevice_token,
+                                     PAL_ET4KPublish publish,
+                                     void *context,
+                                     int platform_authorized);
+
 #endif /* PAL_ET4K_SESSION_H */

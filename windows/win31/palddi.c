@@ -1,6 +1,8 @@
 /* Palettium Win16 GDI entry-point staging implementation.
  * Compiled as a Win16 object only. NOT AN INSTALLABLE DISPLAY DRIVER.
- * No ET4000-specific code. Enable deliberately fails until ready.
+ * Shared drawing/DDI marshaling is card-agnostic; native mode changes are
+ * delegated to the existing ET4000AX session and Win16 platform bridge.
+ * Enable(style=0) is blocked until mandatory display services are ready.
  */
 /* SDK names sometimes overlap Win16 display-DDI exports. */
 #define RealizeObject PalWinApiRealizeObject
@@ -26,22 +28,25 @@
 #include "pal_ddl_blit.h"
 #include "pal_enable.h"
 #include "pal_et4k_win16.h"
+#include "pal_vdd.h"
 #include "pal_objects.h"
 #include "pal_bitmap_device.h"
 #include "rg_gdi_blit.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
+/* Persistent storage: GDI owns only the published 20-byte PDEVICE. */
+static PAL_ET4KSession pal_native_session;
+static PAL_Win16ET4K pal_native_adapter;
 
-/* Staged GDI-owned PDEVICE handoff, NOT used by Enable(style=0) yet.
+/* GDI-owned PDEVICE handoff, used by the dormant transactional startup.
  * GDI allocates a far PDEVICE according to GDIINFO.dpDEVICEsize. The
  * framebuffer session remains in persistent driver storage; only the
  * 20-byte wire PDEVICE is copied into GDI's buffer. Never cast the GDI
  * FAR address to a near PAL_PDEVICE pointer, and never bind an unverified
  * host or a token not identical to the destination address.
  *
- * A future verified style=0 initializer will call this only AFTER BIOS,
- * VDD and framebuffer setup complete, and arrange session shutdown in
- * Disable. No video mode change or registration occurs in this helper. */
+ * The transactional Win16 startup uses this ONLY after BIOS, framebuffer
+ * and palette startup complete. No video-mode change happens here. */
 int FAR PASCAL pal_win16_publish_host(PAL_ScreenHost *host,
                                       LPVOID gdi_pdevice)
 {
@@ -61,6 +66,57 @@ int FAR PASCAL pal_win16_publish_host(PAL_ScreenHost *host,
     for (i=0; i<sizeof(image); ++i) target[i]=source[i];
     pal_active_host=host;
     return 1;
+}
+
+/* Complete hardware setup -> validated PDEVICE copy -> DDI binding as
+ * one transaction. Publication is the sole exposure of the live host.
+ * The portable coordinator rolls back hardware if this copy fails.
+ * This path is deliberately gated OFF in Enable: the driver still lacks
+ * mandatory text and cursor services, and no VDD has been validated. */
+typedef struct PAL_Win16Commit {
+    LPVOID gdi_far_destination;
+} PAL_Win16Commit;
+
+static int pal_win16_publish_transaction(void *context,
+                                         const PAL_PDEVICE *image)
+{
+    PAL_Win16Commit *commit=(PAL_Win16Commit *)context;
+    (void)image; /* publisher re-checks host and token before FAR writes */
+    return commit && pal_win16_publish_host(&pal_native_session.host,
+                                             commit->gdi_far_destination);
+}
+
+static int pal_win16_activate(LPVOID destination)
+{
+    PAL_ET4KPlan plan;
+    ET4K_Port port;
+    PAL_Win16Commit commit;
+    PAL_U32 token;
+    if (!destination || pal_active_host ||
+        !pal_win16_et4k_profile_plan(&plan)) return 0;
+    /* Platform-adapter lookup is deliberately after the pure planning
+     * preflight; no A000 selector or I/O is touched during style=1. */
+    if (plan.vdd_assessment != PAL_VDD_NOT_ENHANCED ||
+        (PAL_U32)(PAL_U16)FP_OFF(destination) +
+        (PAL_U32)sizeof(PAL_PDEVICE) > 65536UL ||
+        !pal_win16_et4k_port(&pal_native_adapter,&port)) return 0;
+    token=pal_ddi_far_token((PAL_U16)FP_SEG(destination),
+                            (PAL_U16)FP_OFF(destination));
+    /* context points to a typed stack object that HOLDS the FAR pointer.
+     * Never cast GDI's FAR LPVOID directly to the callback's untyped void*. */
+    commit.gdi_far_destination=destination;
+    return pal_et4k_session_start_published(&pal_native_session,port,
+                      &plan,token,pal_win16_publish_transaction,
+                      &commit,1);
+}
+
+/* Mandatory ExtTextOut/StrBlt and cursor services are NOT implemented.
+ * Do not change this gate merely because a Win16 module links. A future
+ * milestone must provide functioning DDIs, verify their ordinal/ABI and
+ * explicitly authorize a recoverable Standard-mode 86Box trial. */
+static int pal_win16_install_ready(void)
+{
+    return 0;
 }
 
 /* GDI memory bitmap operands are segmented FAR BITMAP16 headers. Decode
@@ -383,6 +439,10 @@ WORD FAR PASCAL Enable(LPVOID destination, WORD style,
     const unsigned char *in;
     unsigned i;
     (void)device_type; (void)output_file; (void)data;
+    if (style == 0u) {
+        if (!pal_win16_install_ready()) return 0;
+        return pal_win16_activate(destination) ? 1u : 0u;
+    }
     if (style != 1u || !destination) return 0;
     /* Never advertise 640x480 on an unknown or 256KiB card. Until we
      * have an authorized in-Windows capacity probe, require explicit
@@ -409,7 +469,15 @@ void FAR PASCAL Disable(LPVOID physical_device)
     token=pal_ddi_far_token((PAL_U16)FP_SEG(physical_device),
                             (PAL_U16)FP_OFF(physical_device));
     if (token != pal_active_host->ddi.screen_token) return;
-    pal_active_host=0;
+    /* Detach the public binding before shutting the hardware down.
+     * The static session and native selector context must remain valid
+     * throughout RG_Hardware.close / BIOS restore. */
+    if (pal_active_host == &pal_native_session.host) {
+        pal_active_host=0;
+        pal_et4k_session_stop(&pal_native_session);
+    } else {
+        pal_active_host=0; /* staging test-host compatibility */
+    }
 }
 
 /* ColorInfo @2: GDI passes a logical COLORREF (0x00BBGGRR) or an

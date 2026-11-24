@@ -115,3 +115,41 @@ int pal_et4k_plan_capability(PAL_GDIINFO *info, const PAL_ET4KPlan *plan)
          plan->status != PAL_ET4K_PLAN_STOCK_VDD_LIMIT)) return 0;
     return pal_enable_capability(info,plan->mode.width,plan->mode.height);
 }
+
+/* Hardware and GDI publication are one transaction. Do not expose a
+ * drawable screen between mode setting and successful PDEVICE publication.
+ * Production Win16 code must additionally guarantee FAR-buffer validity,
+ * atomic commit, a stable session address, and a VDD-approved environment.
+ * The current Win16 driver does not authorize this operation. */
+int pal_et4k_session_start_published(PAL_ET4KSession *session,
+                                     ET4K_Port io,
+                                     const PAL_ET4KPlan *plan,
+                                     PAL_U32 pdevice_token,
+                                     PAL_ET4KPublish publish,
+                                     void *context,
+                                     int platform_authorized)
+{
+    ET4K_ModeInfo geometry;
+    PAL_PDEVICE image;
+    if (!platform_authorized || !session || !plan || !pdevice_token ||
+        !publish || session->host.running ||
+        plan->status != PAL_ET4K_PLAN_OK ||
+        plan->vdd_assessment != PAL_VDD_NOT_ENHANCED ||
+        plan->configured_bytes == 0UL ||
+        (plan->observed_hint &&
+         plan->configured_bytes != plan->observed_hint) ||
+        !et4k_mode_info(plan->mode.width,plan->mode.height,
+                        plan->mode.format,&geometry) ||
+        geometry.bios_mode != plan->bios_mode ||
+        geometry.minimum_vram != plan->framebuffer_bytes ||
+        plan->configured_bytes < geometry.minimum_vram) return 0;
+    if (!pal_et4k_session_start_mode(session,io,plan->configured_bytes,
+                                     pdevice_token,plan->mode.width,
+                                     plan->mode.height)) return 0;
+    if (!pal_screen_host_gdi_snapshot(&session->host,pdevice_token,&image) ||
+        !publish(context,&image)) {
+        pal_et4k_session_stop(session);
+        return 0;
+    }
+    return 1;
+}

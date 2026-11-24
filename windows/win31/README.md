@@ -1,4 +1,4 @@
-# Windows 3.1 staging display driver (v0038)
+# Windows 3.1 staging display driver (v0039)
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -40,6 +40,25 @@ belong in platform adapters, not `common/` or the generic ET4000AX backend.
 The older `palprobe`, `palcore`, `paltest` and other probe files are retained
 for reference. Do not build them into PALSTAGE.DRV or clone the stable DDI
 implementation into new numbered production files.
+
+## v0039: Transactional native session, still gated
+
+`pal_et4k_session_start_published` joins the existing ET4000AX session,
+GDI-owned PDEVICE snapshot, and an atomic Win16 FAR-memory publication
+callback. The host is not exposed until mode setting, palette programming,
+and GDI publication all succeed. Any failure after mode setting closes the
+hardware binding and invokes the existing BIOS restore callback. Host tests
+exercise 256/512/1024 KiB, rejected VDDs and missing authorization.
+
+The Win16 `Enable(style=0)` branch is now wired to this code *but still
+unconditionally refuses to activate it*: `pal_win16_install_ready()`
+returns zero until mandatory text and cursor services and their ABI are
+implemented and validated. The portable transaction also rejects enhanced
+mode irrespective of configured VDD filename. `Disable` will stop the native
+hardware session only when the caller supplies the matching GDI FAR PDEVICE.
+Do not install PALSTAGE.DRV or select it in SYSTEM.INI yet. The next
+engineering milestone is a real text renderer (`ExtTextOut`, `StrBlt`) and
+cursor cooperation, not additional VRAM probing.
 
 ## v0037: VRAM- and VDD-aware capability staging
 
