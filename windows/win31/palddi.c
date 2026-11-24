@@ -25,6 +25,7 @@
 #include <dos.h>
 #include "pal_ddl_blit.h"
 #include "pal_enable.h"
+#include "pal_et4k_win16.h"
 #include "pal_objects.h"
 #include "pal_bitmap_device.h"
 #include "rg_gdi_blit.h"
@@ -354,12 +355,21 @@ WORD FAR PASCAL Enable(LPVOID destination, WORD style,
                        LPSTR device_type, LPSTR output_file, LPVOID data)
 {
     PAL_GDIINFO candidate;
+    PAL_ET4KPlan plan;
     unsigned char FAR *out;
     const unsigned char *in;
     unsigned i;
     (void)device_type; (void)output_file; (void)data;
     if (style != 1u || !destination) return 0;
-    if (!pal_enable_capability(&candidate, 640u, 480u)) return 0;
+    /* Never advertise 640x480 on an unknown or 256KiB card. Until we
+     * have an authorized in-Windows capacity probe, require explicit
+     * [Palettium] VRAMKiB in SYSTEM.INI. This is still just a candidate
+     * GDIINFO; style=0 remains blocked. The planner caps stock-VDD
+     * enhanced-mode candidates to a <=256KiB framebuffer. */
+    if ((PAL_U32)(PAL_U16)FP_OFF(destination) +
+        (PAL_U32)sizeof(candidate) > 65536UL ||
+        !pal_win16_et4k_profile_plan(&plan) ||
+        !pal_et4k_plan_capability(&candidate,&plan)) return 0;
     out = (unsigned char FAR *)destination;
     in = (const unsigned char *)&candidate;
     for (i = 0; i < sizeof(candidate); ++i) out[i] = in[i];

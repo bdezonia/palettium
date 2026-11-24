@@ -1,0 +1,48 @@
+Palettium v0037 — Win3.x VRAM/VDD-aware capability and session planning
+
+Apply on top of maintainer-validated v0036:
+  cd ~/dev/palettium
+  unzip -o ~/Downloads/pal37.zip
+
+The user validated DOS ET4KTEST INFO on V8.01X, V8.06X, V1.21X BIOSes,
+each at 256, 512 and 1024 KiB in 86Box: 9/9 CRTC37 hints matched the
+configuration (0Dh, 0Eh and 0Fh). No claim for physical cards or safe
+protected-mode register access follows.
+
+This patch changes the actual Win16 GDI stage-1 capability path:
+* `Enable(style=1)` no longer advertises hardcoded 640x480. It reads a
+  separately specified `SYSTEM.INI [Palettium] VRAMKiB=256|512|1024`,
+  Windows enhanced-mode flags and the configured [386Enh] display= setting.
+  Without a valid setting, the style-1 candidate fails closed (returns 0).
+* A Win3.x-specific pure mode planner uses that explicit capacity, with
+  an optional separately observed CRTC37 hint as contradiction detection.
+  No framebuffer read/write, BIOS call or port action occurs in planning.
+  It proposes 640x400 for 256KiB; 640x480 for >=512KiB except under
+  enhanced-mode stock `*vddvga`, where it limits the candidate to 640x400.
+  Even that smaller mode remains VDD-UNVERIFIED, not safe to install.
+* One explicit-mode host session reuses the existing ET4000AX backend,
+  preserving bank-aware rendering, palette startup and BIOS rollback.
+* Native Win16 adapter now provides a separately authorized CRTC37
+  advisory entry. It refuses raw port access in 386 Enhanced mode.
+  This is NOT wired to the GDI entry points and is never auto capacity.
+* Host tests cover plan cases, mismatch failure, VDD filtering, no I/O
+  during planning, 256KiB rejection, and explicit-mode banked host start.
+  The 13 DDI exports and production filenames are unchanged.
+
+CRITICAL: `Enable(style=0)` still unconditionally fails. `PALSTAGE.DRV`
+is NOT INSTALLABLE. Do NOT modify a working Windows VM's system.ini
+or copy this staging driver over its display driver. Startup GDIINFO
+fields, real VDD contract, persistent PDEVICE, font/text and cursor paths
+remain incomplete. An INI filename alone does NOT prove a VDD is loaded.
+
+Host checks (assistant ran these; Open Watcom must be user-verified):
+  make clean && make test
+  make -f Makefile.win31native test
+  make -f Makefile.win31link test
+  make -f Makefile.screen17 test
+  make -f Makefile.et4k test
+  sh windows/win31/build-palddi.sh
+  wdump -x tests/exes/PALSTAGE.DRV
+
+If needed, the DOS executable is build/dos/ET4KTEST.EXE, NEVER
+extensionless tests/exes/et4k-test (a Linux ELF).

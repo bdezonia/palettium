@@ -24,6 +24,7 @@ windows/win31/pal_bitmap.c
 windows/win31/pal_bitmap_device.c
 windows/win31/pal_enable.c
 windows/win31/pal_et4k_session.c
+windows/win31/pal_vdd.c
 windows/win31/pal_et4k_win16.c
 windows/win31/pal_screen_ddi.c
 windows/win31/pal_screen_host.c

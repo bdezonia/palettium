@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pal_et4k_session.h"
+#include "pal_vdd.h"
 
 #define SIZE256 262144UL
 #define SIZE512 524288UL
@@ -117,6 +118,8 @@ int main(void)
     RG_HwBinding binding;
     RG_Device dev;
     unsigned before;
+    unsigned before_query;
+    PAL_ET4KPlan plan;
     memset(&m,0,sizeof(m));
     m.vram=(rg_u8 *)calloc(SIZE1M,1);
     CHECK(m.vram!=0);
@@ -169,7 +172,59 @@ int main(void)
     CHECK(!rg_hw_open(&binding,&dev,&session.hardware,&mode));
     CHECK(m.restored==before && !session.card.mode_attempted);
     CHECK(m.bad==0);
+    /* v0037 startup planning is pure: no BIOS, bank, port or VRAM access.
+     * An observed CRTC37 capacity can REJECT mismatched config; it must
+     * never silently override the user's explicitly provided capacity. */
+    m.bytes=SIZE512;
+    io=make_port(&m);
+    before=m.attempted;
+    before_query=m.query_count;
+    CHECK(pal_et4k_plan(&plan,SIZE256,SIZE256,0x0C29UL,"*vddvga"));
+    CHECK(plan.mode.height==400u && plan.bios_mode==0x2Fu);
+    CHECK(plan.status==PAL_ET4K_PLAN_OK && !plan.can_enable);
+    CHECK(plan.vdd_assessment==PAL_VDD_UNVERIFIED);
+    CHECK(pal_et4k_plan_capability(&cap,&plan) && cap.dpVertRes==400);
+    CHECK(pal_et4k_plan(&plan,SIZE512,SIZE512,0x0C29UL,"*vddvga"));
+    CHECK(plan.status==PAL_ET4K_PLAN_STOCK_VDD_LIMIT &&
+          plan.mode.height==400u && plan.framebuffer_bytes==256000UL);
+    CHECK(plan.vdd_assessment==PAL_VDD_UNVERIFIED && !plan.can_enable);
+    CHECK(pal_et4k_plan(&plan,SIZE1M,SIZE1M,0x0C29UL,"*vddvga"));
+    CHECK(plan.status==PAL_ET4K_PLAN_STOCK_VDD_LIMIT &&
+          plan.mode.height==400u);
+    CHECK(pal_et4k_plan(&plan,SIZE512,SIZE512,0x0C29UL,
+                        "VDDVGA30.386"));
+    CHECK(plan.status==PAL_ET4K_PLAN_OK && plan.mode.height==480u);
+    CHECK(plan.vdd_assessment==PAL_VDD_UNVERIFIED);
+    CHECK(pal_et4k_plan(&plan,SIZE512,SIZE512,0x0001UL,"*vddvga"));
+    CHECK(plan.mode.height==480u &&
+          plan.vdd_assessment==PAL_VDD_NOT_ENHANCED);
+    CHECK(pal_et4k_plan(&plan,SIZE512,0UL,0x0C29UL,"custom.386"));
+    CHECK(plan.mode.height==480u && !plan.can_enable);
+    CHECK(!pal_et4k_plan(&plan,0UL,SIZE512,0x0C29UL,"*vddvga"));
+    CHECK(plan.status==PAL_ET4K_PLAN_NO_CAPACITY);
+    CHECK(!pal_et4k_plan_capability(&cap,&plan));
+    CHECK(!pal_et4k_plan(&plan,SIZE256,SIZE512,0x0C29UL,"*vddvga"));
+    CHECK(plan.status==PAL_ET4K_PLAN_HINT_CONFLICT);
+    CHECK(!pal_et4k_plan(&plan,123UL,0,0x0C29UL,"*vddvga"));
+    CHECK(plan.status==PAL_ET4K_PLAN_NO_CAPACITY);
+    CHECK(m.attempted==before && m.query_count==before_query && m.bad==0);
+
+    /* Explicit low-memory geometry goes through the already-tested host
+     * path even with more RAM installed. This test grants no Win16 VDD
+     * permission: it is a mock platform exercise only. */
+    memset(&session,0,sizeof(session));
+    m.allow400=1;
+    CHECK(pal_et4k_session_start_mode(&session,io,SIZE512,TOKEN,
+                                      640u,400u));
+    CHECK(session.host.pdevice.height==400u && m.last_height==400u);
+    pal_et4k_session_stop(&session);
+    memset(&session,0,sizeof(session));
+    before=m.attempted;
+    CHECK(!pal_et4k_session_start_mode(&session,io,SIZE256,TOKEN,
+                                       640u,480u));
+    CHECK(m.attempted==before && !session.host.running);
+
     free(m.vram);
-    puts("PASS: v0030 Win31 capacity-aware candidate/session, banked VRAM, clean veto and BIOS-attempt rollback");
+    puts("PASS: v0037 VRAM/VDD GDI plan, explicit-mode session, rollback and 256K/512K/1M host");
     return 0;
 }

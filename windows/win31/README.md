@@ -1,4 +1,4 @@
-# Windows 3.1 staging display driver (v0035)
+# Windows 3.1 staging display driver (v0037)
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -41,14 +41,47 @@ The older `palprobe`, `palcore`, `paltest` and other probe files are retained
 for reference. Do not build them into PALSTAGE.DRV or clone the stable DDI
 implementation into new numbered production files.
 
+## v0037: VRAM- and VDD-aware capability staging
+
+The old Win16 `Enable(style=1)` unconditionally claimed 640x480x8, even
+when the card had only 256 KiB. It now reads **only** an explicitly
+configured `[Palettium] VRAMKiB` value in `SYSTEM.INI` (256/512/1024).
+If absent or invalid it returns zero; it does not probe CRTC37, BIOS,
+VRAM or graphics registers from GDI initialization. For **future** staging
+in a disposable VM, an administrator could configure, for example:
+
+```ini
+[Palettium]
+VRAMKiB=256
+```
+
+**Do not change SYSTEM.INI to install this driver yet.** That sample is
+configuration documentation, not an installation instruction. 86Box/DOS
+can establish the actual VM VRAM setting. The Win3.x-only planner also
+reads `[386Enh] display=` and `GetWinFlags`, so when Windows is running
+in 386 Enhanced mode with configured `*vddvga`, it avoids advertising a
+>256KiB 640x480x8 framebuffer even on 512KiB/1MiB cards. It proposes
+640x400x8, which **is not yet established as VDD-compatible**. A custom
+VDD filename does not grant compatibility automatically either.
+
+The `PAL_ET4KPlan` from `pal_et4k_session.c` tracks the optional CRTC37
+capacity hint as cross-check only, refuses contradictory hints, and
+**always leaves `can_enable=0`**. Native `pal_et4k_win16.c` exposes a
+separately authorized CRTC37 advisory function, but refuses raw port
+access in 386 Enhanced mode; it is not called by GDI. The existing
+`pal_et4k_session_start_mode` can exercise 640x400/640x480 in isolated
+mock-host tests without duplicating rendering code, but is not connected
+to `Enable(style=0)`. Actual BIOS/VDD/PDEVICE/text/cursor integration
+still blocks installation.
+
 ## Mode-selection status (v0031)
 
 The shared ET4000AX backend accepts 640x400x256 on verified 256 KiB cards
 (Tseng BIOS mode 2Fh), and 640x480x256 on cards with at least 512 KiB
 (mode 2Eh). Optional read-only VRAM-capacity and BIOS-mode-query platform
 callbacks support validation; actual mode changes must be acknowledged by
-`set_mode`. Current Win16 `Enable(style=1)` STILL returns the old hardcoded
-640x480 **candidate** and `Enable(style=0)` still fails. Native Windows
+`set_mode`. v0037 Win16 `Enable(style=1)` now selects an explicit-VRAM-dependent
+candidate and `Enable(style=0)` still fails. Native Windows
 mode programming, 256K-specific GDIINFO discovery, A000 aperture mapping,
 planar 16-color output and enhanced-mode VDD coordination are not done.
 This new catalog is useful in host integration but does NOT make the NE
@@ -69,8 +102,8 @@ The BIOS/selector paths have not yet run inside Windows.
 and screen-host lifecycle on top of that same ET4000AX backend. It requires
 a verified capacity; Win16 provides **no automatic size detector** at this
 checkpoint, and no DDI entry point calls the adapter or coordinator. The
-current `Enable(style=1)` still returns the original 640x480 development
-candidate, NOT a negotiated geometry; style=0 still fails. A working
+v0037 `Enable(style=1)` requires the explicit SYSTEM.INI VRAM setting and
+returns a policy-filtered development candidate, NOT a negotiated geometry; style=0 still fails. A working
 display driver additionally needs GDI's PDEVICE pointer bound correctly,
 capacity configuration, mouse cursor, text, and 386-enhanced VDD cooperation
 (including VDDsetaddresses for packed SVGA on Win3.1). **Do not install.**

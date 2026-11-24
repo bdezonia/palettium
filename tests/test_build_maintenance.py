@@ -17,6 +17,15 @@ def check_win16_recipe():
     assert "hardware/tseng/et4000ax/et4k.c" in sources, "ET4000 backend not linked"
     assert "windows/win31/pal_et4k_session.c" in sources, "session missing"
     assert "windows/win31/pal_et4k_win16.c" in sources, "Win16 adapter missing"
+    assert "windows/win31/pal_vdd.c" in sources, "Win3.x VDD policy not linked"
+    win16_entry = (ROOT / "windows/win31/palddi.c").read_text()
+    assert "pal_win16_et4k_profile_plan(&plan)" in win16_entry, (
+        "GDI style-1 must use configured VRAM/VDD plan")
+    assert "style != 1u" in win16_entry, "stage-only Enable(style=0) gate lost"
+    adapter = (ROOT / "windows/win31/pal_et4k_win16.c").read_text()
+    assert 'GetPrivateProfileInt("Palettium","VRAMKiB"' in adapter
+    assert 'GetWinFlags() & 0x0020u' in adapter, (
+        "raw CRTC read missing enhanced-mode safety gate")
     assert len(sources) == len(set(sources)), "duplicate linked source"
     stems = [pathlib.Path(x).stem for x in sources]
     assert len(stems) == len(set(stems)), "Win16 object filename collision"

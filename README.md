@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0036** (incremental tags are fixed-width).
+Current development milestone: **v0037** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -154,6 +154,29 @@ driver**. Palettium is *not* yet an installable driver package.
   index-port writes (select/restore), **not** register-data writes.
   Register accessibility, BIOS variation, and 86Box interpretations must be
   tested on the maintainer's VM before treating a capacity hint as useful.
+
+- **v0036 runtime validation (maintainer, November 23, 2026):**
+  the correct DOS `build/dos/ET4KTEST.EXE` ran `INFO` in 86Box under
+  V8.01X (1993), V8.06X (1992), and V1.21X (1991) BIOSes at 256/512/1024 KiB
+  each. **9/9 configurations** reported CRTC 37h `0Dh/0Eh/0Fh`, with
+  capacity hints matching the configured memory. The values were observations
+  from one emulator family, not proof of VRAM on physical cards. The similarly
+  named extensionless `tests/exes/et4k-test` is a Linux ELF executable and
+  must NEVER be transferred to DOS or renamed to `.EXE`.
+- **New in v0037 (host-tested; Win16 build pending):** the Win3.x startup
+  path uses a read-only, explicitly configured `[Palettium] VRAMKiB`
+  (`256`, `512`, or `1024`) in SYSTEM.INI for **GDI `Enable(style=1)`**.
+  Missing/invalid capacity returns zero instead of always claiming 640x480.
+  The shared ET4000AX + Win3.x planner chooses 640x400x8 on a 256 KiB
+  card and a 640x480x8 candidate on larger cards, **except** under the
+  configured stock Windows 3.1 VGA VDD in 386 Enhanced mode, where the
+  >256KiB 640x480 framebuffer is excluded and 640x400 remains **UNVERIFIED**.
+  Optional CRTC37 hints can reject mismatched configuration but can never
+  authorize more VRAM. A separate explicit-mode screen-host test exercises
+  the 640x400 candidate on 512 KiB. No mode set, VRAM access, or port I/O
+  is performed by style-1 planning. Raw Win16 CRTC37 access is refused in
+  Enhanced mode unless an actual VDD coordination path is developed.
+  **`Enable(style=0)` still fails; do not install PALSTAGE.DRV.**
 
 ## Architecture
 

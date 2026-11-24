@@ -8,6 +8,7 @@ SOURCES = common/rgfx.c common/rg_hardware.c common/rg_gdi_rop.c \
  windows/win31/pal_gdiinfo.c windows/win31/pal_pdevice.c \
  windows/win31/pal_enable.c windows/win31/pal_screen_ddi.c \
  windows/win31/pal_screen_host.c windows/win31/pal_et4k_session.c \
+ windows/win31/pal_vdd.c \
  hardware/tseng/et4000ax/et4k.c tests/test_win31_native.c
 .PHONY: test clean
 test: tests/exes/win31-native-test

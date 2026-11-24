@@ -108,3 +108,33 @@ int pal_win16_et4k_port(PAL_Win16ET4K *w, ET4K_Port *out)
     out->query_mode=0; /* BIOS support is confirmed only by a mode set. */
     return 1;
 }
+
+
+int pal_win16_et4k_crtc37_advisory(const ET4K_Port *io,
+                                    ET4K_Crtc37 *result,
+                                    int ports_authorized)
+{
+    /* The Windows 3.1 stock VGA VDD traps graphics operations in enhanced
+     * mode. A DOS test cannot establish safety of raw Win16 port accesses.
+     * Even in Standard mode, callers must authorize port access explicitly. */
+    if (!ports_authorized || (GetWinFlags() & 0x0020u) != 0u) return 0;
+    return et4k_crtc37_snapshot(io,result);
+}
+
+int pal_win16_et4k_profile_plan(PAL_ET4KPlan *plan)
+{
+    unsigned kib;
+    char display[96];
+    if (!plan) return 0;
+    /* Windows 3.1 DDK supports reading display configuration using the
+     * GetPrivateProfile* APIs. Profile values are operator-supplied, NOT
+     * proof of installed VRAM or actual VDD compatibility. This path
+     * never opens the hardware or invokes the BIOS. */
+    kib=(unsigned)GetPrivateProfileInt("Palettium","VRAMKiB",0,"SYSTEM.INI");
+    if (kib!=256u && kib!=512u && kib!=1024u) return 0;
+    display[0]=0;
+    (void)GetPrivateProfileString("386Enh","display","",display,
+                                  sizeof(display),"SYSTEM.INI");
+    return pal_et4k_plan(plan,(unsigned long)kib*1024UL,0UL,
+                          (unsigned long)GetWinFlags(),display);
+}
