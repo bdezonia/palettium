@@ -1,77 +1,64 @@
-# Palettium v0040 handoff — Win3.x text and cursor raster foundations
+# Palettium v0041 handoff — staged Win16 mouse cursor DDIs
 
-## Confirmed baseline: v0039
+## Baseline: v0040 user validated
 
-The maintainer validated v0039 on Ubuntu/Open Watcom on November 23,
-2026. `make clean && make test`, `Makefile.win31native test`,
-`Makefile.win31link test`, `Makefile.screen17 test`, and
-`sh windows/win31/build-palddi.sh` all passed. `wdump -x` confirmed 13
-staging NE exports. The v0039 native ET4000AX -> GDI-owned PDEVICE
-transaction is implemented but still not authorized by Enable(style=0).
-The known stock Windows 3.1 386-Enhanced `*vddvga` compatibility problem
-persists, and a direct Windows 3.1 driver startup has NOT been tested.
+Maintainer built v0040 on Ubuntu/Open Watcom (November 24, 2026).
+`make clean && make test`; text, cursor, Win31 link, native session and
+ET4000AX screen tests all PASSED. `sh windows/win31/build-palddi.sh`
+linked `tests/exes/PALSTAGE.DRV` with all 15 expected exports including
+`StrBlt @11` and `ExtTextOut @14`, verified using wdump. No reported
+compiler/linker warnings. This confirms compilation, not Windows startup.
 
-Earlier real 86Box evidence: DOS ET4KTEST displays worked at 256/512/
-1024 KiB. CRTC37 reported 0Dh/0Eh/0Fh across BIOS V8.01X, V8.06X,
-and V1.21X (9/9). PALDIAG safely retrieved __A000H, made one byte
-read and BIOS-mode readback in 386 Enhanced mode. None of these tests
-constitutes permission to change video mode from the installed driver.
+Earlier 86Box runtime data remains valid: ET4KTEST DOS output at
+256/512/1024 KiB, CRTC37=0Dh/0Eh/0Fh on V8.01X/V8.06X/V1.21X
+(9/9), PALDIAG protected mode A000h:0000h read and BIOS mode readback.
+The v0035 VDD report was stock `*vddvga` in 386 Enhanced mode. None
+proves Windows mode transitions or the installable driver lifecycle.
 
-## New in v0040
+## v0041 changes
 
-1. Two real text DDI entry points are now compiled into the existing
-   `windows/win31/palddi.c`: **StrBlt @11** and **ExtTextOut @14**.
-   Both route through the same implementation. The adapter reads standard
-   Windows 2.x-era GDI raster FONTINFO and glyph offsets through checked
-   Win16 FAR segment windows, supports proportional widths, fallback
-   characters, clipped glyph pixels, physical DRAWMODE text/background
-   colors, positive drawing, negative-count extent-only and zero-count
-   ETO_OPAQUE. It accepts basic supplied advance widths, CharExtra and
-   BreakExtra. Unsupported formats or malformed pointers fail closed.
-2. Shared `common/rg_gdi_text.c` uses no Windows/Card-specific imports:
-   it draws column-major 1bpp glyph bytes through RG_Device.pixel and
-   supports INDEX8 and packed INDEX1 memory devices, including banked
-   screen VRAM. The Win16 font header parser (`pal_font16.c`) is separate
-   from this shared renderer; no duplicate ET4000AX text engine.
-3. Shared `common/rg_cursor.c` implements a 1/8bpp-index software cursor
-   compositing AND/XOR masks with save-under, clipping, hotspots and
-   move/hide restoration. **It is NOT yet connected to Win3.1's @101–104
-   cursor DDIs**: proper CURSORSHAPE unpacking, mouse-interrupt safety,
-   and cursor exclusion around every graphics DDI remain unresolved.
-4. Export verifier and Win16 link source list updated to **15 exports**.
-   The stable production filename stays `PALSTAGE.DRV`; test binaries
-   remain in `tests/exes/`. Comprehensive `make clean` removes them.
+1. New Win16 display DDI exports in existing `palddi.c`: `Inquire @101`
+   (4-byte CURSORINFO, X=1/Y=2), `SetCursor @102`, `MoveCursor @103`,
+   and `CheckCursor @104`. Export count **19** with stable production
+   filename `PALSTAGE.DRV`.
+2. `windows/win31/pal_cursor16.[ch]` decodes GDI CURSORSHAPE's six
+   little-endian signed WORDs followed by row-stride-four AND/XOR masks,
+   in that order. Hotspots may be negative. Masks must be 1..32 pixels
+   wide/tall, widthbytes=4, color=0 and fit within a single Win16 segment.
+   Bad shapes do not replace a working cursor. The OS-only FAR copy
+   remains in `palddi.c`; shared C89 cursor raster is reused.
+3. `MoveCursor` queues coordinates without BIOS, VRAM, bank or port I/O.
+   `CheckCursor` applies the latest completed coordinates only if no DDI
+   drawing transaction is active. Cursor exclusion brackets BitBlt,
+   Pixel read/write, ScanLR, Output, StrBlt, ExtTextOut and UpdateColors.
+   Cursor save-under is restored before screen access and re-composited
+   afterward. The shared software cursor now supports negative hotspots.
+4. New host tests validate wire ABI, malformed shapes, ordinary/banked
+   save-under, deferred movements, cursor/text overlap, and pixel-read /
+   pixel-write exclusion. Full C89 regressions pass in assistant runtime;
+   **Open Watcom v0041 compilation is not yet user validated**.
 
-## Strict limits (especially important)
+## Critical safety/functional limit — not installable
 
-**PALSTAGE.DRV IS STILL NOT INSTALLABLE. Enable(style=0) returns zero.**
-No native mode switch can occur from GDI. Candidate GDIINFO still has
-zero advertised graphics/text capability bits; do not set
-RC_BIGFONT, RC_PALETTE, TC_*, or RC_GDI20_OUTPUT prematurely.
+`Enable(style=0)` still returns failure. This is intentional and MUST NOT
+be changed merely because all 19 NE exports link. Win16 mouse interrupt
+reentrancy is not fully solved: coordinate publication has a C-only busy
+flag but no validated atomic EnterCrit/LeaveCrit equivalent; nested
+MoveCursor calls may lose a newer position. Likewise CheckCursor must be
+protected against timer-interrupt reentry and hardware bank manipulation.
+Current cursor code is a working host-tested staging path, **not an
+interrupt-safe production DDI**. Do not install PALSTAGE.DRV in SYSTEM.INI.
+Other remaining blockers: 386 Enhanced VDD, native display-mode handoff,
+standard-mode authorization, large fonts, additional Windows driver resource
+requirements and a real 86Box desktop installation audit.
 
-Text decoder is the STANDARD (non-big) GDI raster-font layout with a
-51-byte FONTINFO base and four-byte 2.x char-table entries. It does
-not support 3.x big/sparse TrueType, vector fonts, font synthesis,
-rotation, underline/strikeout, full break-error justification, huge
-font/bitmap segments or arbitrary glyph heights. It is only a first
-real text path, NOT a complete 1992 DDK text implementation. Cursor
-compositor has no OS cursor exports or interrupt-safe critical section.
-Screen painting still lacks coordinated cursor exclusion, several
-optional GDI services and an enhanced-mode VDD contract. Standard-mode
-hardware startup is gated too. Do not install the driver in SYSTEM.INI.
-
-The v0040 assistant tests are C89 host simulations; the real Open Watcom
-Win16 ABI and 86Box Windows runtime are **NOT yet verified**. The host
-wrapper test compiles actual `palddi.c` with fake FAR-pointer APIs and
-ELF section garbage collection; it cannot validate real selectors.
-
-## Build/test instructions for maintainer
+## Build and validate
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal40.zip
-make clean
-make test
+unzip -o ~/Downloads/pal41.zip
+make clean && make test
+make -f Makefile.win31cursor test
 make -f Makefile.win31text test
 make -f Makefile.cursor test
 make -f Makefile.win31native test
@@ -81,24 +68,21 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-Expected additional exports: `STRBLT @11` and `EXTTEXTOUT @14`.
-Do not install this DRV or switch video modes under Windows yet.
+Expected 19 exports; new ones are INQUIRE @101, SETCURSOR @102,
+MOVECURSOR @103, CHECKCURSOR @104. Report compiler errors/warnings if any.
+No need to run this DRV under Windows until the startup gate is cleared.
 
-## Next: v0041
+## Next: v0042
 
-Prioritize DDK-accurate Win16 cursor `Inquire @101`, `SetCursor @102`,
-`MoveCursor @103`, `CheckCursor @104` with correct CURSORSHAPE wire ABI,
-interrupt-level synchronization, and exclusion around every screen draw.
-Next complete standard text justification/special fonts and GDIINFO
-capability reporting. Only after a real DDI readiness audit should the
-first recoverable **Standard-mode** 86Box install test be authorized;
-386 Enhanced requires separate validated VDD coordination. Maintain
-four-OS adapters with shared C89 common code and card-specific backends.
+Prioritize an actually verified Win16 interrupt-safe critical primitive
+and non-reentrant cursor compositor, check DDK mouse callback and exclusion
+semantics in a recoverable 86Box VM, then another strict install-readiness
+audit. Do not let additional diagnostics displace the first desktop goal.
 
-## Packaging discipline
+## Packaging
 
-Fixed-width sequential milestone tags; keep existing git tags untouched;
-source-only small additive ZIP patches built freshly from changed source;
-full source SHA256 manifest; UTC Extended Timestamp (0x5455) and matching
-America/Chicago local DOS ZIP field; stable filenames; test executables
-under tests/exes; globally comprehensive `make clean`.
+Fixed-width sequential milestone names. Fresh source-only incremental ZIP
+built from original modified files, full-source SHA256 manifest, ZIP 0x5455
+UTC mtime and America/Chicago DOS header. Stable filenames, C89 shared
+framework for Windows 3.1/WfW 3.11/95/98, outputs under tests/exes and
+comprehensive `make clean`.

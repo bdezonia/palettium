@@ -5,6 +5,10 @@
  * Enable(style=0) is blocked until mandatory display services are ready.
  */
 /* SDK names sometimes overlap Win16 display-DDI exports. */
+#define Inquire PalWinApiInquire
+#define SetCursor PalWinApiSetCursor
+#define MoveCursor PalWinApiMoveCursor
+#define CheckCursor PalWinApiCheckCursor
 #define ExtTextOut PalWinApiExtTextOut
 #define StrBlt PalWinApiStrBlt
 #define RealizeObject PalWinApiRealizeObject
@@ -17,6 +21,10 @@
 #define GetPalTrans PalWinApiGetPalTrans
 #define UpdateColors PalWinApiUpdateColors
 #include <windows.h>
+#undef Inquire
+#undef SetCursor
+#undef MoveCursor
+#undef CheckCursor
 #undef ExtTextOut
 #undef StrBlt
 #undef RealizeObject
@@ -38,11 +46,28 @@
 #include "rg_gdi_blit.h"
 #include "rg_gdi_text.h"
 #include "pal_font16.h"
+#include "pal_cursor16.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
 /* Persistent storage: GDI owns only the published 20-byte PDEVICE. */
 static PAL_ET4KSession pal_native_session;
 static PAL_Win16ET4K pal_native_adapter;
+/* Driver-owned, persistent: never allocate a 4 KiB saved-under block
+ * on the small Win16 stack. Used only after GDI publishes a screen host. */
+static PAL_Cursor16 pal_win16_cursor;
+
+static void pal_cursor_draw_begin(void)
+{
+    if (pal_active_host && pal_win16_cursor.screen ==
+            &pal_active_host->device)
+        pal_cursor16_begin_draw(&pal_win16_cursor);
+}
+static void pal_cursor_draw_end(void)
+{
+    if (pal_win16_cursor.draw_depth)
+        pal_cursor16_end_draw(&pal_win16_cursor);
+}
+
 
 /* GDI-owned PDEVICE handoff, used by the dormant transactional startup.
  * GDI allocates a far PDEVICE according to GDIINFO.dpDEVICEsize. The
@@ -70,6 +95,7 @@ int FAR PASCAL pal_win16_publish_host(PAL_ScreenHost *host,
     source=(const unsigned char *)&image;
     target=(unsigned char FAR *)gdi_pdevice;
     for (i=0; i<sizeof(image); ++i) target[i]=source[i];
+    pal_cursor16_bind(&pal_win16_cursor,&host->device);
     pal_active_host=host;
     return 1;
 }
@@ -116,11 +142,53 @@ static int pal_win16_activate(LPVOID destination)
                       &commit,1);
 }
 
-/* Standard raster-font text is implemented at @11/@14. Cursor DDI,
- * interrupt-safe cursor exclusion, full font coverage and VDD remain missing.
- * Do not change this gate merely because a Win16 module links. A future
- * milestone must provide functioning DDIs, verify their ordinal/ABI and
- * explicitly authorize a recoverable Standard-mode 86Box trial. */
+/* DDK Win3.x cursor DDI. Inquire is called before Enable, so it does
+ * not require a screen host. The shape wire header is 6 signed WORDs,
+ * followed by height*4 AND bytes and height*4 XOR bytes. Preflight
+ * segment bounds and copy to near storage before touching old cursor. */
+WORD FAR PASCAL Inquire(LPVOID information)
+{
+    WORD FAR *out=(WORD FAR *)information;
+    if (!information || (PAL_U32)(PAL_U16)FP_OFF(information)+4UL>65536UL)
+        return 0;
+    out[0]=1u; /* IBM PC Microsoft Mouse X mickeys-per-pixel */
+    out[1]=2u; /* Y */
+    return 4u;
+}
+void FAR PASCAL SetCursor(LPVOID shape)
+{
+    unsigned char header[PAL_CURSOR16_HEADER];
+    unsigned char raw[PAL_CURSOR16_MAX_WIRE];
+    const unsigned char FAR *far_bytes=(const unsigned char FAR *)shape;
+    unsigned available,need,i;
+    PAL_U32 remaining;
+    if (!shape) { (void)pal_cursor16_set(&pal_win16_cursor,0,0); return; }
+    remaining=65536UL-(PAL_U32)(PAL_U16)FP_OFF(shape);
+    if (remaining<(PAL_U32)PAL_CURSOR16_HEADER) return;
+    available=(unsigned)(remaining>(PAL_U32)PAL_CURSOR16_MAX_WIRE ?
+                (PAL_U32)PAL_CURSOR16_MAX_WIRE : remaining);
+    for (i=0;i<PAL_CURSOR16_HEADER;++i) header[i]=far_bytes[i];
+    need=pal_cursor16_wire_size(header,available);
+    if (!need) return;
+    for (i=0;i<need;++i) raw[i]=far_bytes[i];
+    (void)pal_cursor16_set(&pal_win16_cursor,raw,need);
+}
+/* No device access at mouse-interrupt time. CheckCursor is called at
+ * timer interrupt time; on a released drawing transaction it may apply
+ * queued movement. This is a staging implementation: native nested-mouse
+ * critical-region handling remains unverified, so Enable stays gated. */
+void FAR PASCAL MoveCursor(WORD x,WORD y)
+{
+    pal_cursor16_post_move(&pal_win16_cursor,(short)x,(short)y);
+}
+void FAR PASCAL CheckCursor(void)
+{
+    pal_cursor16_check(&pal_win16_cursor);
+}
+
+/* Mouse cursor DDIs and cursor exclusion are now staged and host-tested,
+ * but native mouse-interrupt criticality, VDD, and full font coverage remain
+ * unverified. Do NOT open the installation gate for nominal exports. */
 static int pal_win16_install_ready(void)
 {
     return 0;
@@ -358,8 +426,12 @@ DWORD FAR PASCAL ExtTextOut(LPVOID dest, short x, short y,
                             LPVOID text_transform, LPVOID widths,
                             LPVOID opaque_rect, WORD options)
 {
-    return pal_win16_text(dest,x,y,clip_rect,text,count,font,drawmode,
+    DWORD result;
+    if (count>0 || (options&2u)) pal_cursor_draw_begin();
+    result=pal_win16_text(dest,x,y,clip_rect,text,count,font,drawmode,
                           text_transform,widths,opaque_rect,options);
+    if (count>0 || (options&2u)) pal_cursor_draw_end();
+    return result;
 }
 
 /* Legacy DDI @11 is mandatory for pre-GDI20 clients; share exactly
@@ -368,15 +440,19 @@ DWORD FAR PASCAL StrBlt(LPVOID dest, short x, short y,
                          LPVOID clip_rect, LPSTR text, short count,
                          LPVOID font, LPVOID drawmode, LPVOID text_transform)
 {
-    return pal_win16_text(dest,x,y,clip_rect,text,count,font,drawmode,
+    DWORD result;
+    if (count>0) pal_cursor_draw_begin();
+    result=pal_win16_text(dest,x,y,clip_rect,text,count,font,drawmode,
                           text_transform,0,0,0);
+    if (count>0) pal_cursor_draw_end();
+    return result;
 }
 
 /* DDK: BitBlt(dest,dx,dy,src,sx,sy,w,h,rop,brush,drawmode).
  * Same-screen keeps the existing hardware blit path. All 1/8bpp
  * memory combinations use shared software/hardware RG_Device operations.
  * Pattern-dependent ROP3 still refuses without writing. */
-BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
+static BOOL pal_win16_bitblt_impl(LPVOID dest, short dx, short dy,
                        LPVOID src, short sx, short sy,
                        short width, short height, DWORD rop,
                        LPVOID brush, LPVOID drawmode)
@@ -416,12 +492,25 @@ BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
                ? TRUE : FALSE;
 }
 
+BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
+                       LPVOID src, short sx, short sy,
+                       short width, short height, DWORD rop,
+                       LPVOID brush, LPVOID drawmode)
+{
+    BOOL result;
+    pal_cursor_draw_begin(); /* exclude from BOTH screen read and write */
+    result=pal_win16_bitblt_impl(dest,dx,dy,src,sx,sy,width,height,
+                                 rop,brush,drawmode);
+    pal_cursor_draw_end();
+    return result;
+}
+
 /* Pixel @9: DRAWMODE starts with a 16-bit Rop2. A null DRAWMODE
  * requests a read, for which the color argument is ignored.
  * The physical color for INDEX8 is the already-translated palette index.
  * All other devices must be refused before touching VRAM.
  */
-DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
+static DWORD pal_win16_pixel_impl(LPVOID dest, short x, short y,
                        DWORD physical_color, LPVOID drawmode)
 {
     PAL_U32 result;
@@ -437,6 +526,16 @@ DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
                                (PAL_U32)physical_color, rop2, &result))
         return 0x80000000UL;
     return (DWORD)result;
+}
+
+DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
+                       DWORD physical_color, LPVOID drawmode)
+{
+    DWORD result;
+    pal_cursor_draw_begin(); /* reads must omit composited mouse bits */
+    result=pal_win16_pixel_impl(dest,x,y,physical_color,drawmode);
+    pal_cursor_draw_end();
+    return result;
 }
 
 /* RealizeObject @10: Win3.x DDK, GDI-owned physical storage. Pens and
@@ -506,7 +605,7 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
  * Each polyline segment excludes its final endpoint, preventing double XOR
  * at joins. Bounds/ROP/physical objects are checked before drawing.
  */
-WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
+static WORD pal_win16_output_impl(LPVOID dest, WORD style, WORD count,
                         LPVOID points, LPVOID pen, LPVOID brush,
                         LPVOID drawmode, LPVOID cliprect)
 {
@@ -601,6 +700,21 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
              rop2, bgmode) ? 1u : (WORD)-1;
 }
 
+WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
+                        LPVOID points, LPVOID pen, LPVOID brush,
+                        LPVOID drawmode, LPVOID cliprect)
+{
+    WORD result;
+    if (style==80u || style==81u) return
+        pal_win16_output_impl(dest,style,count,points,pen,brush,drawmode,
+                               cliprect);
+    pal_cursor_draw_begin();
+    result=pal_win16_output_impl(dest,style,count,points,pen,brush,
+                                  drawmode,cliprect);
+    pal_cursor_draw_end();
+    return result;
+}
+
 /* Windows 3.x DDI: style 1 requests GDIINFO, style 0 requests
  * physical initialization. Capability discovery is safe to exercise;
  * actual enablement remains deliberately disabled until mandatory
@@ -648,6 +762,7 @@ void FAR PASCAL Disable(LPVOID physical_device)
     /* Detach the public binding before shutting the hardware down.
      * The static session and native selector context must remain valid
      * throughout RG_Hardware.close / BIOS restore. */
+    pal_cursor16_unbind(&pal_win16_cursor);
     if (pal_active_host == &pal_native_session.host) {
         pal_active_host=0;
         pal_et4k_session_stop(&pal_native_session);
@@ -684,9 +799,13 @@ WORD FAR PASCAL ScanLR(LPVOID device, short x, short y,
     if (!pal_active_host || !device) return 0x8000u;
     token = pal_ddi_far_token((PAL_U16)FP_SEG(device),
                               (PAL_U16)FP_OFF(device));
+    pal_cursor_draw_begin();
     if (!pal_screen_host_scanlr(pal_active_host, token, x, y,
-                                (PAL_U32)physical, style, &found))
+                                (PAL_U32)physical, style, &found)) {
+        pal_cursor_draw_end();
         return 0x8000u;
+    }
+    pal_cursor_draw_end();
     return (WORD)found;
 }
 
@@ -773,6 +892,8 @@ void FAR PASCAL UpdateColors(WORD x, WORD y, WORD width, WORD height,
     unsigned i;
     if (!pal_active_host || !pal_active_host->running || !src) return;
     for (i=0; i<256u; ++i) table[i] = src[i];
+    pal_cursor_draw_begin();
     (void)pal_screen_host_update_colors(pal_active_host, x, y,
                                         width, height, table);
+    pal_cursor_draw_end();
 }

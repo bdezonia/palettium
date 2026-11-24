@@ -1,0 +1,12 @@
+CC = cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude -Iwindows/win31
+.PHONY: test
+
+test: tests/exes/win31-cursor-test
+	./tests/exes/win31-cursor-test
+
+tests/exes/win31-cursor-test: tests/test_win31_cursor.c windows/win31/pal_cursor16.c windows/win31/pal_cursor16.h common/rg_cursor.c common/rgfx.c include/rg_cursor.h | tests/exes
+	$(CC) $(CFLAGS) common/rgfx.c common/rg_cursor.c windows/win31/pal_cursor16.c tests/test_win31_cursor.c -o $@
+
+tests/exes:
+	mkdir -p $@

@@ -5,27 +5,37 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0040** (incremental tags are fixed-width).
+Current development milestone: **v0041** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
-## v0040 snapshot
+## v0041 snapshot — staged Win16 mouse cursor DDI
 
-- **Two new Win16 text exports:** `StrBlt @11` and `ExtTextOut @14` use the
-  same standard raster-font path. Win16 FONTINFO decoding and FAR bounds
-  checking stay in the OS adapter, while clipped column-major glyph
-  painting uses a new **shared C89** renderer. Simple character advances,
-  extent-only queries, DRAWMODE physical colors, basic background filling
-  and 1bpp/8bpp memory/screen targets are host-tested.
-- **Cursor software core:** shared AND/XOR masks with save-under,
-  movement, clipping and restoration are host-tested; **no Win16 cursor
-  entry points are exported yet**, because interrupt-time exclusion and
-  CURSORSHAPE marshaling still require DDK validation.
-- Staging driver exports rise from 13 to **15**. Full host tests passed;
-  Open Watcom v0040 linking and real Windows runtime remain unverified.
-  **Enable(style=0) is deliberately blocked, and the driver is not
-  installable.** The stock Windows 3.1 VDD cannot be assumed compatible
-  with >256 KiB graphics; native initialization must remain guarded.
+- **New Win16 mouse cursor exports:** `Inquire @101`, `SetCursor @102`,
+  `MoveCursor @103`, and `CheckCursor @104`, for **19 NE exports** total.
+  Their Win3.x `CURSORINFO` and `CURSORSHAPE` wire ABI is validated in
+  host tests: the shape is six signed 16-bit fields followed by row-stride-4
+  AND and XOR bitmasks, bounded to 32×32 pixels. Negative hotspots are
+  accepted. Malformed/wrapping FAR input is rejected before replacing a shape.
+- **No VRAM in the mouse movement callback:** `MoveCursor` queues the
+  coordinates for `CheckCursor` to apply. Screen DDI drawing, text, pixel
+  reads, `ScanLR`, `BitBlt`, `Output` and palette-index remapping now
+  suspend the software cursor, modify or inspect *unobscured* pixels, then
+  restore it. The implementation reuses the shared C89 cursor, text and
+  pixel engines. Host tests cover moving over text, restored pixel writes,
+  clipping, and banked VRAM.
+- **IMPORTANT: Still not installable.** Native Win16 timer/mouse interrupt
+  reentrancy and critical-region synchronization are *not independently
+  validated*. A nested `MoveCursor` update can still be lost; a host test
+  cannot establish IRQ safety. Full-font support, enhanced-mode VDD
+  coordination, GDI initialization authorization and other startup
+  requirements remain. `Enable(style=0)` deliberately returns failure.
+  The Open Watcom v0041 build and 86Box Windows runtime require user tests.
+
+v0040 was validated by the maintainer on Ubuntu/Open Watcom: shared text
+renderer tests, actual `StrBlt`/`ExtTextOut` wrapper tests, shared cursor
+raster tests, and the Windows 3.1 staged NE driver all passed. All 15
+v0040 export ordinals were confirmed with `wdump`.
 
 ## What works today
 

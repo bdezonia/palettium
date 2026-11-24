@@ -24,6 +24,20 @@ PAL_U32 pal_ddi_far_token(PAL_U16 seg, PAL_U16 off)
 { (void)seg; (void)off; return 0UL; }
 int pal_screen_host_output_ready(PAL_ScreenHost *host,PAL_U32 token)
 { return host && host->running && token==host->ddi.screen_token; }
+int pal_screen_host_pixel(PAL_ScreenHost *h,PAL_U32 token,
+                          int x,int y,PAL_U32 color,unsigned rop2,
+                          PAL_U32 *result)
+{
+    rg_pixel p=0;
+    if (!h || !h->running || token!=h->ddi.screen_token || !result ||
+        !rg_get_pixel(&h->device,x,y,&p)) return 0;
+    if (rop2) {
+        if (rop2!=13u || !rg_put_pixel(&h->device,x,y,color)) return 0;
+        p=color;
+    }
+    *result=(PAL_U32)p;
+    return 1;
+}
 int pal_ddi_memory_bitmap_ok(const PAL_BITMAP16 *bitmap)
 { (void)bitmap; return 0; }
 int pal_ddi_bitmap_device(RG_Device *device,const PAL_BITMAP16 *bitmap,
@@ -51,6 +65,8 @@ static void make_font(void)
 }
 int main(void)
 {
+    unsigned char cursor_shape[76];
+    WORD mouse_info[2];
     short mode[12];
     short clip[4],opaque[4],widths[2];
     DWORD ext;
@@ -95,6 +111,35 @@ int main(void)
          (LPVOID)font_area,(LPVOID)mode,0,0,opaque,6);
     assert(ext==0x00080010UL);
     assert(pixels[3]==9 && pixels[0]==2);
+    /* Exercise the ACTUAL cursor exports against the ACTUAL text wrapper:
+     * mouse movement cannot write video memory until CheckCursor runs,
+     * and drawing behind cursor must update saved-under correctly. */
+    memset(cursor_shape,0,sizeof(cursor_shape));
+    cursor_shape[4]=8;cursor_shape[6]=8;cursor_shape[8]=4;
+    for (i=0;i<32u;++i) cursor_shape[12u+i]=0xffu;
+    cursor_shape[12]=0x7fu; /* top-left cursor pixel AND=0 */
+    assert(Inquire(mouse_info)==4u);
+    assert(mouse_info[0]==1u && mouse_info[1]==2u);
+    memset(pixels,5,sizeof(pixels));
+    pal_cursor16_bind(&pal_win16_cursor,&host.device);
+    SetCursor(cursor_shape);
+    MoveCursor(3u,0u);
+    assert(pixels[3]==5u); /* deferred, no mouse IRQ hardware write */
+    CheckCursor();
+    assert(pixels[3]==0u);
+    assert(Pixel((LPVOID)&host.pdevice,3,0,0UL,0)==5UL);
+    assert(pixels[3]==0u); /* read sees unobscured screen */
+    ext=ExtTextOut((LPVOID)&host.pdevice,0,0,clip,(LPSTR)str,2,
+         (LPVOID)font_area,(LPVOID)mode,0,0,0,0);
+    assert(ext==0x00080010UL && pixels[3]==0u);
+    assert(Pixel((LPVOID)&host.pdevice,3,0,7UL,(LPVOID)(mode))==
+           0x80000000UL); /* unsupported ROP2 must not write */
+    mode[0]=13; /* R2_COPYPEN */
+    assert(Pixel((LPVOID)&host.pdevice,3,0,7UL,(LPVOID)(mode))==7UL);
+    assert(pixels[3]==0u);
+    SetCursor(0);
+    assert(pixels[3]==7u); /* new underlying Pixel wins after restore */
+    pal_cursor16_unbind(&pal_win16_cursor);
     /* No destination/session: fail closed, never touch memory. */
     pal_active_host=0;
     ext=ExtTextOut((LPVOID)&host.pdevice,0,0,clip,(LPSTR)str,2,

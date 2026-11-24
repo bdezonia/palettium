@@ -23,6 +23,7 @@ windows/win31/pal_gdiinfo.c
 windows/win31/pal_pdevice.c
 windows/win31/pal_objects.c
 windows/win31/pal_font16.c
+windows/win31/pal_cursor16.c
 windows/win31/pal_bitmap.c
 windows/win31/pal_bitmap_device.c
 windows/win31/pal_enable.c
@@ -76,6 +77,10 @@ export GetPalette.23
 export SetPalTrans.24
 export GetPalTrans.25
 export UpdateColors.26
+export Inquire.101
+export SetCursor.102
+export MoveCursor.103
+export CheckCursor.104
 EOF_EXPORTS
 
 # Fail early if an edit duplicates the executable-format selection.
@@ -89,4 +94,4 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
 python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
 printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; cursor DDI, big fonts, enhanced-VDD and native mode authorization remain missing.'
+    'NOT INSTALLABLE: Enable(style=0) still fails; cursor interrupt safety, big fonts, enhanced-VDD and native mode authorization remain missing.'

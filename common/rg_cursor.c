@@ -41,7 +41,8 @@ int rg_cursor_shape(RG_Cursor *c,const rg_u8 *and_mask,
     unsigned y,bytes=(width+7u)/8u;
     if (!c || !and_mask || !xor_mask || !width || !height ||
         width>RG_CURSOR_MAX_WIDTH || height>RG_CURSOR_MAX_HEIGHT ||
-        hot_x<0 || hot_y<0 || hot_x>=(int)width || hot_y>=(int)height)
+        hot_x< -32768 || hot_y< -32768 ||
+        hot_x>32767 || hot_y>32767)
         return 0;
     if (c->visible) rg_cursor_hide(c);
     memset(c->and_bits,0xFF,sizeof(c->and_bits));

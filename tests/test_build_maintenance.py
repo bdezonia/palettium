@@ -21,12 +21,17 @@ def check_win16_recipe():
     assert "windows/win31/pal_font16.c" in sources
     assert "common/rg_gdi_text.c" in sources
     assert "common/rg_cursor.c" in sources
+    assert "windows/win31/pal_cursor16.c" in sources
+    for export in ("Inquire.101", "SetCursor.102", "MoveCursor.103", "CheckCursor.104"):
+        assert "export " + export in script, "missing cursor DDI " + export
     win16_entry = (ROOT / "windows/win31/palddi.c").read_text()
     assert "pal_win16_et4k_profile_plan(&plan)" in win16_entry, (
         "GDI style-1 must use configured VRAM/VDD plan")
     assert "style != 1u" in win16_entry, "stage-only Enable(style=0) gate lost"
     assert "DWORD FAR PASCAL ExtTextOut" in win16_entry
     assert "DWORD FAR PASCAL StrBlt" in win16_entry
+    assert "void FAR PASCAL MoveCursor" in win16_entry
+    assert "void FAR PASCAL CheckCursor" in win16_entry
     assert "pal_win16_install_ready()) return 0" in win16_entry, (
         "mandatory DDI installation gate removed")
     assert "pal_et4k_session_start_published(&pal_native_session" in win16_entry, (

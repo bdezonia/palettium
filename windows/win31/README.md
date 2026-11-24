@@ -1,11 +1,17 @@
-# Windows 3.1 staging display driver (v0040)
+# Windows 3.1 staging display driver (v0041)
 
-**v0040:** `StrBlt @11` and `ExtTextOut @14` are now linked into the
-staging driver, using `pal_font16.c` for bounded standard-font decoding
-and `common/rg_gdi_text.c` for shared 1bpp/8bpp glyph rendering. The
-new `rg_cursor.c` is a host-tested software cursor compositor, not yet
-connected to interrupt-time Win16 cursor entry points. **15 NE exports
-are expected, but Enable(style=0) still fails; do not install.**
+**v0041:** The existing `PALSTAGE.DRV` exports four new cursor DDIs:
+`Inquire @101`, `SetCursor @102`, `MoveCursor @103`, `CheckCursor @104`.
+Win16 `CURSORSHAPE` is decoded using its documented 12-byte header and
+32×32 two-mask format. Mouse-position updates are deferred; the rendering
+and text DDIs now exclude the software cursor around framebuffer access.
+Host tests pass, but timer/mouse-interrupt reentrancy and native critical
+regions are still unverified. A nested mouse update can be lost.
+**19 NE exports are expected. Enable(style=0) still fails; do not install.**
+
+The maintainer validated v0040 `StrBlt @11` and `ExtTextOut @14`
+under Open Watcom, including the 15-export linked Win16 driver. The shared
+cursor renderer is retained; no hardware-specific duplicate was introduced.
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:

@@ -25,6 +25,10 @@ EXPORTS
  SETPALTRANS @24
  GETPALTRANS @25
  UPDATECOLORS @26
+ INQUIRE @101
+ SETCURSOR @102
+ MOVECURSOR @103
+ CHECKCURSOR @104
 """
 assert module.parse_exports(sample) == module.EXPECTED
 assert module.parse_exports("ENABLE @1\nDISABLE @2\n") != module.EXPECTED

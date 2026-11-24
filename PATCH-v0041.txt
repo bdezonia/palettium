@@ -1,0 +1,20 @@
+Palettium v0041 — Windows 3.1 cursor DDI staging
+
+Incremental source-only overlay on v0040. Do not install PALSTAGE.DRV.
+
+New NE exports: Inquire @101, SetCursor @102, MoveCursor @103,
+CheckCursor @104; 19 total. Validated CURSORSHAPE wire decoder and
+mouse-position queue, cooperative CheckCursor, cursor exclusion for all
+current framebuffer drawing/read DDIs. Shared C89 cursor renderer reused.
+
+Adds tests/test_win31_cursor.c, Makefile.win31cursor, and wrapper tests.
+Extends negative hotspots in common cursor and export checker.
+
+CRITICAL: Native mouse/timer IRQ synchronization is NOT proven. A nested
+MoveCursor can lose a newer position. Enable(style=0) remains permanently
+disabled until an IRQ-safe implementation and other GDI/VDD startup
+requirements are validated. Host tests are not a substitute for 86Box.
+
+Apply: cd ~/dev/palettium && unzip -o ~/Downloads/pal41.zip
+Then: make clean && make test; make -f Makefile.win31cursor test;
+sh windows/win31/build-palddi.sh; wdump -x tests/exes/PALSTAGE.DRV

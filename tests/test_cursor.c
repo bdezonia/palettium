@@ -40,7 +40,10 @@ int main(void)
     assert(rg_cursor_show(&c,&d,0,0)); /* negative hot-spot origin clipped */
     rg_cursor_hide(&c);
     for (i=0;i<W*H;++i) assert(framebuffer[i]==0x55);
-    assert(!rg_cursor_shape(&c,andmask,xormask,8,8,-1,2));
+    assert(rg_cursor_shape(&c,andmask,xormask,8,8,-1,2));
+    assert(rg_cursor_show(&c,&d,0,0));
+    rg_cursor_hide(&c);
+    for (i=0;i<W*H;++i) assert(framebuffer[i]==0x55);
 
     memset(video,0x55,sizeof(video));
     io.read_byte=vr; io.write_byte=vw;

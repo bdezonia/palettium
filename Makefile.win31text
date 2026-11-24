@@ -15,5 +15,5 @@ tests/exes:
 
 # Only text export sections are retained when linking this host simulation;
 # Win16 far pointers and the real Watcom calling convention are NOT tested.
-tests/exes/win31-text-entry-test: tests/test_win31_text_entry.c common/rg_gdi_text.c windows/win31/pal_font16.c common/rgfx.c | tests/exes
-	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections -Itests/win16_stubs -Ihardware/tseng/et4000ax common/rgfx.c common/rg_gdi_text.c common/rg_gdi_blit.c windows/win31/pal_font16.c tests/test_win31_text_entry.c -Wl,--gc-sections -o $@
+tests/exes/win31-text-entry-test: tests/test_win31_text_entry.c common/rg_gdi_text.c windows/win31/pal_font16.c common/rg_cursor.c windows/win31/pal_cursor16.c common/rgfx.c | tests/exes
+	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections -Itests/win16_stubs -Ihardware/tseng/et4000ax common/rgfx.c common/rg_gdi_text.c common/rg_gdi_blit.c common/rg_cursor.c windows/win31/pal_cursor16.c windows/win31/pal_font16.c tests/test_win31_text_entry.c -Wl,--gc-sections -o $@
