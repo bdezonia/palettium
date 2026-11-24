@@ -1,0 +1,1 @@
+v0055: advertise TC_RA_ABLE (0x2000) for GDI-realized raster fonts. Keep OBJ_FONT return zero as required by DDK for drivers delegating realization to GDI. Trace dpText; expect 2001. No renderer or hardware changes. Runtime unverified. Apply over v0054. Retain locally bound VGA resources and 512 KiB Standard-mode trial settings.

@@ -43,6 +43,7 @@ typedef struct PAL_GDIINFO {
 #define PAL_RC_GDI20_OUTPUT  0x0010u
 #define PAL_RC_PALETTE       0x0100u
 #define PAL_TC_OP_CHARACTER  0x0001u
+#define PAL_TC_RA_ABLE       0x2000u
 #define PAL_CP_RECTANGLE     0x0001u
 #define PAL_LC_POLYLINE     0x0002u
 #define PAL_PC_RECTANGLE    0x0002u

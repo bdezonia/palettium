@@ -51,7 +51,8 @@ int pal_win31_make_candidate(PAL_GDIINFO *info,
     info->dpNumColors = 20;
     info->dpLines = PAL_LC_POLYLINE;
     info->dpPolygonals = PAL_PC_RECTANGLE;
-    info->dpText = PAL_TC_OP_CHARACTER;
+    /* GDI realizes standard raster fonts; advertise their support. */
+    info->dpText = PAL_TC_OP_CHARACTER | PAL_TC_RA_ABLE;
     info->dpClip = PAL_CP_RECTANGLE;
     info->dpRaster = PAL_RC_BITBLT | PAL_RC_GDI20_OUTPUT | PAL_RC_PALETTE;
     info->dpDCManage = 4;

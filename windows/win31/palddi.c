@@ -1156,6 +1156,7 @@ WORD FAR PASCAL Enable(LPVOID destination, WORD style,
     pal_boottrace_hex("GDIINFO SIZE", sizeof(candidate));
     pal_boottrace_hex("GDIINFO PDEVICE SIZE", candidate.dpDEVICEsize);
     pal_boottrace_hex("GDIINFO RASTER", candidate.dpRaster);
+    pal_boottrace_hex("GDIINFO TEXT", candidate.dpText);
     pal_boottrace_hex("GDIINFO WIDTH", candidate.dpHorzRes);
     pal_boottrace_hex("GDIINFO HEIGHT", candidate.dpVertRes);
     pal_boottrace("ENABLE1 OK");
