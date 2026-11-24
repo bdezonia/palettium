@@ -23,6 +23,15 @@ int pal_screen_host_start(PAL_ScreenHost *host, RG_Hardware *hardware,
                           unsigned width, unsigned height,
                           PAL_U32 pdevice_token);
 void pal_screen_host_stop(PAL_ScreenHost *host);
+/* Serialize the initialized private PDEVICE for the storage GDI allocated.
+ * The Win16 adapter supplies the exact far-pointer token for that storage;
+ * only an already-running host bound to the SAME token may publish it.
+ * No hardware access and no change to the live DDI binding occurs here.
+ * The adapter must separately copy these bytes to the GDI FAR buffer
+ * before exposing the host to exported drawing functions. */
+int pal_screen_host_gdi_snapshot(PAL_ScreenHost *host,
+                                  PAL_U32 gdi_far_token,
+                                  PAL_PDEVICE *image);
 int pal_screen_host_bitblt(PAL_ScreenHost *host,
                            PAL_U32 dst_token, int dx, int dy,
                            PAL_U32 src_token, int sx, int sy,

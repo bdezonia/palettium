@@ -18,6 +18,25 @@ int main(void)
     CHECK(g.dpDEVICEsize == 64);
     CHECK(g.dpRaster == 0 && g.dpPalColors == 0 && g.dpPalReserved == 0);
     CHECK(g.dpLines == 0 && g.dpText == 0 && g.dpClip == 0);
-    printf("PASS: Win31 GDIINFO 110-byte ABI, offsets, candidate builder (not installable)\n");
+    CHECK(g.dpLogPixelsX==96 && g.dpLogPixelsY==96);
+    CHECK(g.dpHorzSize==169 && g.dpVertSize==127);
+    CHECK(g.dpAspectX==100 && g.dpAspectY==100 &&
+          g.dpAspectXY==141 && g.dpStyleLen==282);
+    CHECK(g.dpMLoWin.x==254 && g.dpMLoWin.y==254 &&
+          g.dpMLoVpt.x==96 && g.dpMLoVpt.y==-96);
+    CHECK(g.dpMHiWin.x==2540 && g.dpMHiVpt.x==96 &&
+          g.dpMHiVpt.y==-96);
+    CHECK(g.dpELoWin.x==1000 && g.dpELoVpt.x==96 &&
+          g.dpELoVpt.y==-96);
+    CHECK(g.dpEHiWin.x==10000 && g.dpEHiVpt.x==96 &&
+          g.dpEHiVpt.y==-96);
+    CHECK(g.dpTwpWin.x==1440 && g.dpTwpVpt.x==96 &&
+          g.dpTwpVpt.y==-96);
+    CHECK(pal_win31_make_candidate(&g,640,400,20));
+    CHECK(g.dpHorzSize==169 && g.dpVertSize==106 &&
+          g.dpLogPixelsX==96 && g.dpDEVICEsize==20);
+    CHECK(pal_win31_make_candidate(&g,32767u,32767u,20));
+    CHECK(g.dpHorzSize>0 && g.dpVertSize>0);
+    printf("PASS: Win31 GDIINFO 110-byte ABI, offsets, mapping metrics and candidate builder (not installable)\n");
     return 0;
 }

@@ -65,6 +65,7 @@ int main(void)
     ET4K_State et;
     RG_Hardware hw;
     PAL_ScreenHost host;
+    PAL_PDEVICE gdi_image, unchanged_image;
     rg_offset a=65535UL, b=65536UL;
     PAL_U32 physical = 0, logical = 0;
     RG_Pen pen;
@@ -78,6 +79,10 @@ int main(void)
     assert(m);
     memset(&io,0,sizeof(io));
     memset(&host,0,sizeof(host));
+    memset(&gdi_image,0xA5,sizeof(gdi_image));
+    unchanged_image=gdi_image;
+    assert(!pal_screen_host_gdi_snapshot(&host,TOKEN,&gdi_image));
+    assert(memcmp(&gdi_image,&unchanged_image,sizeof(gdi_image))==0);
     io.cookie=m; io.in_port=port_in; io.out_port=port_out;
     io.mem_read=read_window; io.mem_write=write_window;
     io.set_mode=mode_set; io.restore=mode_restore;
@@ -94,6 +99,18 @@ int main(void)
     assert(pal_screen_host_start(&host,&hw,640,480,TOKEN));
     assert(!pal_screen_host_start(&host,&hw,640,480,TOKEN));
     assert(host.pdevice.state==PAL_PD_ACTIVE);
+    assert(!pal_screen_host_gdi_snapshot(&host,TOKEN+1,&gdi_image));
+    assert(!pal_screen_host_gdi_snapshot(&host,0,&gdi_image));
+    assert(memcmp(&gdi_image,&unchanged_image,sizeof(gdi_image))==0);
+    assert(pal_screen_host_gdi_snapshot(&host,TOKEN,&gdi_image));
+    assert(pal_pd_valid(&gdi_image) &&
+           memcmp(&gdi_image,&host.pdevice,sizeof(gdi_image))==0);
+    /* A corrupt private image must never reach GDI-owned storage. */
+    host.pdevice.bpp=7u;
+    unchanged_image=gdi_image;
+    assert(!pal_screen_host_gdi_snapshot(&host,TOKEN,&gdi_image));
+    assert(memcmp(&gdi_image,&unchanged_image,sizeof(gdi_image))==0);
+    host.pdevice.bpp=8u;
     assert(m->palette==80); /* exact 20 static DAC entries * 4 port writes */
     assert(m->dac[0][0]==0 && m->dac[0][1]==0 && m->dac[0][2]==0);
     assert(m->dac[9][0]==41 && m->dac[9][1]==50 && m->dac[9][2]==60);
@@ -206,6 +223,9 @@ int main(void)
            mono_bytes[2]==0xFF && mono_bytes[3]==0x00);
     assert(m->bad==0);
     pal_screen_host_stop(&host);
+    unchanged_image=gdi_image;
+    assert(!pal_screen_host_gdi_snapshot(&host,TOKEN,&gdi_image));
+    assert(memcmp(&gdi_image,&unchanged_image,sizeof(gdi_image))==0);
     assert(!pal_screen_host_output_ready(&host,TOKEN));
     assert(!pal_screen_host_scanline(&host,TOKEN,102,250,270,0,
                                       &pen,&brush,13,2));
@@ -227,6 +247,6 @@ int main(void)
     pal_screen_host_stop(&host);
     assert(m->restores==2);
     free(m);
-    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, palette, Output, mono/color banked BitBlt");
+    puts("PASS: Win31 ET4000 banked BitBlt/Pixel/ScanLR, GDI PDEVICE snapshot, palette, Output, mono/color banked BitBlt");
     return 0;
 }

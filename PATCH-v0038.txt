@@ -1,0 +1,48 @@
+Palettium v0038 — GDI-owned PDEVICE publication and screen metrics
+
+Apply over the user-validated v0037 tree:
+  cd ~/dev/palettium
+  unzip -o ~/Downloads/pal38.zip
+
+Changes:
+* Added pal_screen_host_gdi_snapshot(): a live/identity-checked, pure
+  PDEVICE image for GDI-owned storage; rejects stopped host, wrong token,
+  malformed PDEVICE and mismatched DDI without touching the hardware.
+* Win16 pal_win16_publish_host() replaces the old unchecked bind_host
+  placeholder. It computes the actual far pointer token from GDI's
+  destination, rejects 64-KiB segment overflow, copies the validated
+  20-byte PDEVICE as FAR bytes, and exposes the host only after the copy.
+  Disable refuses unrelated PDEVICE pointers. This helper is dormant.
+* The Win3.1 110-byte GDIINFO candidate now reports coherent 96-DPI
+  screen dimensions, aspect ratios and metric/English/twips scaling.
+  Unsupported capability bits remain zero; not installable.
+* Extended ET4000AX banked-screen tests for PDEVICE publication and
+  bounds, new GDIINFO metric checks, make test runs GDIINFO regression,
+  and maintenance asserts unchecked binding cannot reappear.
+
+Maintainer-validated v0037: make clean && make test, win31native,
+win31link, screen17, et4k and Open Watcom PALSTAGE.DRV link all PASS;
+wdump confirms the 13 ordinals.
+
+Safety: Enable(style=0) still unconditionally returns 0. This patch does
+not touch the native mode-set path or establish VDD compatibility. Do NOT
+install the driver or change a working VM's SYSTEM.INI.
+
+Host verification performed by assistant: make clean && make test,
+win31native, win31link, screen17, et4k, bitmap, complete Makefile suite,
+clean v0037->v0038 overlay/checksums and UTC ZIP timestamp checks.
+Open Watcom Win16 build remains to be validated on the maintainer's system.
+
+Test on the maintainer's machine:
+  cd ~/dev/palettium
+  unzip -o ~/Downloads/pal38.zip
+  make clean && make test
+  make -f Makefile.win31native test
+  make -f Makefile.win31link test
+  make -f Makefile.screen17 test
+  sh windows/win31/build-palddi.sh
+  wdump -x tests/exes/PALSTAGE.DRV
+
+Next: decide an actual enhanced-mode VDD strategy, fill the remaining
+required DDIs (cursor and text) and integrate native session ownership
+with Enable/Disable without allowing an unrecoverable Windows boot.

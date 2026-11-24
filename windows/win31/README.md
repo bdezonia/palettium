@@ -1,4 +1,4 @@
-# Windows 3.1 staging display driver (v0037)
+# Windows 3.1 staging display driver (v0038)
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -207,3 +207,22 @@ Before enabling the driver: establish the intended VDD, grabber and Win3.1
 `VDDsetaddresses` service 0Ch contract against historical DDK sources,
 then implement a verified GDI-owned PDEVICE/mode lifecycle and safe rollback.
 Do not make any in-guest `SYSTEM.INI` change to install PALSTAGE.DRV.
+
+## v0038: GDI-owned PDEVICE handoff (staging only)
+
+The host's `PAL_PDEVICE` remains an internal near-memory shadow used by
+shared C89 DDI checks. **GDI owns the actual far 20-byte PDEVICE buffer**;
+it is not correct to cast its far pointer to a near C pointer. The helper
+`pal_screen_host_gdi_snapshot` accepts only the exact identity token from an
+initialized, running host, and makes a validated copy without hardware I/O.
+`pal_win16_publish_host` checks the far buffer's 64 KiB boundary, marshals
+those bytes and binds the existing DDI host only after the copy. A mismatched
+`Disable` token cannot unbind it. The helper is intentionally **not called
+from `Enable`** while cursor/text, GDI capability flags and enhanced-mode VDD
+cooperation are unfinished. Do not install PALSTAGE.DRV.
+
+v0038 also populates conservative standard Win3.x GDIINFO screen metrics:
+96 DPI, rounded millimeter extents, 100:100:141 aspect, styled-line
+length 282, and consistent one-inch metric/English/twips mapping ratios.
+These are candidate-only fields; no device-bitmap, text or palette
+capability bits are advertised by the placeholder record.

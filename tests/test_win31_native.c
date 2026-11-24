@@ -83,6 +83,7 @@ static void exercise(Mock *m, unsigned long bytes, unsigned height)
 {
     PAL_ET4KSession session;
     PAL_GDIINFO candidate;
+    PAL_PDEVICE gdi_image;
     PAL_U32 result;
     ET4K_Port io=make_port(m);
     unsigned before=m->attempted, old_restores=m->restored;
@@ -95,6 +96,12 @@ static void exercise(Mock *m, unsigned long bytes, unsigned height)
     CHECK(pal_et4k_session_start(&session,io,bytes,TOKEN));
     CHECK(m->attempted==before+1 && m->last_height==height);
     CHECK(session.host.running && session.host.pdevice.height==height);
+    memset(&gdi_image,0xA5,sizeof(gdi_image));
+    CHECK(!pal_screen_host_gdi_snapshot(&session.host,TOKEN+1,&gdi_image));
+    CHECK(gdi_image.type==0xA5A5u);
+    CHECK(pal_screen_host_gdi_snapshot(&session.host,TOKEN,&gdi_image));
+    CHECK(gdi_image.height==height && gdi_image.width==640u &&
+          gdi_image.pitch==640u && gdi_image.state==PAL_PD_ACTIVE);
     CHECK(session.host.device.surface.capacity==bytes);
     CHECK(!pal_et4k_session_start(&session,io,bytes,TOKEN));
     result=0;
@@ -104,6 +111,7 @@ static void exercise(Mock *m, unsigned long bytes, unsigned height)
     CHECK(session.card.mode_attempted);
     pal_et4k_session_stop(&session);
     CHECK(!session.host.running && !session.card.mode_attempted);
+    CHECK(!pal_screen_host_gdi_snapshot(&session.host,TOKEN,&gdi_image));
     CHECK(m->restored==old_restores+1);
     pal_et4k_session_stop(&session);
     CHECK(m->restored==old_restores+1 && m->bad==0);

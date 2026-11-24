@@ -32,12 +32,35 @@
 
 static PAL_ScreenHost *pal_active_host = 0;
 
-/* Used only by a future verified Enable/Disable implementation, not exported.
- * Never hand out a bound host until video mode and PDEVICE setup succeed.
- */
-void FAR PASCAL pal_win16_bind_host(PAL_ScreenHost *host)
+/* Staged GDI-owned PDEVICE handoff, NOT used by Enable(style=0) yet.
+ * GDI allocates a far PDEVICE according to GDIINFO.dpDEVICEsize. The
+ * framebuffer session remains in persistent driver storage; only the
+ * 20-byte wire PDEVICE is copied into GDI's buffer. Never cast the GDI
+ * FAR address to a near PAL_PDEVICE pointer, and never bind an unverified
+ * host or a token not identical to the destination address.
+ *
+ * A future verified style=0 initializer will call this only AFTER BIOS,
+ * VDD and framebuffer setup complete, and arrange session shutdown in
+ * Disable. No video mode change or registration occurs in this helper. */
+int FAR PASCAL pal_win16_publish_host(PAL_ScreenHost *host,
+                                      LPVOID gdi_pdevice)
 {
-    pal_active_host = host;
+    PAL_PDEVICE image;
+    PAL_U32 token;
+    const unsigned char *source;
+    unsigned char FAR *target;
+    unsigned i;
+    if (pal_active_host || !gdi_pdevice ||
+        (PAL_U32)(PAL_U16)FP_OFF(gdi_pdevice) +
+        (PAL_U32)sizeof(image) > 65536UL) return 0;
+    token=pal_ddi_far_token((PAL_U16)FP_SEG(gdi_pdevice),
+                            (PAL_U16)FP_OFF(gdi_pdevice));
+    if (!pal_screen_host_gdi_snapshot(host,token,&image)) return 0;
+    source=(const unsigned char *)&image;
+    target=(unsigned char FAR *)gdi_pdevice;
+    for (i=0; i<sizeof(image); ++i) target[i]=source[i];
+    pal_active_host=host;
+    return 1;
 }
 
 /* GDI memory bitmap operands are segmented FAR BITMAP16 headers. Decode
@@ -378,8 +401,15 @@ WORD FAR PASCAL Enable(LPVOID destination, WORD style,
 
 void FAR PASCAL Disable(LPVOID physical_device)
 {
-    (void)physical_device;
-    pal_active_host = 0;
+    PAL_U32 token;
+    /* An unrelated PDEVICE may not remove a binding. The eventual
+     * installed driver must also close its owning hardware session here.
+     * No session is installed by PALSTAGE today. */
+    if (!pal_active_host || !physical_device) return;
+    token=pal_ddi_far_token((PAL_U16)FP_SEG(physical_device),
+                            (PAL_U16)FP_OFF(physical_device));
+    if (token != pal_active_host->ddi.screen_token) return;
+    pal_active_host=0;
 }
 
 /* ColorInfo @2: GDI passes a logical COLORREF (0x00BBGGRR) or an

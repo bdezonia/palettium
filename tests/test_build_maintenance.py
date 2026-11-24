@@ -22,6 +22,9 @@ def check_win16_recipe():
     assert "pal_win16_et4k_profile_plan(&plan)" in win16_entry, (
         "GDI style-1 must use configured VRAM/VDD plan")
     assert "style != 1u" in win16_entry, "stage-only Enable(style=0) gate lost"
+    assert "pal_win16_publish_host" in win16_entry and \
+           "pal_screen_host_gdi_snapshot(host,token,&image)" in win16_entry, (           "Win16 GDI-owned PDEVICE must publish through checked snapshot")
+    assert "pal_win16_bind_host" not in win16_entry, (           "unchecked device host binding must not be restored")
     adapter = (ROOT / "windows/win31/pal_et4k_win16.c").read_text()
     assert 'GetPrivateProfileInt("Palettium","VRAMKiB"' in adapter
     assert 'GetWinFlags() & 0x0020u' in adapter, (

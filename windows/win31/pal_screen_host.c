@@ -64,6 +64,16 @@ void pal_screen_host_stop(PAL_ScreenHost *host)
     host->running = 0;
 }
 
+int pal_screen_host_gdi_snapshot(PAL_ScreenHost *host,
+                                  PAL_U32 gdi_far_token,
+                                  PAL_PDEVICE *image)
+{
+    if (!image || !pal_screen_host_output_ready(host,gdi_far_token) ||
+        !pal_pd_layout_ok()) return 0;
+    *image=host->pdevice;
+    return 1;
+}
+
 int pal_screen_host_bitblt(PAL_ScreenHost *host,
                            PAL_U32 dst_token, int dx, int dy,
                            PAL_U32 src_token, int sx, int sy,

@@ -5,7 +5,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0037** (incremental tags are fixed-width).
+Current development milestone: **v0038** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
@@ -178,6 +178,22 @@ driver**. Palettium is *not* yet an installable driver package.
   Enhanced mode unless an actual VDD coordination path is developed.
   **`Enable(style=0)` still fails; do not install PALSTAGE.DRV.**
 
+- **v0038 (host-tested; Open Watcom validation pending):** the Win16
+  adapter now has an opt-in, **dormant GDI-owned PDEVICE publication** step.
+  Only a fully started screen host matching the caller's exact segment:offset
+  token may produce the 20-byte physical-device image. The Win16 adapter
+  checks that the GDI-allocated destination does not cross a 64 KiB segment
+  boundary, copies the image as far bytes, and only then binds drawing.
+  `Disable` refuses unrelated PDEVICE tokens. This does **not** initialize
+  the ET4000AX in the exported `Enable(style=0)` path (still blocked).
+  The 110-byte GDIINFO candidate also has coherent 96-DPI mapping metrics,
+  integer physical dimensions, and default square-pixel aspects; **drawing,
+  bitmap, palette and font capability flags remain zero** until startup is
+  operational and those promises can be honored. Core and ET4000AX mock
+  tests cover publication success/failure, stale/mismatched devices and
+  standard metric transforms. The card-specific hardware/backend and shared
+  C89 rendering remain unchanged.
+
 ## Architecture
 
 | Layer | Location | Responsibility |
@@ -235,7 +251,7 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0036 retains
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0038 retains
 **13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
 The 13-export **v0029** build passed on the maintainer's Open Watcom
