@@ -1,0 +1,2 @@
+Palettium v0051 — trial gate telemetry (apply over v0050)
+Records actual GetWinFlags and SYSTEM.INI profile integer values in hex before the unchanged authorization decision. Expected VRAM=0100 KEY=1131. No new API calls, no changes to stage authorization, resources, renderer or hardware. Rebuild traced PALTRIAL and repeat v0050 resource binding to PALRES before installing. Host full suite and Watcom/guest runtime remain untested here.

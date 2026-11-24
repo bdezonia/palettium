@@ -231,12 +231,24 @@ void FAR PASCAL CheckCursor(void)
 static int pal_win16_install_ready(void)
 {
 #ifdef PAL_WIN31_TRIAL_MODE
-    int allowed=pal_win31_trial_permitted(
-        (unsigned long)GetWinFlags(),
-        (unsigned)GetPrivateProfileInt("Palettium","VRAMKiB",0,
-                                       "SYSTEM.INI"),
-        (unsigned)GetPrivateProfileInt("Palettium","TrialEnable",0,
-                                       "SYSTEM.INI"));
+    unsigned long flags=(unsigned long)GetWinFlags();
+    unsigned vram=(unsigned)GetPrivateProfileInt("Palettium","VRAMKiB",0,
+                                                "SYSTEM.INI");
+    unsigned key=(unsigned)GetPrivateProfileInt("Palettium","TrialEnable",0,
+                                               "SYSTEM.INI");
+    int allowed=pal_win31_trial_permitted(flags,vram,key);
+#ifdef PAL_WIN31_BOOTTRACE
+    char msg[]="GATE FLAGS=00000000 VRAM=0000 KEY=0000";
+    static const char hex[]="0123456789ABCDEF";
+    unsigned i;
+    for (i=0;i<8u;++i)
+        msg[18u-i]=hex[(unsigned)(flags >> (4u*i)) & 15u];
+    for (i=0;i<4u;++i) {
+        msg[28u-i]=hex[(vram >> (4u*i)) & 15u];
+        msg[37u-i]=hex[(key >> (4u*i)) & 15u];
+    }
+    pal_boottrace(msg);
+#endif
     pal_boottrace(allowed ? "GATE OK" : "GATE BLOCKED");
     return allowed;
 #else
