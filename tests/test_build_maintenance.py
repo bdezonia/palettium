@@ -24,6 +24,11 @@ def check_win16_recipe():
     assert "windows/win31/pal_cursor16.c" in sources
     for export in ("Inquire.101", "SetCursor.102", "MoveCursor.103", "CheckCursor.104"):
         assert "export " + export in script, "missing cursor DDI " + export
+    assert (ROOT / "windows/win31/build-paltrial.sh").is_file()
+    assert 'TRIAL_OPTION=-dPAL_WIN31_TRIAL_MODE' in script
+    assert '"name tests/exes/$NAME.DRV"' in script
+    assert 'wdump -x "$OUTPUT" > "tests/exes/$NAME.exports.txt"' in script
+    assert 'NAME=PALSTAGE' in script and 'NAME=PALTRIAL' in script
     win16_entry = (ROOT / "windows/win31/palddi.c").read_text()
     assert "pal_win16_et4k_profile_plan(&plan)" in win16_entry, (
         "GDI style-1 must use configured VRAM/VDD plan")
@@ -34,6 +39,11 @@ def check_win16_recipe():
     assert "void FAR PASCAL CheckCursor" in win16_entry
     assert "pal_win16_install_ready()) return 0" in win16_entry, (
         "mandatory DDI installation gate removed")
+    assert '#ifdef PAL_WIN31_TRIAL_MODE' in win16_entry
+    assert 'pal_win31_trial_permitted(' in win16_entry
+    assert '"TrialEnable",0' in win16_entry and '"VRAMKiB",0' in win16_entry
+    assert 'windows/win31/pal_trial_gate.c' in sources
+    assert '#else\n    return 0;\n#endif' in win16_entry
     assert "pal_et4k_session_start_published(&pal_native_session" in win16_entry, (
         "native transaction no longer integrated into Win16 Enable path")
     assert "pal_et4k_session_stop(&pal_native_session)" in win16_entry, (

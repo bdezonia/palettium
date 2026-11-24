@@ -1,6 +1,7 @@
 #!/bin/sh
 # Build the Windows 3.1 staging display-driver module.
-# This is NOT an installable display driver: Enable(style=0) fails.
+# PALSTAGE: ALWAYS rejects style=0. PALTRIAL: explicit Standard-mode boot
+# experiment only; DO NOT deploy without a disposable VM and DOS recovery.
 set -eu
 cd "$(dirname "$0")/../.."
 command -v wcc >/dev/null
@@ -24,6 +25,7 @@ windows/win31/pal_pdevice.c
 windows/win31/pal_objects.c
 windows/win31/pal_font16.c
 windows/win31/pal_cursor16.c
+windows/win31/pal_trial_gate.c
 windows/win31/pal_bitmap.c
 windows/win31/pal_bitmap_device.c
 windows/win31/pal_enable.c
@@ -36,15 +38,22 @@ windows/win31/pal_ddl_blit.c
 windows/win31/palddi.c
 windows/win31/pal_driver_entry.c'
 
-LINKFILE=tests/exes/PALSTAGE.generated.lnk
-OUTPUT=tests/exes/PALSTAGE.DRV
-rm -f "$LINKFILE" "$OUTPUT" tests/exes/PALSTAGE.exports.txt
+if [ "${PAL_TRIAL_BUILD:-0}" = 1 ]; then
+    NAME=PALTRIAL
+    TRIAL_OPTION=-dPAL_WIN31_TRIAL_MODE
+else
+    NAME=PALSTAGE
+    TRIAL_OPTION=
+fi
+LINKFILE="tests/exes/$NAME.generated.lnk"
+OUTPUT="tests/exes/$NAME.DRV"
+rm -f "$LINKFILE" "$OUTPUT" "tests/exes/$NAME.exports.txt"
 
 # Generate ONE complete linker recipe.  Do not feed wlink a file generated
 # through wcl -fd: the previous script duplicated its SYSTEM block.
 {
     printf '%s\n' 'option quiet' 'system windows_dll' \
-        'name tests/exes/PALSTAGE.DRV' 'option modname=PALSTAGE'
+        "name tests/exes/$NAME.DRV" "option modname=$NAME"
 } > "$LINKFILE"
 
 for source in $SOURCES; do
@@ -53,7 +62,7 @@ for source in $SOURCES; do
     echo "Win16 C: $source"
     # Session and Win16 platform adapter both include et4k.h.  The
     # ET4000AX implementation also MUST be in SOURCES so it can link.
-    wcc -bt=windows -mc -bd -zu -zq -i=include -i=windows/win31 \
+    wcc -bt=windows -mc -bd -zu -zq $TRIAL_OPTION -i=include -i=windows/win31 \
         -i=hardware/tseng/et4000ax \
         -fo="$obj" "$source"
     test -s "$obj"
@@ -91,7 +100,12 @@ EOF_EXPORTS
 
 wlink @"$LINKFILE"
 test -s "$OUTPUT"
-wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
-python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
-printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; Win16 IRQ runtime, fonts, enhanced-VDD and mode authorization remain unverified.'
+wdump -x "$OUTPUT" > "tests/exes/$NAME.exports.txt"
+python3 tools/check_win31_exports.py "tests/exes/$NAME.exports.txt"
+if [ "$NAME" = PALTRIAL ]; then
+    printf '%s\n' 'PASS: linked PALTRIAL.DRV (experimental 256KiB Standard-mode GDI boot ONLY).' \
+        'WARNING: unverified Windows runtime. Use snapshot and DOS recovery; no enhanced mode.'
+else
+    printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
+        'NOT INSTALLABLE: Enable(style=0) ALWAYS fails in default build.'
+fi

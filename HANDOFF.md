@@ -1,3 +1,101 @@
+# Palettium v0044 — first separately gated Win3.1 Standard-mode display boot
+
+**Baseline:** Maintainer compiled v0043 successfully without warnings and
+reported that PALLOAD's Windows 3.1 tests all appeared to run fine. The
+individual dialog texts were not captured. GDI-owned style=0, mode changes,
+mouse IRQ and text during live GDI startup remain UNTESTED.
+
+## v0044 changes
+
+- Corrected GDIINFO's previously all-zero capabilities for the existing
+  software DDI: reported BitBlt, Win2-compatible text output, palette
+  services, restricted basic polyline/rectangle, clipping, 20 static system
+  colors, 256 palette entries, 18-bit DAC and dpDCManage=4. Still **not**
+  claiming device-dependent bitmaps, DIB support, scaling, >64K fonts,
+  or arbitrary paths. These values follow the Win3.x DDK, not Win32 GDIINFO.
+- Normal `PALSTAGE.DRV` continues to *unconditionally refuse* Enable(style=0).
+- Added a portable C89 Standard-mode/VRAM/key authorization predicate with
+  exhaustive low-bit and negative tests.
+- Added **separate** PALTRIAL.DRV variant: exactly the same 19 DDIs and shared
+  engine, except Enable(style=0) is permitted **only if** WinFlags includes
+  WF_PMODE | WF_STANDARD and *not* WF_ENHANCED, and SYSTEM.INI
+  `[Palettium] VRAMKiB=256` and `TrialEnable=4401` are both set. The
+  existing transaction then chooses ET4000AX BIOS 640x400x8 (2Fh), verifies
+  readback, starts banked framebuffer, initializes static palette, copies a
+  20-byte GDI-owned PDEVICE, and binds DDIs; Disable restores original mode.
+  This is an **unverified boot experiment**, not production-ready.
+- Diagnostic PALLOAD.EXE is unaffected: it still loads only PALSTAGE.DRV
+  and never calls style=0.
+
+## Build
+
+```
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal44.zip
+make clean && make test
+make -f Makefile.gdiinfo test
+make -f Makefile.win31trial test
+sh windows/win31/build-palddi.sh
+sh windows/win31/build-paltrial.sh
+sh windows/win31/build-palload.sh
+wdump -x tests/exes/PALTRIAL.DRV
+```
+
+## Controlled first boot — disposable 86Box clone ONLY
+
+Do NOT test on a real machine or your only bootable VM. First ensure the
+86Box snapshot/clone and its DOS boot are recoverable. While the existing
+VGA desktop is still working, copy `PALTRIAL.DRV` into `C:\WINDOWS\SYSTEM`.
+Exit Windows fully to DOS. Before edits:
+
+```
+cd \WINDOWS
+copy SYSTEM.INI SYSVGA.BAK
+```
+
+Edit SYSTEM.INI using a DOS text editor (not an active Windows session):
+
+```
+[boot]
+display.drv=PALTRIAL.DRV
+
+[Palettium]
+VRAMKiB=256
+TrialEnable=4401
+```
+
+**Change only the `display.drv` value in an existing [boot] section.**
+Keep the rest of SYSTEM.INI and existing [386Enh] settings unchanged. The
+86Box ET4000AX device must be configured to **256 KiB** (not merely an
+INI guess). From DOS start `WIN /S` to force Windows 3.1 **Standard mode**.
+Never `WIN /3` and never boot this trial in enhanced mode.
+
+A black screen, partial desktop, fault, missing fonts, palette errors or
+freeze all count as useful FAILURES, not a reason to keep running. Observe
+whether the BIOS mode changes to 640x400x256 and whether any Windows desktop
+pixels appear. The native mouse ISR and larger fonts are not fully proven.
+
+## DOS recovery (even if Windows fails to start)
+
+Power off/revert your 86Box snapshot or boot DOS *without starting Windows*.
+At DOS prompt:
+
+```
+cd \WINDOWS
+copy SYSVGA.BAK SYSTEM.INI
+```
+
+If Windows was installed elsewhere, use that directory. The backup is the
+whole original SYSTEM.INI; this reverses the display selection and all trial
+keys. If even DOS cannot boot, revert the 86Box disk snapshot. Never rely on
+mouse/keyboard controls inside a potentially failed Windows session.
+
+**Boundary:** Test validates an experimental boot attempt, not a working
+or correct driver; palette translations, large fonts, VDD/standard-mode
+switching semantics, Win16 IRQ timing and restore/resume need real VM evidence.
+
+---
+
 # Palettium v0043 handoff — first real Win3.1 NE driver load probe
 
 ## Maintainer-confirmed baseline: v0042 (Nov 24 2026)

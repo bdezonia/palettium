@@ -16,8 +16,13 @@ int main(void)
     CHECK(g.dpHorzRes == 640 && g.dpVertRes == 480);
     CHECK(g.dpBitsPixel == 8 && g.dpPlanes == 1);
     CHECK(g.dpDEVICEsize == 64);
-    CHECK(g.dpRaster == 0 && g.dpPalColors == 0 && g.dpPalReserved == 0);
-    CHECK(g.dpLines == 0 && g.dpText == 0 && g.dpClip == 0);
+    CHECK(g.dpRaster==(PAL_RC_BITBLT | PAL_RC_GDI20_OUTPUT | PAL_RC_PALETTE));
+    CHECK(g.dpNumBrushes==20 && g.dpNumPens==20 && g.dpNumColors==20);
+    CHECK(g.dpNumFonts==0 && g.dpDCManage==4);
+    CHECK(g.dpPalColors==256 && g.dpPalReserved==20 && g.dpPalResolution==18);
+    CHECK(g.dpLines==PAL_LC_POLYLINE && g.dpPolygonals==PAL_PC_RECTANGLE);
+    CHECK(g.dpText==PAL_TC_OP_CHARACTER && g.dpClip==PAL_CP_RECTANGLE);
+    CHECK(!(g.dpRaster&0x8000u)); /* no RC_DEVBITS */
     CHECK(g.dpLogPixelsX==96 && g.dpLogPixelsY==96);
     CHECK(g.dpHorzSize==169 && g.dpVertSize==127);
     CHECK(g.dpAspectX==100 && g.dpAspectY==100 &&

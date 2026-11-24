@@ -35,9 +35,18 @@ typedef struct PAL_GDIINFO {
 #define PAL_GDIINFO_BYTES 110u
 #define PAL_WIN31_GDI_VERSION 0x030Au
 
-/* Only a *candidate* capability record. It must not be returned by Enable
- * until a complete display DDI implementation exists. The builder does
- * not claim palette management or any drawing capabilities. */
+/* Capability record for a staging 8bpp INDEX8 driver. The module does not
+ * become installable solely because GDIINFO is coherent; live startup is
+ * separately gated and may fail for unsupported bitmaps, fonts or hardware.
+ * Do not set RC_DEVBITS/RC_STRETCHBLT until the matching DDIs exist. */
+#define PAL_RC_BITBLT        0x0001u
+#define PAL_RC_GDI20_OUTPUT  0x0010u
+#define PAL_RC_PALETTE       0x0100u
+#define PAL_TC_OP_CHARACTER  0x0001u
+#define PAL_CP_RECTANGLE     0x0001u
+#define PAL_LC_POLYLINE     0x0002u
+#define PAL_PC_RECTANGLE    0x0002u
+
 int pal_win31_make_candidate(PAL_GDIINFO *info,
                              unsigned width, unsigned height,
                              unsigned pdevice_bytes);

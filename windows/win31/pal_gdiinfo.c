@@ -38,6 +38,26 @@ int pal_win31_make_candidate(PAL_GDIINFO *info,
     info->dpBitsPixel = 8;
     info->dpPlanes = 1;
     info->dpDEVICEsize = (PAL_U16)pdevice_bytes;
+    /* Win3.1 GDI derives calling conventions, palette services and output
+     * simulation from these fields; zeroes here prevent a real desktop.
+     * 20 colors = reserved physical system colors on palette devices.
+     * No RC_DEVBITS (GDI must not expect RealizeObject(OBJ_PBITMAP)) and no
+     * RC_STRETCHBLT or RC_DI_BITMAP (corresponding DDIs not implemented).
+     * The limited BitBlt implementation may refuse unsupported pattern ROPs
+     * so that GDI can simulate them using the primitives we do provide. */
+    info->dpNumBrushes = 20;
+    info->dpNumPens = 20;
+    info->dpNumFonts = 0;
+    info->dpNumColors = 20;
+    info->dpLines = PAL_LC_POLYLINE;
+    info->dpPolygonals = PAL_PC_RECTANGLE;
+    info->dpText = PAL_TC_OP_CHARACTER;
+    info->dpClip = PAL_CP_RECTANGLE;
+    info->dpRaster = PAL_RC_BITBLT | PAL_RC_GDI20_OUTPUT | PAL_RC_PALETTE;
+    info->dpDCManage = 4;
+    info->dpPalColors = 256;
+    info->dpPalReserved = 20;
+    info->dpPalResolution = 18;
     /* Windows 3.1 DDK: supply coherent standard screen mapping metrics.
      * 96 logical pixels per inch is the conventional VGA font scale.
      * Integer rounded physical dimensions are descriptive only; these
@@ -64,8 +84,7 @@ int pal_win31_make_candidate(PAL_GDIINFO *info,
     info->dpMLoVpt.y = info->dpMHiVpt.y = -96;
     info->dpELoVpt.y = info->dpEHiVpt.y = -96;
     info->dpTwpVpt.y = -96;
-    /* Physical dimensions and mapping metrics need DDK/sample calibration.
-     * Keep capability bits, palette support and drawing claims at zero.
-     * NOT valid as an operational display-driver GDIINFO yet. */
+    /* GDIINFO matches implemented software operations, but Win16 startup
+     * remains a separate experimental step: no DIB/large-font claims. */
     return 1;
 }

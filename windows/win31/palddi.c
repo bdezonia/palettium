@@ -47,6 +47,7 @@
 #include "rg_gdi_text.h"
 #include "pal_font16.h"
 #include "pal_cursor16.h"
+#include "pal_trial_gate.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
 /* Persistent storage: GDI owns only the published 20-byte PDEVICE. */
@@ -103,8 +104,8 @@ int FAR PASCAL pal_win16_publish_host(PAL_ScreenHost *host,
 /* Complete hardware setup -> validated PDEVICE copy -> DDI binding as
  * one transaction. Publication is the sole exposure of the live host.
  * The portable coordinator rolls back hardware if this copy fails.
- * This path is deliberately gated OFF in Enable: the driver still lacks
- * mandatory text and cursor services, and no VDD has been validated. */
+ * This path is gated OFF in PALSTAGE. PALTRIAL may opt in under Standard
+ * mode alone; Windows real-world GDI, font and IRQ behavior is unproven. */
 typedef struct PAL_Win16Commit {
     LPVOID gdi_far_destination;
 } PAL_Win16Commit;
@@ -186,12 +187,23 @@ void FAR PASCAL CheckCursor(void)
     pal_cursor16_check(&pal_win16_cursor);
 }
 
-/* Mouse cursor DDIs and cursor exclusion are now staged and host-tested,
- * but native mouse-interrupt criticality, VDD, and full font coverage remain
- * unverified. Do NOT open the installation gate for nominal exports. */
+/* ONLY the separately named PALTRIAL.DRV build may request a first GDI
+ * boot in a disposable 86Box guest. Default PALSTAGE.DRV always refuses.
+ * Require BOTH the explicit trial key and actual Windows Standard mode,
+ * plus exact 256 KiB configured VRAM; no enhanced-mode VDD paths permitted.
+ * This is an experimental boot gate, NOT a claim of driver correctness. */
 static int pal_win16_install_ready(void)
 {
+#ifdef PAL_WIN31_TRIAL_MODE
+    return pal_win31_trial_permitted(
+        (unsigned long)GetWinFlags(),
+        (unsigned)GetPrivateProfileInt("Palettium","VRAMKiB",0,
+                                       "SYSTEM.INI"),
+        (unsigned)GetPrivateProfileInt("Palettium","TrialEnable",0,
+                                       "SYSTEM.INI"));
+#else
     return 0;
+#endif
 }
 
 /* GDI memory bitmap operands are segmented FAR BITMAP16 headers. Decode
@@ -715,11 +727,9 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
     return result;
 }
 
-/* Windows 3.x DDI: style 1 requests GDIINFO, style 0 requests
- * physical initialization. Capability discovery is safe to exercise;
- * actual enablement remains deliberately disabled until mandatory
- * GDI services and enhanced-mode switching are implemented.
- */
+/* Windows 3.x DDI: style 1 requests GDIINFO, style 0 requests physical
+ * initialization. Production staging build ALWAYS rejects style 0; only an
+ * opt-in trial build, in Standard mode, may enter the native transaction. */
 WORD FAR PASCAL Enable(LPVOID destination, WORD style,
                        LPSTR device_type, LPSTR output_file, LPVOID data)
 {

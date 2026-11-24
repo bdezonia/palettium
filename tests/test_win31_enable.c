@@ -14,7 +14,8 @@ int main(void)
     assert(info.dpHorzRes == 640 && info.dpVertRes == 480);
     assert(info.dpBitsPixel == 8 && info.dpPlanes == 1);
     assert(info.dpDEVICEsize == sizeof(PAL_PDEVICE));
-    assert(info.dpRaster == 0 && info.dpPalColors == 0);
+    assert(info.dpRaster==(PAL_RC_BITBLT|PAL_RC_GDI20_OUTPUT|PAL_RC_PALETTE));
+    assert(info.dpPalColors == 256 && info.dpPalReserved == 20);
     before = info;
     assert(!pal_enable_capability(0, 640, 480));
     assert(!pal_enable_capability(&info, 0, 480));

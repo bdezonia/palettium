@@ -1,0 +1,14 @@
+CC ?= cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iwindows/win31
+.PHONY: test
+all: tests/exes/win31-trial-test
+tests/exes/win31-trial-test: windows/win31/pal_trial_gate.c windows/win31/pal_trial_gate.h tests/test_win31_trial.c | tests/exes
+	$(CC) $(CFLAGS) windows/win31/pal_trial_gate.c tests/test_win31_trial.c -o $@
+tests/exes:
+	mkdir -p $@
+test: all
+	./tests/exes/win31-trial-test
+	$(CC) -std=c89 -fsyntax-only -Werror -DPAL_WIN31_TRIAL_MODE \
+		-Itests/win16_stubs -Iinclude -Iwindows/win31 \
+		-Ihardware/tseng/et4000ax \
+		-include tests/win16_stubs/driver_syntax.h windows/win31/palddi.c

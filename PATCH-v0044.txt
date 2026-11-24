@@ -1,0 +1,7 @@
+v0044 incremental patch over validated v0043.
+- Corrects Win3.x GDIINFO capability descriptors for existing drawing/text/palette.
+- Adds separately built, explicitly gated PALTRIAL.DRV for disposable 86Box
+  Windows 3.1 Standard-mode 256KiB ET4000AX first-display boot experiments.
+- Default PALSTAGE.DRV remains fail-closed; PALLOAD remains non-destructive.
+- Comprehensive host tests and build guard; README/HANDOFF recovery directions.
+UNVERIFIED: Open Watcom trial build and any actual Windows GDI boot.

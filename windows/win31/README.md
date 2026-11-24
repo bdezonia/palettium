@@ -1,3 +1,14 @@
+## v0044: opt-in Standard-mode boot experiment (86Box clone only)
+
+A separate `PALTRIAL.DRV` can be built with `sh windows/win31/build-paltrial.sh`.
+Its `Enable(style=0)` is gated on Win3.1 Standard mode, 256KiB ET4000AX and
+explicit `[Palettium] TrialEnable=4401`; default PALSTAGE.DRV always refuses.
+GDIINFO now describes the minimal implemented drawing, font and palette
+capabilities instead of advertising all zero. PALTRIAL is an **untested
+experimental driver**, not a stable installer. See HANDOFF.md for precise
+DOS backup, `WIN /S` and recovery steps. Do not run PALTRIAL in your ordinary
+Windows configuration.
+
 # Windows 3.1 staging display driver (v0042)
 
 
