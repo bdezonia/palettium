@@ -1,4 +1,11 @@
-# Windows 3.1 staging display driver (v0039)
+# Windows 3.1 staging display driver (v0040)
+
+**v0040:** `StrBlt @11` and `ExtTextOut @14` are now linked into the
+staging driver, using `pal_font16.c` for bounded standard-font decoding
+and `common/rg_gdi_text.c` for shared 1bpp/8bpp glyph rendering. The
+new `rg_cursor.c` is a host-tested software cursor compositor, not yet
+connected to interrupt-time Win16 cursor entry points. **15 NE exports
+are expected, but Enable(style=0) still fails; do not install.**
 
 `palddi.c` is the stable Win16 DDI entry-point file. `build-palddi.sh` builds
 the current `PALSTAGE.DRV` NE module with Open Watcom from the repository root:
@@ -27,7 +34,7 @@ See `README.md` in the project root for test commands and architecture.
 `Enable(style=1)` returns a candidate GDIINFO with zero advertised drawing or
 palette capability bits. The palette and output machinery is only reachable in an *already running*
 screen host. The Win16 ET4000AX mode initialization, active GDI PDEVICE,
-huge/multiplane memory bitmaps, patterned brushes, text, cursor and window
+huge/multiplane memory bitmaps, patterned brushes, complete text support, cursor DDIs and window
 switch paths remain unfinished. v0029 passed Open Watcom; v0030 failed while compiling `pal_et4k_session.c` because the ET4K include directory was absent. v0031 fixes this include path and adds the ET4K backend to the Win16 link list; the maintainer confirmed the v0031 Win16 build and all 13 exports. Never select PALSTAGE.DRV
 in SYSTEM.INI.
 

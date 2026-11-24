@@ -13,6 +13,8 @@ common/rg_hardware.c
 common/rg_palette.c
 common/rg_objects.c
 common/rg_gdi_output.c
+common/rg_gdi_text.c
+common/rg_cursor.c
 common/rg_gdi_rop.c
 common/rg_gdi_blit.c
 common/rg_win31_screen.c
@@ -20,6 +22,7 @@ hardware/tseng/et4000ax/et4k.c
 windows/win31/pal_gdiinfo.c
 windows/win31/pal_pdevice.c
 windows/win31/pal_objects.c
+windows/win31/pal_font16.c
 windows/win31/pal_bitmap.c
 windows/win31/pal_bitmap_device.c
 windows/win31/pal_enable.c
@@ -65,7 +68,9 @@ export Enable.5
 export Output.8
 export Pixel.9
 export RealizeObject.10
+export StrBlt.11
 export ScanLR.12
+export ExtTextOut.14
 export SetPalette.22
 export GetPalette.23
 export SetPalTrans.24
@@ -84,4 +89,4 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
 python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
 printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; text, cursor, huge bitmaps and native mode initialization remain missing.'
+    'NOT INSTALLABLE: Enable(style=0) still fails; cursor DDI, big fonts, enhanced-VDD and native mode authorization remain missing.'

@@ -1,0 +1,21 @@
+Palettium v0040 — Standard Win3.x raster text DDIs + shared cursor core
+
+Apply to v0039: cd ~/dev/palettium && unzip -o ~/Downloads/pal40.zip
+
+NEW: StrBlt @11 / ExtTextOut @14 routed through the existing palddi.c;
+Win16 FAR FONTINFO decoder (standard 2.x 51-byte FONTINFO + 4-byte glyph
+entries), safe segment checks, physical colors, simple widths, clipping,
+negative-count measurement and opaque rectangles. Shared RG_Device text
+renderer supports 1bpp/8bpp and banked ET4000-compatible framebuffers.
+NEW: reusable software cursor AND/XOR mask engine with save-under,
+clipping/movement/restore. CURSOR DDI EXPORTS ARE NOT ACTIVE YET.
+15 display-DDI exports total; no production filenames renamed.
+
+TEST (portable): make clean && make test; make -f Makefile.win31text test;
+make -f Makefile.cursor test; make -f Makefile.win31link test
+WIN16 (maintainer Open Watcom): sh windows/win31/build-palddi.sh;
+wdump -x tests/exes/PALSTAGE.DRV
+
+NOT INSTALLABLE: Enable(style=0) fails; DDK cursor ABI/interrupt-time
+safety, font cases, GDIINFO capability claims and VDD lifecycle pending.
+No VM driver-installation test requested. See HANDOFF.md for details.

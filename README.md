@@ -5,9 +5,27 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0039** (incremental tags are fixed-width).
+Current development milestone: **v0040** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
+
+## v0040 snapshot
+
+- **Two new Win16 text exports:** `StrBlt @11` and `ExtTextOut @14` use the
+  same standard raster-font path. Win16 FONTINFO decoding and FAR bounds
+  checking stay in the OS adapter, while clipped column-major glyph
+  painting uses a new **shared C89** renderer. Simple character advances,
+  extent-only queries, DRAWMODE physical colors, basic background filling
+  and 1bpp/8bpp memory/screen targets are host-tested.
+- **Cursor software core:** shared AND/XOR masks with save-under,
+  movement, clipping and restoration are host-tested; **no Win16 cursor
+  entry points are exported yet**, because interrupt-time exclusion and
+  CURSORSHAPE marshaling still require DDK validation.
+- Staging driver exports rise from 13 to **15**. Full host tests passed;
+  Open Watcom v0040 linking and real Windows runtime remain unverified.
+  **Enable(style=0) is deliberately blocked, and the driver is not
+  installable.** The stock Windows 3.1 VDD cannot be assumed compatible
+  with >256 KiB graphics; native initialization must remain guarded.
 
 ## What works today
 
@@ -254,6 +272,8 @@ make -f Makefile.et4k test
 make -f Makefile.et4kmodes test
 make -f Makefile.win31native test
 make -f Makefile.win31diag test
+make -f Makefile.win31text test
+make -f Makefile.cursor test
 ```
 
 Tests compile with a host C89 compiler; generated executables and artifacts go
@@ -269,24 +289,24 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0039 retains
-**13 exports**, including `REALIZEOBJECT @10`, `COLORINFO @2`,
+This builds `tests/exes/PALSTAGE.DRV`, plus an export report. v0040 expects
+**15 exports**, including `STRBLT @11`, `EXTTEXTOUT @14`, `REALIZEOBJECT @10`, `COLORINFO @2`,
 `SCANLR @12`, and palette DDIs `@22..26`. The script checks ordinals.
-The 13-export **v0029** build passed on the maintainer's Open Watcom
+The earlier 13-export **v0029** build passed on the maintainer's Open Watcom
 system. The **v0030 build stopped** on a missing `et4k.h` include directory;
 v0031 adds that directory and includes `et4k.c` in the Win16 link recipe.
-The **v0031 Open Watcom build passed on the maintainer's machine**.
-The v0032 PALDIAG build succeeded but its original Windows runtime failed; v0033 and v0034 PALDIAG then succeeded in 86Box, and the v0035 STEP 6 VDD-configuration screenshot succeeded. v0036 changes only the DOS diagnostic and shared ET4000 backend; its Open Watcom DOS build and runtime still await maintainer testing.
+The **v0039 Open Watcom build passed on the maintainer's machine**.
+The v0032 PALDIAG build succeeded but its original Windows runtime failed; v0033 and v0034 PALDIAG then succeeded in 86Box, and the v0035 STEP 6 VDD-configuration screenshot succeeded. v0036 DOS diagnostic was later user-validated at all three VRAM sizes across three BIOS versions. See HANDOFF.md for the up-to-date tests and v0040 limitations.
 
 When applying an incremental patch downloaded through your browser:
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal36.zip
+unzip -o ~/Downloads/pal40.zip
 ```
 
 The archive contains **repository-relative paths** (no enclosing directory).
-Apply it over the **v0035** tree. Source ZIPs carry exact UTC timestamps in the
+Apply it over the **v0039** tree. Source ZIPs carry exact UTC timestamps in the
 extended ZIP field and the local DOS ZIP header timestamp for America/Chicago.
 
 ## Important: NOT INSTALLABLE
@@ -295,7 +315,7 @@ extended ZIP field and the local DOS ZIP header timestamp for America/Chicago.
 change `SYSTEM.INI` to select it.** The `Enable(style=0)` screen initialization
 path deliberately fails. v0029 adds ET4000AX mode/capacity selection; v0028 added 1/8-bit memory
 bitmaps to GDI `Output` and `BitBlt`, but huge/planar bitmaps, memory
-`Pixel`/`ScanLR`, patterned brushes, text, cursor management, the complete
+`Pixel`/`ScanLR`, patterned brushes, complete text support, cursor DDI management, the complete
 GDI contract and real Win16 mode setting/screen switching are missing. `Enable(style=1)` returns only a *candidate* GDIINFO; it intentionally does **not** advertise RC_PALETTE
 until the rest of the palette-capable display DDI is integrated and validated.
 
@@ -311,5 +331,5 @@ text/cursor and missing bitmap DDIs and test Win3.1 standard-mode startup
 first, then 386 enhanced mode with the appropriate VDD and screen switching,
 in a recoverable 86Box VM. Preserve shared code across the four OS targets.
 
-Check `HANDOFF.md` and `PATCH-v0036.txt` for precise checkpoint status and
+Check `HANDOFF.md` and `PATCH-v0040.txt` for precise checkpoint status and
 remaining test gaps. Earlier `docs/` and patch notes document the milestones.

@@ -7,7 +7,7 @@ import re
 import sys
 
 EXPECTED = {"BITBLT": 1, "COLORINFO": 2, "DISABLE": 4,
-            "ENABLE": 5, "OUTPUT": 8, "PIXEL": 9, "REALIZEOBJECT": 10, "SCANLR": 12,
+            "ENABLE": 5, "OUTPUT": 8, "PIXEL": 9, "REALIZEOBJECT": 10, "STRBLT": 11, "SCANLR": 12, "EXTTEXTOUT": 14,
             "SETPALETTE": 22, "GETPALETTE": 23, "SETPALTRANS": 24,
             "GETPALTRANS": 25, "UPDATECOLORS": 26}
 
@@ -36,7 +36,7 @@ def main():
                 for name, ord_ in EXPECTED.items() if found.get(name) != ord_]
     if failures:
         raise SystemExit("FAIL: " + "; ".join(failures))
-    print("PASS: 13 Win31 display-DDI exports including RealizeObject @10, "
+    print("PASS: 15 Win31 display-DDI exports including StrBlt @11, ExtTextOut @14, "
           "ScanLR @12, palette @22..26")
 
 

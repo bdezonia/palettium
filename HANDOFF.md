@@ -1,67 +1,79 @@
-# Palettium v0039 handoff — transactional native/GDI startup (2026-11-23)
+# Palettium v0040 handoff — Win3.x text and cursor raster foundations
 
-## Maintainer-verified baseline
+## Confirmed baseline: v0039
 
-v0038 was applied over v0037 and fully verified by the maintainer on
-Ubuntu/Open Watcom on November 23, 2026. `make clean && make test`,
-`Makefile.win31native test`, `Makefile.win31link test`,
-`Makefile.screen17 test`, and `sh windows/win31/build-palddi.sh` passed;
-`wdump -x tests/exes/PALSTAGE.DRV` confirmed the existing 13 NE exports,
-with no compiler/linker warnings reported. The v0038 GDI-owned 20-byte
-PDEVICE snapshot, 110-byte GDIINFO metrics, and banked screen lifecycle
-all passed host tests. User-validated DOS ET4KTEST INFO CRTC37 reads were
-0Dh/0Eh/0Fh for 256/512/1024 KiB across V8.01X, V8.06X, V1.21X
-(9/9 in 86Box). Win16 PALDIAG A000h read worked; `[386Enh] display=`
-was configured as `*vddvga`, whose SVGA compatibility is not established.
+The maintainer validated v0039 on Ubuntu/Open Watcom on November 23,
+2026. `make clean && make test`, `Makefile.win31native test`,
+`Makefile.win31link test`, `Makefile.screen17 test`, and
+`sh windows/win31/build-palddi.sh` all passed. `wdump -x` confirmed 13
+staging NE exports. The v0039 native ET4000AX -> GDI-owned PDEVICE
+transaction is implemented but still not authorized by Enable(style=0).
+The known stock Windows 3.1 386-Enhanced `*vddvga` compatibility problem
+persists, and a direct Windows 3.1 driver startup has NOT been tested.
 
-## v0039 changes
+Earlier real 86Box evidence: DOS ET4KTEST displays worked at 256/512/
+1024 KiB. CRTC37 reported 0Dh/0Eh/0Fh across BIOS V8.01X, V8.06X,
+and V1.21X (9/9). PALDIAG safely retrieved __A000H, made one byte
+read and BIOS-mode readback in 386 Enhanced mode. None of these tests
+constitutes permission to change video mode from the installed driver.
 
-1. **Transactional mode+GDI commit:** `pal_et4k_session_start_published()`
-   lives in the existing `pal_et4k_session.[ch]`, using the same ET4000AX
-   hardware backend and screen host as before. It rejects absent platform
-   authorization, malformed plan, CRTC-hint conflict, mismatched mode
-   metadata, unknown capacity, null callback/token and ALL 386 Enhanced
-   configurations **before any I/O**. The caller supplies a validated,
-   atomic GDI commit callback; it may commit only after hardware startup
-   and exact GDI PDEVICE token snapshot succeed. Failed publication shuts
-   down the binding and restores the earlier mode exactly once.
-2. **Win16 transaction wired, not activated:** `palddi.c` now keeps the
-   native session and Win16 aperture/BIOS context in persistent storage;
-   `pal_win16_activate()` prepares the profile plan, checks Standard-mode
-   eligibility and GDI FAR-pointer segment bounds, then calls the same
-   transactional coordinator with the checked v0038 FAR PDEVICE publisher.
-   A typed C context struct carries the FAR destination intact; no invalid
-   FAR-to-untyped `void*` cast. `Disable` checks far-pointer identity and
-   closes the native session, allowing its BIOS-restore callback to run.
-   **`pal_win16_install_ready()` returns zero**, so `Enable(style=0)` still
-   fails with NO mode/port/VRAM writes. No new DDI exports or duplicate
-   rendering implementations have been added.
-3. Tests for 256, 512, 1024 KiB successful publication; missing permit;
-   unsafe enhanced mode; mode-metadata mismatch; GDI commit rejection;
-   repeated start/stop; BIOS set failure and rollback. Maintenance test
-   asserts mandatory install gate and native-session release remain present.
+## New in v0040
 
-## Important newly confirmed blocker
+1. Two real text DDI entry points are now compiled into the existing
+   `windows/win31/palddi.c`: **StrBlt @11** and **ExtTextOut @14**.
+   Both route through the same implementation. The adapter reads standard
+   Windows 2.x-era GDI raster FONTINFO and glyph offsets through checked
+   Win16 FAR segment windows, supports proportional widths, fallback
+   characters, clipped glyph pixels, physical DRAWMODE text/background
+   colors, positive drawing, negative-count extent-only and zero-count
+   ETO_OPAQUE. It accepts basic supplied advance widths, CharExtra and
+   BreakExtra. Unsupported formats or malformed pointers fail closed.
+2. Shared `common/rg_gdi_text.c` uses no Windows/Card-specific imports:
+   it draws column-major 1bpp glyph bytes through RG_Device.pixel and
+   supports INDEX8 and packed INDEX1 memory devices, including banked
+   screen VRAM. The Win16 font header parser (`pal_font16.c`) is separate
+   from this shared renderer; no duplicate ET4000AX text engine.
+3. Shared `common/rg_cursor.c` implements a 1/8bpp-index software cursor
+   compositing AND/XOR masks with save-under, clipping, hotspots and
+   move/hide restoration. **It is NOT yet connected to Win3.1's @101–104
+   cursor DDIs**: proper CURSORSHAPE unpacking, mouse-interrupt safety,
+   and cursor exclusion around every graphics DDI remain unresolved.
+4. Export verifier and Win16 link source list updated to **15 exports**.
+   The stable production filename stays `PALSTAGE.DRV`; test binaries
+   remain in `tests/exes/`. Comprehensive `make clean` removes them.
 
-The Windows 3.1 DDK says `ExtTextOut` must provide functional text output
-and `StrBlt` must be exported for compatibility; the driver also has cursor
-responsibilities. None is presently implemented. Therefore **do not enable
-style=0 or install PALSTAGE.DRV**. Even Standard mode needs these DDIs;
-386 Enhanced mode additionally requires a validated VDD switching contract.
-The configured VDD name alone is not permission to change the video mode.
+## Strict limits (especially important)
 
-## Verification and user test
+**PALSTAGE.DRV IS STILL NOT INSTALLABLE. Enable(style=0) returns zero.**
+No native mode switch can occur from GDI. Candidate GDIINFO still has
+zero advertised graphics/text capability bits; do not set
+RC_BIGFONT, RC_PALETTE, TC_*, or RC_GDI20_OUTPUT prematurely.
 
-Assistant host: `make clean && make test`, all auxiliary Makefile test
-recipes, clean v0038 -> v0039 overlay, complete source SHA256 checksums,
-ZIP integrity and UTC 0x5455/America-Chicago DOS timestamps: PASS.
-**The Win16/Open Watcom v0039 build and any Windows runtime test are NOT
-performed yet.** On the maintainer's Linux machine:
+Text decoder is the STANDARD (non-big) GDI raster-font layout with a
+51-byte FONTINFO base and four-byte 2.x char-table entries. It does
+not support 3.x big/sparse TrueType, vector fonts, font synthesis,
+rotation, underline/strikeout, full break-error justification, huge
+font/bitmap segments or arbitrary glyph heights. It is only a first
+real text path, NOT a complete 1992 DDK text implementation. Cursor
+compositor has no OS cursor exports or interrupt-safe critical section.
+Screen painting still lacks coordinated cursor exclusion, several
+optional GDI services and an enhanced-mode VDD contract. Standard-mode
+hardware startup is gated too. Do not install the driver in SYSTEM.INI.
+
+The v0040 assistant tests are C89 host simulations; the real Open Watcom
+Win16 ABI and 86Box Windows runtime are **NOT yet verified**. The host
+wrapper test compiles actual `palddi.c` with fake FAR-pointer APIs and
+ELF section garbage collection; it cannot validate real selectors.
+
+## Build/test instructions for maintainer
 
 ```sh
 cd ~/dev/palettium
-unzip -o ~/Downloads/pal39.zip
-make clean && make test
+unzip -o ~/Downloads/pal40.zip
+make clean
+make test
+make -f Makefile.win31text test
+make -f Makefile.cursor test
 make -f Makefile.win31native test
 make -f Makefile.win31link test
 make -f Makefile.screen17 test
@@ -69,17 +81,24 @@ sh windows/win31/build-palddi.sh
 wdump -x tests/exes/PALSTAGE.DRV
 ```
 
-The `wdump` output must still contain 13 ordinals. Do not replace the
-working Windows display driver; no 86Box installation trial is requested.
+Expected additional exports: `STRBLT @11` and `EXTTEXTOUT @14`.
+Do not install this DRV or switch video modes under Windows yet.
 
-## Next: operational DDI completion, not diagnostics
+## Next: v0041
 
-Focus v0040 on correct Win3.x text/font service and raster glyph rendering
-(reusing common bitmap/BitBlt), then cursor; verify DDK ABI before adding
-exports. Once mandatory DDI services exist, validate Standard-mode hardware
-start first on a snapshot-restorable 86Box VM, and separately develop a
-VDD-compatible enhanced-mode lifecycle. The global goal remains one shared
-C89 raster library + card backends + thin Windows 3.1, WfW 3.11, Windows 95,
-Windows 98 adapters. Keep fixed-width tags, stable production filenames,
-source-only incremental ZIP patches, `tests/exes/` outputs, full `make clean`
-and UTC-correct ZIP timestamps. Preserve all previous tags/checkpoints.
+Prioritize DDK-accurate Win16 cursor `Inquire @101`, `SetCursor @102`,
+`MoveCursor @103`, `CheckCursor @104` with correct CURSORSHAPE wire ABI,
+interrupt-level synchronization, and exclusion around every screen draw.
+Next complete standard text justification/special fonts and GDIINFO
+capability reporting. Only after a real DDI readiness audit should the
+first recoverable **Standard-mode** 86Box install test be authorized;
+386 Enhanced requires separate validated VDD coordination. Maintain
+four-OS adapters with shared C89 common code and card-specific backends.
+
+## Packaging discipline
+
+Fixed-width sequential milestone tags; keep existing git tags untouched;
+source-only small additive ZIP patches built freshly from changed source;
+full source SHA256 manifest; UTC Extended Timestamp (0x5455) and matching
+America/Chicago local DOS ZIP field; stable filenames; test executables
+under tests/exes; globally comprehensive `make clean`.

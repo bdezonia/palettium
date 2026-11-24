@@ -18,10 +18,15 @@ def check_win16_recipe():
     assert "windows/win31/pal_et4k_session.c" in sources, "session missing"
     assert "windows/win31/pal_et4k_win16.c" in sources, "Win16 adapter missing"
     assert "windows/win31/pal_vdd.c" in sources, "Win3.x VDD policy not linked"
+    assert "windows/win31/pal_font16.c" in sources
+    assert "common/rg_gdi_text.c" in sources
+    assert "common/rg_cursor.c" in sources
     win16_entry = (ROOT / "windows/win31/palddi.c").read_text()
     assert "pal_win16_et4k_profile_plan(&plan)" in win16_entry, (
         "GDI style-1 must use configured VRAM/VDD plan")
     assert "style != 1u" in win16_entry, "stage-only Enable(style=0) gate lost"
+    assert "DWORD FAR PASCAL ExtTextOut" in win16_entry
+    assert "DWORD FAR PASCAL StrBlt" in win16_entry
     assert "pal_win16_install_ready()) return 0" in win16_entry, (
         "mandatory DDI installation gate removed")
     assert "pal_et4k_session_start_published(&pal_native_session" in win16_entry, (

@@ -5,6 +5,8 @@
  * Enable(style=0) is blocked until mandatory display services are ready.
  */
 /* SDK names sometimes overlap Win16 display-DDI exports. */
+#define ExtTextOut PalWinApiExtTextOut
+#define StrBlt PalWinApiStrBlt
 #define RealizeObject PalWinApiRealizeObject
 #define BitBlt PalWinApiBitBlt
 #define ColorInfo PalWinApiColorInfo
@@ -15,6 +17,8 @@
 #define GetPalTrans PalWinApiGetPalTrans
 #define UpdateColors PalWinApiUpdateColors
 #include <windows.h>
+#undef ExtTextOut
+#undef StrBlt
 #undef RealizeObject
 #undef BitBlt
 #undef ColorInfo
@@ -32,6 +36,8 @@
 #include "pal_objects.h"
 #include "pal_bitmap_device.h"
 #include "rg_gdi_blit.h"
+#include "rg_gdi_text.h"
+#include "pal_font16.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
 /* Persistent storage: GDI owns only the published 20-byte PDEVICE. */
@@ -110,7 +116,8 @@ static int pal_win16_activate(LPVOID destination)
                       &commit,1);
 }
 
-/* Mandatory ExtTextOut/StrBlt and cursor services are NOT implemented.
+/* Standard raster-font text is implemented at @11/@14. Cursor DDI,
+ * interrupt-safe cursor exclusion, full font coverage and VDD remain missing.
  * Do not change this gate merely because a Win16 module links. A future
  * milestone must provide functioning DDIs, verify their ordinal/ABI and
  * explicitly authorize a recoverable Standard-mode 86Box trial. */
@@ -194,6 +201,175 @@ static int pal_win16_mode_colors(LPVOID mode, unsigned *text,
     *background=(unsigned)bg;
     *text=(unsigned)fg;
     return 1;
+}
+
+
+/* Standard Win3.x raster-font text. Glyphs remain in GDI's own FAR font
+ * segment; the shared text renderer consumes only verified column-major
+ * bytes via a small callback. We intentionally do not advertise RC_BIGFONT,
+ * TrueType sparse glyphs, rotation, or font-synthesis capabilities. */
+typedef struct PAL_Win16FontBytes {
+    PAL_U16 selector;
+    PAL_U16 base;
+} PAL_Win16FontBytes;
+
+static rg_u8 pal_win16_font_read(void *context, rg_offset offset)
+{
+    PAL_Win16FontBytes *font=(PAL_Win16FontBytes *)context;
+    const rg_u8 FAR *p=(const rg_u8 FAR *)MK_FP(font->selector,
+                          (unsigned)((PAL_U32)font->base+(PAL_U32)offset));
+    return *p;
+}
+
+static int pal_win16_rect(LPVOID source, RG_Rect *rect)
+{
+    const short FAR *p;
+    if (!source || !rect ||
+        (PAL_U32)(PAL_U16)FP_OFF(source)+8UL>65536UL) return 0;
+    p=(const short FAR *)source;
+    rect->left=p[0]; rect->top=p[1];
+    rect->right=p[2]; rect->bottom=p[3];
+    return rect->left<=rect->right && rect->top<=rect->bottom;
+}
+
+/* Return x-extent in low word and y-extent in high word. Error is the
+ * documented 80000000h sentinel. A width > 32767 clamps to 32767. */
+static DWORD pal_win16_text(LPVOID dest, short x, short y,
+                            LPVOID clip_rect, LPSTR text, short count,
+                            LPVOID font_address, LPVOID drawmode,
+                            LPVOID text_transform, LPVOID widths,
+                            LPVOID opaque_rect, WORD options)
+{
+    RG_Device mem, *target;
+    PAL_Win16Bits bits;
+    PAL_Win16FontBytes fb;
+    PAL_Font16 font;
+    RG_Glyph glyph;
+    RG_Rect clip, opaque, text_box;
+    RG_Rect *clip_use=0;
+    const short FAR *mode=(const short FAR *)drawmode;
+    const short FAR *dx=(const short FAR *)widths;
+    const unsigned char FAR *str=(const unsigned char FAR *)text;
+    unsigned n,i, fg,bg, bgmode, code;
+    long cursor, next, minimum, maximum, advance;
+    long space_adjust, min_end, max_end;
+    int pass;
+    (void)text_transform; /* string precision, no arbitrary rotation */
+    if ((options & (WORD)~6u) != 0u || !pal_active_host || !dest ||
+        !pal_win16_device(dest,&mem,&bits,&target) ||
+        !pal_win16_mode_colors(drawmode,&fg,&bg) ||
+        (PAL_U32)(PAL_U16)FP_OFF(drawmode)+24UL>65536UL)
+        return 0x80000000UL;
+    bgmode=(unsigned)mode[1];
+    if (bgmode!=1u && bgmode!=2u) return 0x80000000UL;
+    if (target->surface.format==RG_FMT_INDEX1) {
+        fg=rg_gdi_mono_color(fg,bg);
+        bg=1u; /* GDI monochrome: set bit is background */
+    }
+    if (clip_rect) {
+        if (!pal_win16_rect(clip_rect,&clip)) return 0x80000000UL;
+        clip_use=&clip;
+    }
+    if (options & 6u) {
+        if (!opaque_rect || !pal_win16_rect(opaque_rect,&opaque))
+            return 0x80000000UL;
+        if (options & 4u) {
+            if (!clip_use) { clip=opaque; clip_use=&clip; }
+            else {
+                if (clip.left<opaque.left) clip.left=opaque.left;
+                if (clip.top<opaque.top) clip.top=opaque.top;
+                if (clip.right>opaque.right) clip.right=opaque.right;
+                if (clip.bottom>opaque.bottom) clip.bottom=opaque.bottom;
+            }
+        }
+    }
+    if (count==0) {
+        if (!(options & 2u)) return 0x80000000UL;
+        return rg_gdi_text_fill(target,opaque,clip_use,bg) ?
+               1UL : 0x80000000UL;
+    }
+    if (count == (-32767-1)) return 0x80000000UL;
+    n=(unsigned)(count<0 ? -count : count);
+    if (!text || !font_address || !n ||
+        (PAL_U32)(PAL_U16)FP_OFF(text)+(PAL_U32)n>65536UL ||
+        (widths && (PAL_U32)(PAL_U16)FP_OFF(widths)+
+                      (PAL_U32)n*2UL>65536UL))
+        return 0x80000000UL;
+    fb.selector=(PAL_U16)FP_SEG(font_address);
+    fb.base=(PAL_U16)FP_OFF(font_address);
+    if (!pal_font16_open(&font,pal_win16_font_read,&fb,
+                          65536UL-(PAL_U32)fb.base))
+        return 0x80000000UL;
+    /* Two passes: check EVERY glyph/advance before any pixel changes.
+     * This also makes width-only calls fully read-only. */
+    cursor=(long)x; minimum=cursor; maximum=cursor;
+    for (pass=0;pass<2;++pass) {
+        cursor=(long)x; minimum=cursor; maximum=cursor;
+        for (i=0;i<n;++i) {
+            code=(unsigned)str[i];
+            if (!pal_font16_glyph(&font,pal_win16_font_read,&fb,code,&glyph))
+                return 0x80000000UL;
+            if (cursor< -32768L || cursor>32767L) return 0x80000000UL;
+            min_end=cursor;
+            max_end=cursor+(long)glyph.width;
+            if (min_end<minimum) minimum=min_end;
+            if (max_end>maximum) maximum=max_end;
+            advance=widths ? (long)dx[i] : (long)glyph.width;
+            advance+=(long)mode[11]; /* CharExtra at DRAWMODE +22 */
+            if (code==font.break_char) advance+=(long)mode[7];
+            next=cursor+advance;
+            if (next < -32768L || next>32767L) return 0x80000000UL;
+            if (next<minimum) minimum=next;
+            if (next>maximum) maximum=next;
+            if (pass==1 && count>0 &&
+                !rg_gdi_text_glyph(target,(int)cursor,y,clip_use,&glyph,
+                                   pal_win16_font_read,&fb,fg))
+                return 0x80000000UL;
+            cursor=next;
+        }
+        if (pass==0) {
+            if ((long)y+(long)font.height>32767L ||
+                minimum < -32768L || maximum>32767L) return 0x80000000UL;
+            if (count<0) break; /* measure, do not draw */
+            text_box.left=(int)minimum;
+            text_box.top=y;
+            text_box.right=(int)maximum;
+            text_box.bottom=(int)((long)y+(long)font.height);
+            /* Opaque rectangle is independent of DRAWMODE background mode.
+             * In normal opaque mode, fill the string's full bounding box. */
+            if (options & 2u) {
+                if (!rg_gdi_text_fill(target,opaque,clip_use,bg))
+                    return 0x80000000UL;
+            } else if (bgmode==2u) {
+                if (!rg_gdi_text_fill(target,text_box,clip_use,bg))
+                    return 0x80000000UL;
+            }
+        }
+    }
+    space_adjust=maximum-minimum;
+    if (space_adjust<0L) space_adjust=0L;
+    if (space_adjust>32767L) space_adjust=32767L;
+    return ((DWORD)(WORD)font.height<<16) | (DWORD)(WORD)space_adjust;
+}
+
+DWORD FAR PASCAL ExtTextOut(LPVOID dest, short x, short y,
+                            LPVOID clip_rect, LPSTR text, short count,
+                            LPVOID font, LPVOID drawmode,
+                            LPVOID text_transform, LPVOID widths,
+                            LPVOID opaque_rect, WORD options)
+{
+    return pal_win16_text(dest,x,y,clip_rect,text,count,font,drawmode,
+                          text_transform,widths,opaque_rect,options);
+}
+
+/* Legacy DDI @11 is mandatory for pre-GDI20 clients; share exactly
+ * the same checked implementation, without extended opaque options. */
+DWORD FAR PASCAL StrBlt(LPVOID dest, short x, short y,
+                         LPVOID clip_rect, LPSTR text, short count,
+                         LPVOID font, LPVOID drawmode, LPVOID text_transform)
+{
+    return pal_win16_text(dest,x,y,clip_rect,text,count,font,drawmode,
+                          text_transform,0,0,0);
 }
 
 /* DDK: BitBlt(dest,dx,dy,src,sx,sy,w,h,rop,brush,drawmode).
