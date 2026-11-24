@@ -2,19 +2,26 @@
 #define PAL_CURSOR16_H
 /* Windows 3.x CURSORSHAPE marshalling and cooperative software-cursor
  * state. Portable C89, independent of Win16 selector and port I/O.
- * MoveCursor queues coordinates: CheckCursor consumes them only when the
- * DDI is not drawing. Native interrupt-time synchronization is NOT YET
- * independently validated; Enable(style=0) remains blocked.
+ * MoveCursor publishes coordinates into an interrupt-safe Win16 mailbox;
+ * CheckCursor consumes them only while the compositor is idle. The native
+ * DDK critical sequence still needs runtime validation in 86Box.
  */
 #include "rg_cursor.h"
 #define PAL_CURSOR16_HEADER 12u
 #define PAL_CURSOR16_MAX_WIRE (PAL_CURSOR16_HEADER + 256u)
+/* Three 16-bit WORDs: publication flag, X and Y. On the Win16 platform
+ * the DDK EnterCrit/LeaveCrit-equivalent assembly updates/consumes the
+ * complete tuple in one interrupt-masked transaction. Host builds use the
+ * same wire structure but ordinary C operations. */
+typedef struct PAL_Move16 {
+    volatile unsigned ready;
+    volatile short x, y;
+} PAL_Move16;
 typedef struct PAL_Cursor16 {
     RG_Cursor image;
     RG_Device *screen;
-    volatile unsigned writing;
-    volatile unsigned pending;
-    volatile short pending_x, pending_y;
+    PAL_Move16 incoming, snapshot;
+    volatile unsigned composing;
     int x, y;
     unsigned draw_depth, wants_shape;
 } PAL_Cursor16;

@@ -41,6 +41,15 @@ def check_win16_recipe():
     assert "pal_win16_publish_host" in win16_entry and \
            "pal_screen_host_gdi_snapshot(host,token,&image)" in win16_entry, (           "Win16 GDI-owned PDEVICE must publish through checked snapshot")
     assert "pal_win16_bind_host" not in win16_entry, (           "unchecked device host binding must not be restored")
+    # Cursor DDI must protect BOTH the publisher and the consumer of the
+    # two-word coordinate pair using the Win3.x DDK critical convention.
+    cursor = (ROOT / "windows/win31/pal_cursor16.c").read_text()
+    assert "#pragma aux pal_irq_publish" in cursor
+    assert "#pragma aux pal_irq_consume" in cursor
+    assert cursor.count('"pushf"') == 2 and cursor.count('"cli"') == 2
+    assert cursor.count("0xeb 0x01 0xcf 0x0e 0xe8 0xfb 0xff") == 2
+    assert '"sti"' not in cursor and "s->writing" not in cursor
+    assert "s->composing=1" in cursor and "s->composing=0" in cursor
     adapter = (ROOT / "windows/win31/pal_et4k_win16.c").read_text()
     assert 'GetPrivateProfileInt("Palettium","VRAMKiB"' in adapter
     assert 'GetWinFlags() & 0x0020u' in adapter, (

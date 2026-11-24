@@ -1,0 +1,17 @@
+Palettium v0042 — Win16 cursor critical sections + clean warnings
+
+Apply over user-validated v0041: unzip -o ~/Downloads/pal42.zip
+No binaries, no renamed production sources, no change to 19 exports.
+
+- Removes eight redundant Win16 W124 cursor range comparisons.
+- Adds Windows DDK EnterCrit/POPFF-equivalent short interrupt-masked
+  MoveCursor publication and CheckCursor mailbox consumption for 16-bit
+  Open Watcom; preserves C89 host fallback. Maintains one mailbox for the
+  latest coordinates, with no VRAM/BIOS/port work in MoveCursor.
+- Rejects reentrant timer cursor compositing, suppresses painting during
+  cursor shape changes, bind and unbind; adds simulated nested IRQ test.
+- Documents verified v0041 results and strict installation blockers.
+
+STATUS: Host suite passed in assistant container. The Watcom-only assembler
+sequence has NOT yet been compiled or run on Windows; please report all
+Watcom errors or warnings. `Enable(style=0)` stays disabled, NOT INSTALLABLE.

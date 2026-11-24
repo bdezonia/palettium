@@ -94,4 +94,4 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > tests/exes/PALSTAGE.exports.txt
 python3 tools/check_win31_exports.py tests/exes/PALSTAGE.exports.txt
 printf '%s\n' 'PASS: linked Win16 PALSTAGE.DRV with required staging exports.' \
-    'NOT INSTALLABLE: Enable(style=0) still fails; cursor interrupt safety, big fonts, enhanced-VDD and native mode authorization remain missing.'
+    'NOT INSTALLABLE: Enable(style=0) still fails; Win16 IRQ runtime, fonts, enhanced-VDD and mode authorization remain unverified.'

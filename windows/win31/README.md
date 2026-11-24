@@ -1,12 +1,19 @@
-# Windows 3.1 staging display driver (v0041)
+# Windows 3.1 staging display driver (v0042)
+
+**v0042:** Open Watcom's eight W124 warnings are addressed at their
+sources. Mouse IRQ publication and timer-side consumption now use paired
+Win3.x DDK critical sections in the Win16 build, while the cursor compositor
+rejects nested timer execution. Host tests simulate a mouse IRQ during
+banked-VRAM cursor painting, but native timing and assembly need Windows
+verification. `Enable(style=0)` remains disabled; no installation yet.
 
 **v0041:** The existing `PALSTAGE.DRV` exports four new cursor DDIs:
 `Inquire @101`, `SetCursor @102`, `MoveCursor @103`, `CheckCursor @104`.
 Win16 `CURSORSHAPE` is decoded using its documented 12-byte header and
 32×32 two-mask format. Mouse-position updates are deferred; the rendering
 and text DDIs now exclude the software cursor around framebuffer access.
-Host tests pass, but timer/mouse-interrupt reentrancy and native critical
-regions are still unverified. A nested mouse update can be lost.
+Host tests passed. v0042 adds a guarded native mailbox, but runtime
+interrupt behavior still needs verification in Windows 3.1.
 **19 NE exports are expected. Enable(style=0) still fails; do not install.**
 
 The maintainer validated v0040 `StrBlt @11` and `ExtTextOut @14`

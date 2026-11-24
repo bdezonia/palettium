@@ -1,4 +1,5 @@
 #include <string.h>
+#include <limits.h>
 #include "rg_cursor.h"
 
 static int cursor_device_ok(RG_Device *d)
@@ -40,10 +41,14 @@ int rg_cursor_shape(RG_Cursor *c,const rg_u8 *and_mask,
 {
     unsigned y,bytes=(width+7u)/8u;
     if (!c || !and_mask || !xor_mask || !width || !height ||
-        width>RG_CURSOR_MAX_WIDTH || height>RG_CURSOR_MAX_HEIGHT ||
-        hot_x< -32768 || hot_y< -32768 ||
-        hot_x>32767 || hot_y>32767)
+        width>RG_CURSOR_MAX_WIDTH || height>RG_CURSOR_MAX_HEIGHT)
         return 0;
+#if INT_MAX > 32767
+    /* Win16 int is already a signed WORD, so these checks would trigger
+     * Watcom W124. Retain the 16-bit hotspot contract for 32-bit hosts. */
+    if (hot_x < -32768 || hot_x > 32767 ||
+        hot_y < -32768 || hot_y > 32767) return 0;
+#endif
     if (c->visible) rg_cursor_hide(c);
     memset(c->and_bits,0xFF,sizeof(c->and_bits));
     memset(c->xor_bits,0,sizeof(c->xor_bits));

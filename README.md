@@ -5,9 +5,29 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0041** (incremental tags are fixed-width).
+Current development milestone: **v0042** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
+
+## v0042 snapshot — Win16 cursor critical regions and startup audit
+
+- The maintainer **validated v0041** under Open Watcom: all 19 cursor,
+  text, and graphics DDI exports compiled/linked and the regression suite
+  passed. Open Watcom reported eight W124 redundant 16-bit bounds checks.
+- v0042 removes the W124 checks without suppressing compiler diagnostics.
+  The Win16 mouse IRQ publisher and timer consumer now use short, paired
+  critical sequences matching Windows DDK `WINDEFS.INC` EnterCrit/LeaveCrit:
+  `PUSHF/CLI` followed by the 80286-safe `POPFF` IRET trampoline. Both
+  coordinate words and the ready flag move together. On host builds the
+  queue uses ordinary C; **host tests are not proof of interrupt safety**.
+- `CheckCursor` now has a non-reentrant compositing guard. A mouse update
+  arriving while the cursor is being painted remains pending until a later
+  check. Shape replacement and unbinding suspend the timer compositor.
+- The Win16 assembler fragment needs **Open Watcom compilation and 86Box
+  runtime verification**. Other significant blockers are the VDD/mode
+  authorization handshake, confirmed Win16 GDI `Enable(style=0)` lifecycle,
+  broader font/bitmap support and a safely reversible installation plan.
+  **Do not install PALSTAGE.DRV yet.** All 19 ordinals remain unchanged.
 
 ## v0041 snapshot — staged Win16 mouse cursor DDI
 
@@ -30,7 +50,8 @@ driver**. Palettium is *not* yet an installable driver package.
   cannot establish IRQ safety. Full-font support, enhanced-mode VDD
   coordination, GDI initialization authorization and other startup
   requirements remain. `Enable(style=0)` deliberately returns failure.
-  The Open Watcom v0041 build and 86Box Windows runtime require user tests.
+  The v0041 Open Watcom build passed; the v0042 Win16 critical sequence and
+  86Box driver runtime are still untested.
 
 v0040 was validated by the maintainer on Ubuntu/Open Watcom: shared text
 renderer tests, actual `StrBlt`/`ExtTextOut` wrapper tests, shared cursor

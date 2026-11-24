@@ -7,10 +7,25 @@
 static rg_u8 frame[W*H];
 static rg_u8 vram[640u*400u];
 static unsigned reads,writes;
+static PAL_Cursor16 *irq_target;
+static unsigned irq_calls,irq_inject;
 static rg_u8 rd(void *ctx,rg_offset off)
 {(void)ctx;++reads;return vram[off];}
 static void wr(void *ctx,rg_offset off,rg_u8 value)
-{(void)ctx;++writes;vram[off]=value;}
+{
+    (void)ctx;
+    ++writes;
+    vram[off]=value;
+    if (irq_inject && irq_target) {
+        /* Model a mouse update + nested timer callback in the middle of
+         * cursor composition; the outer compositor must not recurse. */
+        assert(irq_target->composing);
+        irq_inject=0;
+        ++irq_calls;
+        pal_cursor16_post_move(irq_target,260,102);
+        pal_cursor16_check(irq_target);
+    }
+}
 static void word(rg_u8 *p,int value)
 {unsigned w=(unsigned)value;p[0]=(rg_u8)w;p[1]=(rg_u8)(w>>8);}
 static void shape(rg_u8 *p,unsigned width,unsigned height,int hotx,int hoty)
@@ -97,6 +112,22 @@ int main(void)
     pal_cursor16_unbind(&cursor);
     assert(vram[102UL*640UL+256UL]==0x77);
     assert(reads>0 && writes>0);
-    puts("PASS: Win3.x CURSORSHAPE ABI, deferred Move, exclusion, banked save-under");
+    /* Reentrant cursor update cannot recursively composite or lose the
+     * most recent published position; it is consumed at next idle check. */
+    shape(wire,8,8,0,0);
+    assert(pal_cursor16_set(&cursor,wire,76));
+    pal_cursor16_bind(&cursor,&banked);
+    irq_target=&cursor;
+    irq_inject=1;
+    pal_cursor16_post_move(&cursor,254,102);
+    pal_cursor16_check(&cursor);
+    assert(irq_calls==1 && cursor.image.visible && cursor.image.x==254);
+    assert(cursor.incoming.ready);
+    pal_cursor16_check(&cursor);
+    assert(cursor.image.visible && cursor.image.x==260);
+    assert(!cursor.incoming.ready);
+    pal_cursor16_unbind(&cursor);
+    irq_target=0;
+    puts("PASS: Win3.x CURSORSHAPE, atomic-mailbox model, nested compositor guard, banked save-under");
     return 0;
 }
