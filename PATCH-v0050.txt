@@ -1,0 +1,34 @@
+Palettium v0050 - local resource-only boot diagnostic
+
+v0049 fresh DISPLAY-named PALTRIAL still loads but GDI fails 00; trace LIBMAIN OK.
+Binary audit: VGA.DRV contains 80 resources; PALTRIAL contains zero.
+Microsoft KB Q10837 explicitly requires OEMBIN/FONTS for GDI initialization.
+https://techshelps.github.io/MSDN/KB/Source/win16sdk/q10837.htm
+
+This incremental patch does not modify the renderer, driver C code, or ordinary
+build. It provides a local-only diagnostic resource extraction/verification tool.
+The donor must be the working VGA.DRV from the user's own Windows installation.
+Do not commit or distribute the donor, generated RES, or resource-bound driver.
+The diagnostic copies all resources, including VGA version metadata; this is not
+an installable production release or a final resource design.
+
+From project root, with Open Watcom environment set:
+  PAL_TRIAL_TRACE=1 sh windows/win31/build-paltrial.sh
+  python3 tools/win31_trial_resources.py /path/to/vga.drv --extract tests/exes/PALBOOT.res
+  cp tests/exes/PALTRIAL.DRV tests/exes/PALRES.DRV
+  wrc -q -bt=windows tests/exes/PALBOOT.res tests/exes/PALRES.DRV
+  python3 tools/win31_trial_resources.py /path/to/vga.drv --verify tests/exes/PALRES.DRV
+  python3 tools/check_win31_modname.py tests/exes/PALRES.DRV
+  python3 tools/check_win31_imports.py tests/exes/PALRES.DRV
+  wdump -x tests/exes/PALRES.DRV > tests/exes/PALRES.exports.txt
+  python3 tools/check_win31_exports.py tests/exes/PALRES.exports.txt
+
+Use PALRES.DRV as PALTRIAL.DRV in disposable VM (retain SYSTEM.INI settings).
+Delete old PALBOOT.TXT and BOOTLOG.TXT; WIN /B /S; send logs.
+If binding or verification fails, stop and report output; do not deploy.
+
+Validation here: extraction from actual VGA.DRV: 80 entries, FONTS 80 bytes;
+self comparison passes; resource-free PALTRIAL correctly rejected.
+WRC binding and runtime untested (no Open Watcom WRC in this environment).
+Future: if successful, build independent/licensed resource subsystem for all
+Palettium driver targets as appropriate. If not, compare startup paths further.
