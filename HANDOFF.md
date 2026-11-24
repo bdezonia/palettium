@@ -1,3 +1,80 @@
+# Palettium v0045 — complete missing Win3.1 GDI bootstrap ordinals
+
+**Observed failure:** User's v0044 build compiled and linked cleanly with 19
+exports, but a disposable Windows 3.1 86Box `WIN /S` boot showed the splash
+screen, then exited to DOS with `Error loading PALTRIAL.DRV`. No evidence
+was supplied that the ET4000AX mode changed; the message is ambiguous.
+
+## v0045 diagnostic finding
+
+Our previous export checker validated **only the 19 exports we implemented**.
+Historical Windows 3.1 DDK contracts require additional entry points. Missing
+ones were Control @3, EnumDFonts @6, EnumObj @7, GetCharWidth @15,
+DeviceBitmap @16, SetAttribute @18. FastBorder @17 is included for broad
+compatibility (the 3.0 DDK calls it optional, a 1992 reference calls it
+required). The full ordinal range @1..18 is now covered except the
+printer-only DeviceMode @13. Existing @22..26 and @101..104 stay unchanged.
+
+## New entry behavior
+
+- Control implements QUERYESCSUPPORT=8 only, and reports only that escape as
+  supported. All unsupported escapes refuse without side effects.
+- EnumDFonts and EnumObj return the documented no-device-fonts/objects result
+  (1) without touching callback thunks. This avoids inventing the Win16
+  LOGFONT/LOGPEN callback ABI but means actual catalogs remain unimplemented.
+- GetCharWidth uses the verified standard raster FONTINFO decoder and returns
+  glyph widths. It prevalidates all values and far-pointer segment bounds.
+- DeviceBitmap is the mandatory no-device-bitmap stub (0).
+- SetAttribute is the mandatory reserved stub (0).
+- FastBorder is exported but refuses drawing, returning nonzero error. This
+  avoids falsely claiming that it drew anything; a functional implementation
+  will be needed if Windows calls it during normal rendering.
+
+The Win16 build scripts and export validators now expect **26 DDI ordinals**.
+Default PALSTAGE Enable(style=0) remains closed; PALTRIAL still requires
+Standard mode, exact 256KiB, and TrialEnable=4401. No mode-switch,
+framebuffer, cursor-IRQ, or VDD code has been changed. THIS IS NOT YET A
+CONFIRMED FIX for the boot failure: loader error, failed initialization and
+missing exports can result in similar outward symptoms.
+
+## Build/test on workstation
+
+```
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal45.zip
+make clean && make test
+make -f Makefile.win31text test
+make -f Makefile.win31trial test
+sh windows/win31/build-palddi.sh
+sh windows/win31/build-paltrial.sh
+wdump -x tests/exes/PALTRIAL.DRV
+```
+
+Expect 26 exports and no Watcom warnings. Build is host-tested, but **Open
+Watcom v0045 linking and Windows boot remain untested** until user runs them.
+
+## Recovery-first 86Box followup
+
+1. Keep the working VGA SYSTEM.INI backup and the disposable VM snapshot.
+2. Verify the actual 256KiB ET4000AX setting and `[Palettium]` keys.
+3. Copy *new* `PALTRIAL.DRV` to the Windows SYSTEM directory, overwriting old.
+4. With trial boot configuration and DOS recoverability, try `WIN /S` once.
+5. If it fails, try `WIN /B /S` to generate `C:\WINDOWS\BOOTLOG.TXT`
+   (or restore VGA first and run `WIN /B` to confirm logging on that image).
+   Preserve last LoadStart/LoadFail and related lines; this may help
+   distinguish NE loading from later GDI initialization. Do not infer from a
+   missing bootlog entry that a specific DDI succeeded.
+6. Restore the original SYSTEM.INI from DOS after the observation.
+
+## Remaining blockers
+
+Win3.1 native startup, GDI ordinal resolution, BIOS mode switching and
+actual drawing in a Windows desktop have not been runtime validated. Host
+checks are not Win16 ABI tests. Native Win16 cursor reentrancy and some fonts
+remain unverified. Keep WfW3.11/Win95/Win98 shared architecture intact.
+
+---
+
 # Palettium v0044 — first separately gated Win3.1 Standard-mode display boot
 
 **Baseline:** Maintainer compiled v0043 successfully without warnings and

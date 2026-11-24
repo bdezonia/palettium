@@ -1,3 +1,13 @@
+## v0045 — Windows 3.1 GDI bootstrap export correction
+
+v0044's first `WIN /S` PALTRIAL boot displayed `Error loading PALTRIAL.DRV`.
+The earlier export checker missed seven historical DDI ordinals, now added:
+Control @3, EnumDFonts @6, EnumObj @7, GetCharWidth @15, DeviceBitmap @16,
+FastBorder @17 and SetAttribute @18. The build now checks **26 exports**.
+Most newly added routines are conservative compatibility implementations;
+only standard FONTINFO GetCharWidth and Control QUERYESCSUPPORT add substantive
+services. **Boot success is not yet established.** See HANDOFF.md.
+
 ## v0044: opt-in Standard-mode boot experiment (86Box clone only)
 
 A separate `PALTRIAL.DRV` can be built with `sh windows/win31/build-paltrial.sh`.
@@ -16,7 +26,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0044** (incremental tags are fixed-width).
+Current development milestone: **v0045** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 

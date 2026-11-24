@@ -1,3 +1,13 @@
+## v0045 — Windows 3.1 GDI bootstrap export correction
+
+v0044's first `WIN /S` PALTRIAL boot displayed `Error loading PALTRIAL.DRV`.
+The earlier export checker missed seven historical DDI ordinals, now added:
+Control @3, EnumDFonts @6, EnumObj @7, GetCharWidth @15, DeviceBitmap @16,
+FastBorder @17 and SetAttribute @18. The build now checks **26 exports**.
+Most newly added routines are conservative compatibility implementations;
+only standard FONTINFO GetCharWidth and Control QUERYESCSUPPORT add substantive
+services. **Boot success is not yet established.** See HANDOFF.md.
+
 ## v0044: opt-in Standard-mode boot experiment (86Box clone only)
 
 A separate `PALTRIAL.DRV` can be built with `sh windows/win31/build-paltrial.sh`.
@@ -9,7 +19,7 @@ experimental driver**, not a stable installer. See HANDOFF.md for precise
 DOS backup, `WIN /S` and recovery steps. Do not run PALTRIAL in your ordinary
 Windows configuration.
 
-# Windows 3.1 staging display driver (v0042)
+# Windows 3.1 staging display driver (v0045)
 
 
 ## v0043: Real driver loader exercise (non-installing)

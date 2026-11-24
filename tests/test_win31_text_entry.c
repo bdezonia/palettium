@@ -70,9 +70,27 @@ int main(void)
     short mode[12];
     short clip[4],opaque[4],widths[2];
     DWORD ext;
+    WORD glyph_widths[3]={1000u,1000u,1000u};
+    WORD query_escape=8u;
     unsigned i;
     unsigned char str[2]={'A','B'};
     make_font();
+    /* Exercise v0045 DDK-required exports using the real Win16 source. */
+    assert(Control(0,8u,&query_escape,0)==1u);
+    query_escape=9u;
+    assert(Control(0,8u,&query_escape,0)==0u);
+    assert(Control(0,9u,&query_escape,0)==0u);
+    assert(EnumDFonts(0,0,0,0)==1u);
+    assert(EnumObj(0,1u,0,0)==1u);
+    assert(DeviceBitmap(0,0u,0,0)==0u);
+    assert(SetAttribute(0,0u,0u,0u)==0u);
+    assert(FastBorder(0,0u,0u,0UL,0,0,0,0)!=0UL);
+    assert(GetCharWidth(0,glyph_widths,'A','C',font_area,0,0)==1u);
+    assert(glyph_widths[0]==8u && glyph_widths[1]==8u && glyph_widths[2]==8u);
+    glyph_widths[0]=1000u;
+    assert(GetCharWidth(0,glyph_widths,'C','A',font_area,0,0)==0u);
+    assert(glyph_widths[0]==1000u);
+    assert(GetCharWidth(0,glyph_widths,'A','A',0,0,0)==0u);
     memset(&host,0,sizeof(host));
     assert(rg_init(&host.device,pixels,32,24,32,32UL*24UL,RG_FMT_INDEX8));
     host.running=1;
@@ -145,6 +163,6 @@ int main(void)
     ext=ExtTextOut((LPVOID)&host.pdevice,0,0,clip,(LPSTR)str,2,
          (LPVOID)font_area,(LPVOID)mode,0,0,opaque,0);
     assert(ext==0x80000000UL);
-    puts("PASS: actual Win16 StrBlt/ExtTextOut wrappers, measure, opaque, clip, invalid host");
+    puts("PASS: actual Win16 text wrappers plus required DDK bootstrap exports, font widths, cursor");
     return 0;
 }

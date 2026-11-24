@@ -73,14 +73,21 @@ done
 cat >> "$LINKFILE" <<'EOF_EXPORTS'
 export BitBlt.1
 export ColorInfo.2
+export Control.3
 export Disable.4
 export Enable.5
+export EnumDFonts.6
+export EnumObj.7
 export Output.8
 export Pixel.9
 export RealizeObject.10
 export StrBlt.11
 export ScanLR.12
 export ExtTextOut.14
+export GetCharWidth.15
+export DeviceBitmap.16
+export FastBorder.17
+export SetAttribute.18
 export SetPalette.22
 export GetPalette.23
 export SetPalTrans.24

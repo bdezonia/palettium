@@ -5,6 +5,13 @@
  * Enable(style=0) is blocked until mandatory display services are ready.
  */
 /* SDK names sometimes overlap Win16 display-DDI exports. */
+#define Control PalWinApiControl
+#define EnumDFonts PalWinApiEnumDFonts
+#define EnumObj PalWinApiEnumObj
+#define GetCharWidth PalWinApiGetCharWidth
+#define DeviceBitmap PalWinApiDeviceBitmap
+#define FastBorder PalWinApiFastBorder
+#define SetAttribute PalWinApiSetAttribute
 #define Inquire PalWinApiInquire
 #define SetCursor PalWinApiSetCursor
 #define MoveCursor PalWinApiMoveCursor
@@ -21,6 +28,13 @@
 #define GetPalTrans PalWinApiGetPalTrans
 #define UpdateColors PalWinApiUpdateColors
 #include <windows.h>
+#undef Control
+#undef EnumDFonts
+#undef EnumObj
+#undef GetCharWidth
+#undef DeviceBitmap
+#undef FastBorder
+#undef SetAttribute
 #undef Inquire
 #undef SetCursor
 #undef MoveCursor
@@ -725,6 +739,94 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
                                   drawmode,cliprect);
     pal_cursor_draw_end();
     return result;
+}
+
+/* DDK GDI bootstrap and compatibility DDIs. These were missing in v0044
+ * although our export validator reported all 19 *known* exports. GDI may
+ * resolve the required ordinals before it ever calls Enable(style=1).
+ * Keep this ABI complete independently of whether hardware starts.
+ * Deliberately unsupported features return documented failures, never
+ * pretend an operation drew anything or dereference an unknown PDEVICE.
+ */
+WORD FAR PASCAL Control(LPVOID device, WORD escape, LPVOID input,
+                        LPVOID output)
+{
+    const WORD FAR *which=(const WORD FAR *)input;
+    (void)device; (void)output;
+    /* DDK QUERYESCSUPPORT (8); only this escape is implemented. */
+    if (escape!=8u || !input ||
+        (PAL_U32)(PAL_U16)FP_OFF(input)+2UL>65536UL) return 0;
+    return *which==8u ? 1u : 0u;
+}
+WORD FAR PASCAL EnumDFonts(LPVOID device, LPVOID face,
+                           FARPROC callback, LPVOID client)
+{
+    (void)device; (void)face; (void)callback; (void)client;
+    /* No DEVICE fonts; GDI owns its raster and TrueType fonts. */
+    return 1u; /* documented no-device-fonts enumeration result */
+}
+WORD FAR PASCAL EnumObj(LPVOID device, WORD style, FARPROC callback,
+                        LPVOID client)
+{
+    (void)device; (void)style; (void)callback; (void)client;
+    /* No enumerated DEVICE pen/brush catalog yet; GDI stock objects
+     * remain available through RealizeObject. Do not call a foreign thunk
+     * with a guessed LOGPEN/LOGBRUSH wire layout. */
+    return 1u; /* documented no-device-objects enumeration result */
+}
+WORD FAR PASCAL GetCharWidth(LPVOID device, LPVOID buffer,
+                             WORD first, WORD last, LPVOID font_address,
+                             LPVOID drawmode, LPVOID text_transform)
+{
+    PAL_Win16FontBytes fb;
+    PAL_Font16 font;
+    RG_Glyph glyph;
+    WORD FAR *out=(WORD FAR *)buffer;
+    unsigned count,i;
+    (void)device; (void)drawmode; (void)text_transform;
+    if (!buffer || !font_address || first>last || last>255u ||
+        (PAL_U32)(PAL_U16)FP_OFF(font_address)+
+            (PAL_U32)PAL_FONT16_HEADER_BYTES>65536UL) return 0;
+    count=(unsigned)(last-first)+1u;
+    if ((PAL_U32)(PAL_U16)FP_OFF(buffer)+(PAL_U32)count*2UL>65536UL)
+        return 0;
+    fb.selector=(PAL_U16)FP_SEG(font_address);
+    fb.base=(PAL_U16)FP_OFF(font_address);
+    if (!pal_font16_open(&font,pal_win16_font_read,&fb,
+                         65536UL-(PAL_U32)fb.base)) return 0;
+    /* Validate full range first: no partial writes on a bad font. */
+    for (i=0;i<count;++i)
+        if (!pal_font16_glyph(&font,pal_win16_font_read,&fb,
+                             (unsigned)first+i,&glyph)) return 0;
+    for (i=0;i<count;++i) {
+        (void)pal_font16_glyph(&font,pal_win16_font_read,&fb,
+                              (unsigned)first+i,&glyph);
+        out[i]=(WORD)glyph.width;
+    }
+    return 1u;
+}
+WORD FAR PASCAL DeviceBitmap(LPVOID device, WORD command,
+                             LPVOID bitmap, LPVOID data)
+{
+    (void)device; (void)command; (void)bitmap; (void)data;
+    /* DDK-required stub. Never advertise RC_DEVBITS. */
+    return 0u;
+}
+/* FastBorder is present for historical ordinal compatibility but not yet
+ * supported by our renderer. Nonzero signals failure; no pixels touched. */
+DWORD FAR PASCAL FastBorder(LPVOID rect, WORD hx, WORD vy, DWORD rop,
+                            LPVOID device, LPVOID brush, LPVOID mode,
+                            LPVOID clip)
+{
+    (void)rect; (void)hx; (void)vy; (void)rop;
+    (void)device; (void)brush; (void)mode; (void)clip;
+    return 1UL;
+}
+WORD FAR PASCAL SetAttribute(LPVOID device, WORD a, WORD b, WORD c)
+{
+    (void)device; (void)a; (void)b; (void)c;
+    /* Reserved function required by GDI: must return zero. */
+    return 0u;
 }
 
 /* Windows 3.x DDI: style 1 requests GDIINFO, style 0 requests physical

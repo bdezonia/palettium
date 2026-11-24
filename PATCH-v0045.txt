@@ -1,0 +1,22 @@
+Palettium v0045 incremental patch (OVER v0044)
+
+Why: first PALTRIAL 86Box Standard-mode boot exited after splash with
+"Error loading PALTRIAL.DRV". The prior 19-export validation was incomplete:
+seven Windows 3.1 historical display DDIs were missing from the module.
+
+Adds DDK ABI entry points at 3,6,7,15,16,17,18; updates linker export
+recipe, export validator/test and live wrapper host tests. Conservatively
+fails unsupported operations. PALSTAGE Enable(style=0) remains blocked,
+PALTRIAL experimental Standard/256KiB/key gate unchanged.
+
+Build:
+ cd ~/dev/palettium
+ unzip -o ~/Downloads/pal45.zip
+ make clean && make test
+ sh windows/win31/build-palddi.sh
+ sh windows/win31/build-paltrial.sh
+ wdump -x tests/exes/PALTRIAL.DRV
+
+Expect 26 DDI exports; still requires first Open Watcom and Windows boot
+validation. On boot failure recover DOS SYSTEM.INI and optionally collect
+C:\WINDOWS\BOOTLOG.TXT using WIN /B /S in a disposable VM.
