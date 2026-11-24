@@ -11,15 +11,21 @@
 #define IDYES 6
 #define IDNO 7
 typedef unsigned short WORD;
+typedef unsigned short UINT;
 typedef unsigned long DWORD;
 typedef int HMODULE;
 typedef int HINSTANCE;
 typedef int HWND;
 typedef char *LPSTR;
+typedef void *LPVOID;
 typedef void (*FARPROC)(void);
+HINSTANCE LoadLibrary(const char *path);
+void FreeLibrary(HINSTANCE module);
 HMODULE GetModuleHandle(const char *name);
 FARPROC GetProcAddress(HMODULE module,const char *name);
 DWORD GetWinFlags(void);
+int GetPrivateProfileInt(const char *section,const char *key,
+                         int fallback,const char *filename);
 int GetPrivateProfileString(const char *section,const char *key,
                             const char *fallback,char *buffer,int size,
                             const char *filename);

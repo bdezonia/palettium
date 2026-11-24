@@ -1,3 +1,69 @@
+# Palettium v0043 handoff — first real Win3.1 NE driver load probe
+
+## Maintainer-confirmed baseline: v0042 (Nov 24 2026)
+
+The user ran the entire clean C89 test suite, Win3.1 text, cursor, native
+session and ET4000AX host regressions: **all PASS**. Open Watcom built and
+linked PALSTAGE.DRV, with all 19 exports present and **no warnings**;
+the v0041 W124 warnings are resolved. The Win16 critical sections compiled.
+The driver is still deliberately NOT INSTALLABLE.
+
+## v0043 scope
+
+A real Windows 3.1 runtime loader exercise without replacing the active VGA
+DDI: `windows/win31/palload.c` / `build-palload.sh` build `PALLOAD.EXE`.
+The GUI gives independently confirmed, numbered steps:
+
+1. `LoadLibrary("C:\\PALTEST\\PALSTAGE.DRV")` — actual NE module load.
+2. `GetProcAddress` 19 known DDI names (no invocation).
+3. `Inquire @101` — query 4 cursor-info bytes, memory guard checks.
+4. `Enable(style=1)` — read **only** 110-byte candidate GDIINFO with guard
+   bytes; validate geometry, pixel depth, device size and mapping metrics.
+
+The app NEVER calls Enable(style=0), `SetCursor`, any drawing or any hardware
+function. It calls `FreeLibrary` on all successful-load paths. Host regression
+`tests/test_win31_load.c` runs the exact WinMain source with simulated Win16
+functions, including absent config, GDIINFO corruption, missing exports,
+refused load and opt-out behavior. Linux host tests do NOT prove the Win16
+EXE compiles or that Windows can load the DRV: user must verify in 86Box.
+
+## User tests
+
+```
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal43.zip
+make clean && make test
+make -f Makefile.win31load test
+sh windows/win31/build-palddi.sh
+sh windows/win31/build-palload.sh
+wdump -x tests/exes/PALSTAGE.DRV
+```
+
+For **first VM runtime test**, snapshot 86Box. Using the currently working
+Windows 3.1 VGA driver, copy `tests/exes/PALSTAGE.DRV` and `PALLOAD.EXE`
+into `C:\PALTEST` in the VM. Launch `PALLOAD.EXE` from Windows File Manager.
+You need not modify SYSTEM.INI for steps 1–3. STEP 4 returns zero by policy
+without `[Palettium] VRAMKiB=256` (or actual configured card capacity),
+which is expected, not a loader failure. To test a successful query later,
+add *only* that Palettium section to a snapshotted SYSTEM.INI and rerun;
+never change `[boot] display.drv` or `[386Enh] display` yet.
+
+Report each dialog result and any Windows GPF/LoadLibrary code, particularly
+the last STEP before a failure. If `LoadLibrary` fails, inspect DLL imports,
+entry point and runtime relocation; do NOT enable the driver or touch VDDs
+as a workaround. No mode writes, port I/O, VRAM writes or BIOS calls are
+performed in the new probe.
+
+## Installation blockers (unchanged)
+
+- `Enable(style=0)` still deliberately returns zero.
+- No Win3.1 VDD/bank-switch/screen-resume authorization.
+- Mouse IRQ/timer behavior not runtime-proven for a live device.
+- GDI-owned PDEVICE runtime publication, full font/bitmap and capability
+  details, and safe rollback/recovery still unverified.
+
+---
+
 # Palettium v0042 handoff — Win16 mouse critical region and installation audit
 
 ## Validated baseline: v0041 (user result, Nov 24, 2026)

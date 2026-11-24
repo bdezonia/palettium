@@ -50,6 +50,14 @@ def check_win16_recipe():
     assert cursor.count("0xeb 0x01 0xcf 0x0e 0xe8 0xfb 0xff") == 2
     assert '"sti"' not in cursor and "s->writing" not in cursor
     assert "s->composing=1" in cursor and "s->composing=0" in cursor
+    loader = (ROOT / "windows/win31/palload.c").read_text()
+    assert 'LoadLibrary("C:\\\\PALTEST\\\\PALSTAGE.DRV")' in loader
+    assert 'GetProcAddress(module,"ENABLE")' in loader
+    assert '(*enable)((LPVOID)&pal_gdi_guard[8],1u,' in loader
+    assert '(*enable)((LPVOID)&pal_gdi_guard[8],0u,' not in loader
+    assert 'Enable(style=0)' in loader  # explicit refusal in instructions
+    assert 'SetCursor(' not in loader and 'int86(' not in loader
+    assert (ROOT / "windows/win31/build-palload.sh").is_file()
     adapter = (ROOT / "windows/win31/pal_et4k_win16.c").read_text()
     assert 'GetPrivateProfileInt("Palettium","VRAMKiB"' in adapter
     assert 'GetWinFlags() & 0x0020u' in adapter, (
@@ -91,6 +99,7 @@ def check_full_clean():
             "tests/exes/raster-test", "tests/exes/win31-native-test",
             "tests/exes/PALSTAGE.DRV", "tests/exes/PALSTAGE.generated.lnk",
             "tests/exes/PALDIAG.EXE", "tests/exes/paldiag-host-test",
+            "tests/exes/PALLOAD.EXE", "tests/exes/palload-host-test",
             "tests/exes/et4k-test", "tests/exes/raster-demo.ppm",
             "build/dos/ET4KTEST.EXE", "build/other/temporary.obj",
             "windows/win31/PALCORE.DLL", "windows/win31/PALDEV.EXPORTS.txt",

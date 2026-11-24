@@ -1,0 +1,11 @@
+CC = cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Itests/win16_stubs -Iwindows/win31
+
+.PHONY: all test
+all: tests/exes/palload-host-test
+tests/exes/palload-host-test: windows/win31/palload.c windows/win31/pal_gdiinfo.h windows/win31/pal_gdiinfo.c tests/test_win31_load.c tests/win16_stubs/windows.h | tests/exes
+	$(CC) $(CFLAGS) windows/win31/palload.c windows/win31/pal_gdiinfo.c tests/test_win31_load.c -o $@
+tests/exes:
+	mkdir -p $@
+test: all
+	./tests/exes/palload-host-test

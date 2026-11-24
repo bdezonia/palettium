@@ -1,0 +1,21 @@
+Palettium v0043 — real Win16 PALSTAGE.DRV loader integration test
+
+Apply source-only incremental ZIP over maintainer-validated v0042:
+    cd ~/dev/palettium
+    unzip -o ~/Downloads/pal43.zip
+
+New: PALLOAD.EXE GUI source + Open Watcom build script + host mock regression.
+Tests real Windows 3.1 LoadLibrary/GetProcAddress/INQUIRE/Enable(style=1)
+without installing the display driver or altering modes or video memory.
+
+Build: make clean && make test; make -f Makefile.win31load test;
+       sh windows/win31/build-palddi.sh;
+       sh windows/win31/build-palload.sh
+
+For VM test: copy BOTH tests/exes/PALLOAD.EXE and PALSTAGE.DRV to
+C:\PALTEST in snapshotted 86Box Win3.1; launch PALLOAD.EXE from Windows.
+Run with the EXISTING display driver. Never edit [boot] display.drv.
+STEP 4 may refuse if [Palettium] VRAMKiB is absent (expected behavior).
+
+NO active modes, NO ENABLE(style=0), NO driver installation. The driver
+remains NOT INSTALLABLE. Open Watcom build and 86Box runtime not yet tested.

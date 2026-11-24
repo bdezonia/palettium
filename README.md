@@ -5,9 +5,37 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0042** (incremental tags are fixed-width).
+Current development milestone: **v0043** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
+
+## v0043 — first real Win16 display-driver load test (no installation)
+
+The maintainer validated **v0042** on Open Watcom: all host suites PASS;
+19 exports compile/link with **no W124 warnings**. Windows 3.1 actual
+runtime use of PALSTAGE is not yet validated.
+
+`PALLOAD.EXE` is a new **normal Win16 GUI test application** that explicitly
+loads the actual `PALSTAGE.DRV` from `C:\PALTEST\PALSTAGE.DRV` while the
+existing VGA display remains configured. Four opt-in steps test the NE loader,
+19 exported DDI names, the 4-byte cursor `Inquire`, and the **hardware-free**
+`Enable(style=1)` GDIINFO query. It checks returned 110-byte layout and guard
+bytes, reports geometry, then unloads the module. It **never** invokes
+`Enable(style=0)`, programs ports, writes VRAM, or changes a Windows display
+setting. Tests mock the same WinMain code and exercise refusal/failure paths.
+
+Build with `sh windows/win31/build-palload.sh` (requires Open Watcom) and
+`sh windows/win31/build-palddi.sh`, then copy **both**
+`tests/exes/PALLOAD.EXE` and `tests/exes/PALSTAGE.DRV` to `C:\PALTEST` in a
+**snapshotted 86Box Windows 3.1 guest**. Launch PALLOAD from File Manager;
+report the last numbered dialog before any failure. No driver installation.
+The existing `[Palettium] VRAMKiB=256` (or actual 512/1024) SYSTEM.INI
+configuration is optional: if it is absent, STEP 4 *correctly refuses*.
+Do **not** edit `[boot] display.drv` or `[386Enh] display` for this test.
+
+**Not a functional desktop.** Successful DLL load and style-1 GDIINFO only
+eliminate two runtime unknowns; GDI-owned `Enable(style=0)`, VDD compatibility,
+real interrupt behavior, fonts and restore/resume still block installation.
 
 ## v0042 snapshot — Win16 cursor critical regions and startup audit
 

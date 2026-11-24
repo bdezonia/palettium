@@ -20,6 +20,7 @@ test: all
 	python3 tests/test_build_maintenance.py
 	$(MAKE) -f Makefile.gdiinfo test
 	$(MAKE) -f Makefile.win31diag test
+	$(MAKE) -f Makefile.win31load test
 	$(MAKE) -f Makefile.win31text test
 	$(MAKE) -f Makefile.cursor test
 	$(MAKE) -f Makefile.win31cursor test

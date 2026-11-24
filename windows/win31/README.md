@@ -1,5 +1,21 @@
 # Windows 3.1 staging display driver (v0042)
 
+
+## v0043: Real driver loader exercise (non-installing)
+
+`build-palload.sh` builds `tests/exes/PALLOAD.EXE`, a Win16 GUI diagnostic
+that loads the real `PALSTAGE.DRV` from `C:\PALTEST\PALSTAGE.DRV` using
+Windows `LoadLibrary`. It verifies all 19 export names and optionally calls
+`Inquire @101` and `Enable(style=1)` for the GDIINFO record. No driver is
+installed; existing VGA desktop remains active, and no hardware is touched.
+A four-step MessageBox transcript isolates loader versus ABI failures.
+Copy `PALLOAD.EXE` and `PALSTAGE.DRV` to `C:\PALTEST` in snapshotted 86Box;
+run PALLOAD from Windows File Manager (NOT DOS). The `Enable(style=1)`
+query requires an explicit correct `[Palettium] VRAMKiB=...` setting in
+`SYSTEM.INI` to return nonzero; missing config is an expected refusal.
+Do not change `[boot] display.drv`, or treat this as approval to install.
+
+
 **v0042:** Open Watcom's eight W124 warnings are addressed at their
 sources. Mouse IRQ publication and timer-side consumption now use paired
 Win3.x DDK critical sections in the Win16 build, while the cursor compositor
