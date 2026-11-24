@@ -6,6 +6,9 @@
  */
 #include "pal_gdiinfo.h"
 #define PAL_PD_MAGIC 0x50414C44UL
+/* Win3.x GDI requires a display PDEVICE's first WORD to be 0x2000.
+ * A memory BITMAP instead begins with bmType=0. This is not optional. */
+#define PAL_PD_DISPLAY_TYPE 0x2000u
 #if defined(__SIZEOF_LONG__) && __SIZEOF_LONG__ == 8
 typedef unsigned int PAL_U32;
 #else
@@ -16,7 +19,7 @@ typedef unsigned long PAL_U32;
 #define PAL_PD_ACTIVE 2u
 #pragma pack(push, 1)
 typedef struct PAL_PDEVICE {
-    PAL_U16 type;          /* nonzero: device-specific, not RAM BITMAP */
+    PAL_U16 type;          /* MUST be 0x2000 for Win3.x display PDEVICE */
     PAL_U16 bytes;         /* sizeof(PAL_PDEVICE) */
     PAL_U16 state;         /* OFF/READY/ACTIVE */
     PAL_U16 width;

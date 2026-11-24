@@ -36,13 +36,22 @@ windows/win31/pal_screen_ddi.c
 windows/win31/pal_screen_host.c
 windows/win31/pal_ddl_blit.c
 windows/win31/palddi.c
-windows/win31/pal_driver_entry.c'
+windows/win31/pal_driver_entry.c
+windows/win31/pal_boottrace.c'
 
 if [ "${PAL_TRIAL_BUILD:-0}" = 1 ]; then
     NAME=PALTRIAL
     TRIAL_OPTION=-dPAL_WIN31_TRIAL_MODE
+    # Trial-only KERNEL file trace is enabled by default; explicitly
+    # disable with PAL_TRIAL_TRACE=0 to compare behavior without file I/O.
+    if [ "${PAL_TRIAL_TRACE:-1}" = 1 ]; then
+        TRACE_OPTION=-dPAL_WIN31_BOOTTRACE
+    else
+        TRACE_OPTION=
+    fi
 else
     NAME=PALSTAGE
+    TRACE_OPTION=
     TRIAL_OPTION=
 fi
 LINKFILE="tests/exes/$NAME.generated.lnk"
@@ -53,7 +62,7 @@ rm -f "$LINKFILE" "$OUTPUT" "tests/exes/$NAME.exports.txt"
 # through wcl -fd: the previous script duplicated its SYSTEM block.
 {
     printf '%s\n' 'option quiet' 'system windows_dll' \
-        "name tests/exes/$NAME.DRV" "option modname=$NAME"
+        "name tests/exes/$NAME.DRV" 'option modname=DISPLAY'
 } > "$LINKFILE"
 
 for source in $SOURCES; do
@@ -62,7 +71,12 @@ for source in $SOURCES; do
     echo "Win16 C: $source"
     # Session and Win16 platform adapter both include et4k.h.  The
     # ET4000AX implementation also MUST be in SOURCES so it can link.
-    wcc -bt=windows -mc -bd -zu -zq $TRIAL_OPTION -i=include -i=windows/win31 \
+    # The default Win16 __STK checker links a fatal MessageBox handler
+    # from USER, which cannot load before the display driver.  -s omits
+    # this runtime check ONLY in this early-boot Win16 display module.
+    # This does not make unchecked stack growth safe; keep the binary NE
+    # import audit below and test only in a disposable 86Box VM.
+    wcc -bt=windows -mc -bd -zu -zq -s $TRIAL_OPTION $TRACE_OPTION -i=include -i=windows/win31 \
         -i=hardware/tseng/et4000ax \
         -fo="$obj" "$source"
     test -s "$obj"
@@ -110,6 +124,7 @@ test -s "$OUTPUT"
 wdump -x "$OUTPUT" > "tests/exes/$NAME.exports.txt"
 # EARLY LOADER RULE: display drivers must not depend on USER, which has
 # not finished loading when Windows is bringing up the display subsystem.
+python3 tools/check_win31_modname.py "$OUTPUT"
 python3 tools/check_win31_imports.py "$OUTPUT"
 python3 tools/check_win31_exports.py "tests/exes/$NAME.exports.txt"
 if [ "$NAME" = PALTRIAL ]; then

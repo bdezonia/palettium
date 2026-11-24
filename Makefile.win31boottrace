@@ -1,0 +1,11 @@
+CC ?= cc
+CFLAGS ?= -std=c89 -O2 -Wall -Wextra -Werror
+.PHONY: test
+test: tests/exes/win31-boottrace-test
+	./tests/exes/win31-boottrace-test
+	$(CC) $(CFLAGS) -fsyntax-only -DPAL_WIN31_TRIAL_MODE -DPAL_WIN31_BOOTTRACE -Itests/win16_stubs -Iinclude -Iwindows/win31 -Ihardware/tseng/et4000ax -include tests/win16_stubs/driver_syntax.h windows/win31/palddi.c
+	$(CC) $(CFLAGS) -fsyntax-only -DPAL_WIN31_TRIAL_MODE -DPAL_WIN31_BOOTTRACE -Itests/win16_stubs -Iwindows/win31 -include tests/win16_stubs/driver_syntax.h windows/win31/pal_driver_entry.c
+tests/exes/win31-boottrace-test: windows/win31/pal_boottrace.c windows/win31/pal_boottrace.h tests/test_win31_boottrace.c | tests/exes
+	$(CC) $(CFLAGS) -DPAL_WIN31_BOOTTRACE -Itests/win16_stubs -Iwindows/win31 windows/win31/pal_boottrace.c tests/test_win31_boottrace.c -o $@
+tests/exes:
+	mkdir -p $@

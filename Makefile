@@ -23,6 +23,7 @@ test: all
 	$(MAKE) -f Makefile.win31diag test
 	$(MAKE) -f Makefile.win31load test
 	$(MAKE) -f Makefile.win31trial test
+	$(MAKE) -f Makefile.win31boottrace test
 	$(MAKE) -f Makefile.win31text test
 	$(MAKE) -f Makefile.cursor test
 	$(MAKE) -f Makefile.win31cursor test

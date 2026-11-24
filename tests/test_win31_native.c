@@ -101,7 +101,8 @@ static void exercise(Mock *m, unsigned long bytes, unsigned height)
     CHECK(gdi_image.type==0xA5A5u);
     CHECK(pal_screen_host_gdi_snapshot(&session.host,TOKEN,&gdi_image));
     CHECK(gdi_image.height==height && gdi_image.width==640u &&
-          gdi_image.pitch==640u && gdi_image.state==PAL_PD_ACTIVE);
+          gdi_image.pitch==640u && gdi_image.type==PAL_PD_DISPLAY_TYPE &&
+          gdi_image.state==PAL_PD_ACTIVE);
     CHECK(session.host.device.surface.capacity==bytes);
     CHECK(!pal_et4k_session_start(&session,io,bytes,TOKEN));
     result=0;
@@ -180,7 +181,8 @@ static void test_published_start(Mock *m)
     CHECK(pal_et4k_session_start_published(&session,io,&plan,TOKEN,
                                             publish_device,&pub,1));
     CHECK(pub.calls==2 && pub.device.magic==PAL_PD_MAGIC &&
-          pub.device.state==PAL_PD_ACTIVE && pub.device.height==400u);
+          pub.device.state==PAL_PD_ACTIVE &&
+          pub.device.type==PAL_PD_DISPLAY_TYPE && pub.device.height==400u);
     CHECK(session.host.running && m->attempted==modes+2);
     n=pub.calls;
     CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,

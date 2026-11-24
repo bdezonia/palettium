@@ -16,6 +16,9 @@ int main(void)
     CHECK(!pal_pd_prepare(&pd,640,480,65536u));
     CHECK(pal_pd_prepare(&pd,640,480,640));
     CHECK(pal_pd_valid(&pd));
+    CHECK(pd.type == PAL_PD_DISPLAY_TYPE && pd.type == 0x2000u);
+    bad=pd; bad.type=1u;
+    CHECK(!pal_pd_valid(&bad));
     CHECK(pd.state==PAL_PD_READY);
     CHECK(!pal_pd_stop((PAL_PDEVICE *)0));
     CHECK(pal_pd_capability_candidate(&info,&pd));

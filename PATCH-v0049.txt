@@ -1,0 +1,26 @@
+Palettium v0049 -- correct Win16 internal display module identity
+Apply over v0048. User confirmed stock VGA boots in Standard mode,
+PALTRIAL fails immediately, last observed marker LIBMAIN OK.
+A prior trace-disabled attempt also failed; stale trace not excluded.
+
+Windows 3.1 DDK Windows Drivers Overview specifies module name DISPLAY:
+https://dos-help.soulsphere.org/ddag31qh.hlp/Windows_Drivers_Overview.html
+Both generated drivers incorrectly used their filenames as module names.
+Correct internal NE name to DISPLAY; filenames and 26 exports unchanged.
+New binary checker validates resident module name and ordinal zero.
+Add INQUIRE ENTER/OK markers to trial trace. No renderer or hardware changes.
+Do not load PALSTAGE alongside a live DISPLAY module as an ordinary test DLL:
+module-name collision can invalidate that experiment. PALSTAGE still gated.
+
+Build: make clean && make test
+       sh windows/win31/build-palddi.sh
+       PAL_TRIAL_TRACE=1 sh windows/win31/build-paltrial.sh
+       python3 tools/check_win31_modname.py tests/exes/PALTRIAL.DRV
+Expected DISPLAY name, KERNEL-only imports, 26 exports.
+Use disposable 256KiB Standard-mode VM with same trial settings and recovery.
+Copy fresh PALTRIAL.DRV, delete C:\PALBOOT.TXT, run WIN /B /S.
+Return fresh BOOTLOG and PALBOOT (or report absent), and build diagnostics.
+If unchanged, next compare actual NE exports/segments/imports with stock VGA
+and verify Watcom external-entry DS setup; do not change renderer yet.
+Only synthetic NE checks and shell syntax checked here; incremental archive
+lacks full source tree and this environment lacks Open Watcom.

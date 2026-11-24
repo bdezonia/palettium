@@ -1,3 +1,95 @@
+# Palettium v0048 -- first GDI initialization diagnosis
+
+The v0047 Windows 3.1 BOOTLOG shows PALTRIAL.DRV LoadSuccess,
+then GDI.EXE LoadFail with code 00 (documented loader meaning: out of
+memory). This is a NEW stage after the v0047 KERNEL-only import success.
+Neither BOOTLOG nor GDI failure proves that the driver's Enable function
+was called. A real underlying low-memory condition is possible.
+
+Found and fixed an independent definite Win3.x DDK violation:
+`PAL_PDEVICE.type` was 1, but display PDEVICE first WORD must be 0x2000.
+Mem BITMAP first word remains zero. Tests check exact 0x2000 wire value.
+
+PALTRIAL adds a temporary KERNEL-only DOS file trace to distinguish
+GDI phases. Only this trial build calls it; `PALSTAGE` remains fail-closed.
+The trace is a diagnostic that itself may affect low memory or disk I/O.
+Never infer an unlogged phase was skipped when the trace file is absent.
+See PATCH-v0048.txt for instructions. Expected file: C:\PALBOOT.TXT.
+There is no evidence yet that GDI can actually initialize the desktop.
+
+---
+
+# Palettium v0047 — remove the *verified* pre-USER startup dependency
+
+## Why v0046 still failed
+
+The maintainer applied v0046 and all host tests passed; Open Watcom
+compiled and linked both drivers, but the new NE import checker correctly
+rejected BOTH `PALSTAGE.DRV` and `PALTRIAL.DRV`:
+
+```
+NE imported modules: KERNEL, USER
+FAIL: early Windows 3.1 display driver imports ... USER
+```
+
+The earlier conclusion that `int86` was the origin of the sole `USER`
+import was incorrect. Re-examination of the **actual 34,526-byte v0045
+PALTRIAL.DRV** revealed the literal string `Stack Overflow!` adjacent to
+its sole NE relocation to `USER` ordinal 1 (`MessageBox`). Open Watcom's
+own `bld/clib/startup/a/stk086.asm` shows that Win16 stack checks invoke
+`__STK`, which invokes `__fatal_runtime_error` on overflow. That fatal
+error implementation is inappropriate for a display driver loaded before
+USER.EXE is available. The `int86` implementation may have been present
+in v0045, but the evidence for `MessageBox` points specifically to the
+**Win16 stack-overflow failure path**, not the BIOS wrapper. The v0046
+INT 10h wrapper can remain because it avoids unrelated runtime linkage.
+
+## v0047 narrow correction
+
+- The *Win16 driver build only* compiles with Open Watcom `-s` (documented
+  compiler switch: omit automatic stack overflow checks). This prevents
+  the toolchain from pulling in `__STK` and its USER-dependent fatal
+  handler. Host tests/other platforms are unchanged.
+- **Safety tradeoff:** `-s` also removes automatic runtime stack-overflow
+  detection. This is a controlled experimental compatibility correction,
+  NOT a claim that stack overflow is harmless. Do not install either driver
+  outside the disposable 86Box experiment. A later hardening step can
+  introduce a KERNEL-only fail-safe stack guard if one proves necessary.
+- The build still **requires the actual linked NE module-reference table to
+  contain ONLY `KERNEL`**. It also reports a telltale `Stack Overflow!`
+  string when rejecting a USER import, to aid diagnosis.
+- The normal PALSTAGE.DRV remains noninstallable, `Enable(style=0)` always
+  fails. PALTRIAL remains a distinct, Standard-mode 256KiB ET4000AX and
+  TrialEnable=4401-only experiment. Both retain 26 DDI exports.
+
+## User build test (Open Watcom required)
+
+```
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal47.zip
+make clean && make test
+sh windows/win31/build-palddi.sh
+sh windows/win31/build-paltrial.sh
+python3 tools/check_win31_imports.py tests/exes/PALTRIAL.DRV
+wdump -x tests/exes/PALTRIAL.DRV
+```
+
+Success criterion: both builds print `NE imported modules: KERNEL`, and
+both import/export audits PASS. If USER remains, **do not boot-test**;
+provide the new `PALTRIAL.DRV` binary and `.generated.lnk` for another
+import trace. The assistant's host has not compiled the Win16 driver.
+
+## Only after verified successful import audits
+
+In a **disposable VM**, with a snapshot and DOS `SYSTEM.INI` backup,
+replace only `C:\WINDOWS\SYSTEM\PALTRIAL.DRV`, retain Standard mode,
+256KiB VRAM, `[Palettium] VRAMKiB=256` and `TrialEnable=4401`; run
+`WIN /B /S`. If startup fails, recover original VGA `SYSTEM.INI` from
+DOS and preserve the resulting BOOTLOG.TXT. A KERNEL-only import does NOT
+prove that GDI/DDI initialization or hardware mode changing will work.
+
+---
+
 ## v0046 — pre-USER driver import fix (pending Watcom and VM validation)
 
 The maintainer's v0045 BOOTLOG.TXT showed a failed nested `USER.DLL` load.

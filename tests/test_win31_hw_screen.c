@@ -103,7 +103,8 @@ int main(void)
     assert(!pal_screen_host_gdi_snapshot(&host,0,&gdi_image));
     assert(memcmp(&gdi_image,&unchanged_image,sizeof(gdi_image))==0);
     assert(pal_screen_host_gdi_snapshot(&host,TOKEN,&gdi_image));
-    assert(pal_pd_valid(&gdi_image) &&
+    assert(gdi_image.type==PAL_PD_DISPLAY_TYPE &&
+           pal_pd_valid(&gdi_image) &&
            memcmp(&gdi_image,&host.pdevice,sizeof(gdi_image))==0);
     /* A corrupt private image must never reach GDI-owned storage. */
     host.pdevice.bpp=7u;

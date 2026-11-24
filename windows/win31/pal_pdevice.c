@@ -14,7 +14,7 @@ int pal_pd_layout_ok(void)
 int pal_pd_valid(const PAL_PDEVICE *pd)
 {
     if (!pd || !pal_pd_layout_ok()) return 0;
-    if (pd->type != 1u || pd->bytes != sizeof(*pd) ||
+    if (pd->type != PAL_PD_DISPLAY_TYPE || pd->bytes != sizeof(*pd) ||
         pd->magic != PAL_PD_MAGIC || pd->bpp != 8u ||
         pd->reserved != 0u ||
         pd->width == 0u || pd->height == 0u ||
@@ -33,7 +33,7 @@ int pal_pd_prepare(PAL_PDEVICE *pd, unsigned width, unsigned height,
 #endif
     /* The 8-bit framebuffer spans more than 64K; no near VRAM pointer. */
     memset(pd, 0, sizeof(*pd));
-    pd->type = 1u;
+    pd->type = PAL_PD_DISPLAY_TYPE;
     pd->bytes = (PAL_U16)sizeof(*pd);
     pd->state = PAL_PD_READY;
     pd->width = (PAL_U16)width;

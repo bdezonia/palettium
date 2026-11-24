@@ -52,6 +52,11 @@ def check(path):
     names = imports(path)
     print("NE imported modules:", ", ".join(names) or "(none)")
     bad = [name for name in names if name not in ("KERNEL", "KERNEL.EXE")]
+    if "USER" in names or "USER.DLL" in names:
+        if b"Stack Overflow!" in pathlib.Path(path).read_bytes():
+            print("DIAGNOSIS: Watcom's default Win16 __STK overflow handler "
+                  "appears to be linked (Stack Overflow! string); "
+                  "it can bring in USER.MessageBox.", file=sys.stderr)
     if bad:
         print("FAIL: early Windows 3.1 display driver imports a module that "
               "may not yet be initialized:", ", ".join(bad), file=sys.stderr)

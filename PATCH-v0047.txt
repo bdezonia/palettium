@@ -1,0 +1,24 @@
+Palettium v0047 — corrective Win16 __STK import fix (over v0046)
+
+Maintainer's v0046 Open Watcom build compiled, but actual NE import audit
+FAILED on BOTH drivers: KERNEL, USER. The v0045 binary contains
+"Stack Overflow!" next to its USER.MessageBox relocation. Open Watcom's
+Win16 stk086.asm __STK overflow routine leads to a USER-dependent fatal
+error handler; it is not safe before USER loads.
+
+Fix: the display-driver compiler command alone gains -s (omit default
+stack overflow checks), so the __STK runtime should no longer be linked.
+Strict NE import audit remains mandatory and will fail if USER persists.
+This removes a safety check; use only disposable VM trial, not production.
+
+Apply and build:
+ cd ~/dev/palettium
+ unzip -o ~/Downloads/pal47.zip
+ make clean && make test
+ sh windows/win31/build-palddi.sh
+ sh windows/win31/build-paltrial.sh
+ python3 tools/check_win31_imports.py tests/exes/PALTRIAL.DRV
+
+Do not boot-test unless both import audits show KERNEL only. Both drivers
+retain 26 DDI exports and normal PALSTAGE rejects Enable(style=0).
+See HANDOFF.md for recovery and risk notes.

@@ -1,0 +1,48 @@
+Palettium v0048 -- GDI initialize failure (BOOTLOG code 00)
+
+APPLY over user-tested v0047. No new DDI exports; 26 ordinals retained.
+
+BOOTLOG from Windows 3.1 trial:
+  LoadSuccess = PALTRIAL.DRV
+  LoadStart = GDI.EXE
+  LoadFail = GDI.EXE Failure code is 00
+Microsoft KB Q119066 defines code 00 as Out of memory; this is NOT
+proof the VM RAM is insufficient or that Enable was reached.
+
+FIX: The first WORD of display PDEVICE must be 0x2000 per historical
+Win3.x DDK. The v0047 code incorrectly put 1 there. All PDEVICE
+validation and memory-bitmap discrimination now enforce 0x2000.
+
+DIAGNOSTIC: PALTRIAL.DRV (ONLY) writes phase markers using KERNEL
+_lcreat/_lopen/_llseek/_lwrite/_lclose to C:\PALBOOT.TXT. The normal
+PALSTAGE build contains no active trace and still rejects style=0.
+The file can be inspected from DOS after failed WIN /B /S. Markers
+include LIBMAIN, ENABLE1, ENABLE0, GATE, ACT PLAN, ACT PORT, PUBLISH
+and ACT SESSION. File write failures are ignored; missing records
+do not prove a phase never occurred. All file handles close promptly.
+This logging is an experimental perturbation, and may itself change
+timing or memory pressure. Compare `PAL_TRIAL_TRACE=0 sh ...` if needed.
+
+BUILD on Ubuntu:
+  unzip -o ~/Downloads/pal48.zip
+  make clean && make test
+  make -f Makefile.pdevice test
+  make -f Makefile.bitmap test
+  sh windows/win31/build-palddi.sh
+  sh windows/win31/build-paltrial.sh
+  python3 tools/check_win31_imports.py tests/exes/PALTRIAL.DRV
+
+REQUIRED: BOTH Win16 DRVs must pass KERNEL-only NE import audit and
+26-export check. New KERNEL file calls must never introduce USER/GDI.
+Actual Open Watcom Win16 compilation is NOT verified by host GCC.
+
+BEFORE reboot: Confirm disposable VM 256KiB ET4000, Standard mode,
+TrialEnable=4401, DOS SYSTEM.INI recovery backup, copy freshly built
+PALTRIAL.DRV. Delete old C:\PALBOOT.TXT from DOS. Run WIN /B /S;
+if it fails, attach C:\PALBOOT.TXT and fresh C:\WINDOWS\BOOTLOG.TXT.
+If PALBOOT absent, report that. Do NOT change working VGA install.
+
+If failure remains at GDI.EXE with code 00, also test whether the same
+disposable VM boots its original VGA.DRV with WIN /S to distinguish
+base Standard-mode memory constraints from Palettium-specific failure.
+No other hardware, graphics or renderer functionality was changed.

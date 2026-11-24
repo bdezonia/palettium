@@ -17,6 +17,9 @@ def check_win16_recipe():
     assert "hardware/tseng/et4000ax/et4k.c" in sources, "ET4000 backend not linked"
     assert "windows/win31/pal_et4k_session.c" in sources, "session missing"
     assert "windows/win31/pal_et4k_win16.c" in sources, "Win16 adapter missing"
+    assert "option modname=DISPLAY" in script
+    assert "option modname=$NAME" not in script
+    assert 'python3 tools/check_win31_modname.py "$OUTPUT"' in script
     assert 'python3 tools/check_win31_imports.py "$OUTPUT"' in script
     bridge = (ROOT / "windows/win31/pal_et4k_win16.c").read_text()
     assert "#pragma aux pal_win16_bios_int10" in bridge
@@ -27,6 +30,13 @@ def check_win16_recipe():
     assert "common/rg_gdi_text.c" in sources
     assert "common/rg_cursor.c" in sources
     assert "windows/win31/pal_cursor16.c" in sources
+    assert "windows/win31/pal_boottrace.c" in sources
+    assert "PAL_TRIAL_TRACE:-1" in script and "-dPAL_WIN31_BOOTTRACE" in script
+    assert "TRACE_OPTION=" in script
+    assert "PAL_PD_DISPLAY_TYPE 0x2000u" in (
+        ROOT / "windows/win31/pal_pdevice.h").read_text()
+    assert "pd->type = PAL_PD_DISPLAY_TYPE" in (
+        ROOT / "windows/win31/pal_pdevice.c").read_text()
     for export in ("Control.3", "EnumDFonts.6", "EnumObj.7",
                    "GetCharWidth.15", "DeviceBitmap.16",
                    "FastBorder.17", "SetAttribute.18",
@@ -87,6 +97,9 @@ def check_win16_recipe():
     # Exactly the include switches that the actual wcc invocation receives.
     command = re.search(r"\bwcc -bt=windows .*?\n\s*test -s", script, re.S)
     assert command, "Win16 compiler invocation not found"
+    assert re.search(r"\bwcc\b[^\n]*\s-s\s", command.group()), (
+        "Win16 display driver must not link the default __STK/USER "
+        "MessageBox overflow runtime; see v0047 handoff")
     include_dirs = [ROOT / p for p in re.findall(r"-i=([\w./-]+)", command.group())]
     assert ROOT / "hardware/tseng/et4000ax" in include_dirs
     assert ROOT / "windows/win31" in include_dirs
@@ -119,6 +132,7 @@ def check_full_clean():
             "tests/exes/PALDIAG.EXE", "tests/exes/paldiag-host-test",
             "tests/exes/PALLOAD.EXE", "tests/exes/palload-host-test",
             "tests/exes/et4k-test", "tests/exes/raster-demo.ppm",
+            "tests/exes/win31-boottrace-test",
             "build/dos/ET4KTEST.EXE", "build/other/temporary.obj",
             "windows/win31/PALCORE.DLL", "windows/win31/PALDEV.EXPORTS.txt",
             "windows/win31/PALPROBE.OBJ", "windows/win31/pal_bitmap.obj",

@@ -36,11 +36,12 @@ int main(void)
     b.bmHeight = 16;
     b.bmWidthPlanes = 512;
     CHECK(pal_pd_prepare(&pd, 640, 480, 640));
-    CHECK(pal_ddi_target_kind(1, 0, &pd) == PAL_TARGET_SCREEN);
+    CHECK(pal_ddi_target_kind(PAL_PD_DISPLAY_TYPE, 0, &pd) == PAL_TARGET_SCREEN);
+    CHECK(pal_ddi_target_kind(1, 0, &pd) == PAL_TARGET_INVALID);
     CHECK(pal_ddi_target_kind(2, 0, &pd) == PAL_TARGET_INVALID);
     CHECK(pal_ddi_target_kind(0, 0, &pd) == PAL_TARGET_INVALID);
     pd.magic = 0;
-    CHECK(pal_ddi_target_kind(1, 0, &pd) == PAL_TARGET_INVALID);
+    CHECK(pal_ddi_target_kind(PAL_PD_DISPLAY_TYPE, 0, &pd) == PAL_TARGET_INVALID);
     puts("PASS: Win31 32-byte BITMAP ABI, memory/screen discriminator, safe rejection");
     return 0;
 }

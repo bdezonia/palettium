@@ -46,6 +46,13 @@ def main():
             assert False, "invalid NE accepted"
         except ValueError:
             pass
+    # The v0045 executable contained both the Stack Overflow! handler and
+    # a USER import. The diagnostic is advisory; only the NE table controls
+    # whether the display module passes the mandatory import audit.
+    with tempfile.TemporaryDirectory() as td:
+        p = pathlib.Path(td) / "stackdriver.drv"
+        p.write_bytes(fake_ne(["KERNEL", "USER"]) + b"Stack Overflow!")
+        assert module.check(p) == 1
     # The maintainer-supplied v0045 binary is not needed for test portability.
     print("PASS: Win16 NE import audit, no-USER bootstrap policy, corrupted files")
 

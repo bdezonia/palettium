@@ -62,6 +62,7 @@
 #include "pal_font16.h"
 #include "pal_cursor16.h"
 #include "pal_trial_gate.h"
+#include "pal_boottrace.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
 /* Persistent storage: GDI owns only the published 20-byte PDEVICE. */
@@ -106,12 +107,16 @@ int FAR PASCAL pal_win16_publish_host(PAL_ScreenHost *host,
         (PAL_U32)sizeof(image) > 65536UL) return 0;
     token=pal_ddi_far_token((PAL_U16)FP_SEG(gdi_pdevice),
                             (PAL_U16)FP_OFF(gdi_pdevice));
-    if (!pal_screen_host_gdi_snapshot(host,token,&image)) return 0;
+    if (!pal_screen_host_gdi_snapshot(host,token,&image)) {
+        pal_boottrace("PUBLISH SNAPSHOT FAIL");
+        return 0;
+    }
     source=(const unsigned char *)&image;
     target=(unsigned char FAR *)gdi_pdevice;
     for (i=0; i<sizeof(image); ++i) target[i]=source[i];
     pal_cursor16_bind(&pal_win16_cursor,&host->device);
     pal_active_host=host;
+    pal_boottrace("PUBLISH OK");
     return 1;
 }
 
@@ -140,21 +145,36 @@ static int pal_win16_activate(LPVOID destination)
     PAL_Win16Commit commit;
     PAL_U32 token;
     if (!destination || pal_active_host ||
-        !pal_win16_et4k_profile_plan(&plan)) return 0;
+        !pal_win16_et4k_profile_plan(&plan)) {
+        pal_boottrace("ACT PLAN FAIL");
+        return 0;
+    }
+    pal_boottrace("ACT PLAN OK");
     /* Platform-adapter lookup is deliberately after the pure planning
      * preflight; no A000 selector or I/O is touched during style=1. */
     if (plan.vdd_assessment != PAL_VDD_NOT_ENHANCED ||
         (PAL_U32)(PAL_U16)FP_OFF(destination) +
-        (PAL_U32)sizeof(PAL_PDEVICE) > 65536UL ||
-        !pal_win16_et4k_port(&pal_native_adapter,&port)) return 0;
+        (PAL_U32)sizeof(PAL_PDEVICE) > 65536UL) {
+        pal_boottrace("ACT PRECHECK FAIL");
+        return 0;
+    }
+    if (!pal_win16_et4k_port(&pal_native_adapter,&port)) {
+        pal_boottrace("ACT PORT FAIL");
+        return 0;
+    }
+    pal_boottrace("ACT PORT OK");
     token=pal_ddi_far_token((PAL_U16)FP_SEG(destination),
                             (PAL_U16)FP_OFF(destination));
     /* context points to a typed stack object that HOLDS the FAR pointer.
      * Never cast GDI's FAR LPVOID directly to the callback's untyped void*. */
     commit.gdi_far_destination=destination;
-    return pal_et4k_session_start_published(&pal_native_session,port,
-                      &plan,token,pal_win16_publish_transaction,
-                      &commit,1);
+    {
+        int succeeded=pal_et4k_session_start_published(&pal_native_session,
+                       port,&plan,token,pal_win16_publish_transaction,
+                       &commit,1);
+        pal_boottrace(succeeded ? "ACT SESSION OK" : "ACT SESSION FAIL");
+        return succeeded;
+    }
 }
 
 /* DDK Win3.x cursor DDI. Inquire is called before Enable, so it does
@@ -164,10 +184,12 @@ static int pal_win16_activate(LPVOID destination)
 WORD FAR PASCAL Inquire(LPVOID information)
 {
     WORD FAR *out=(WORD FAR *)information;
+    pal_boottrace("INQUIRE ENTER");
     if (!information || (PAL_U32)(PAL_U16)FP_OFF(information)+4UL>65536UL)
         return 0;
     out[0]=1u; /* IBM PC Microsoft Mouse X mickeys-per-pixel */
     out[1]=2u; /* Y */
+    pal_boottrace("INQUIRE OK");
     return 4u;
 }
 void FAR PASCAL SetCursor(LPVOID shape)
@@ -209,12 +231,14 @@ void FAR PASCAL CheckCursor(void)
 static int pal_win16_install_ready(void)
 {
 #ifdef PAL_WIN31_TRIAL_MODE
-    return pal_win31_trial_permitted(
+    int allowed=pal_win31_trial_permitted(
         (unsigned long)GetWinFlags(),
         (unsigned)GetPrivateProfileInt("Palettium","VRAMKiB",0,
                                        "SYSTEM.INI"),
         (unsigned)GetPrivateProfileInt("Palettium","TrialEnable",0,
                                        "SYSTEM.INI"));
+    pal_boottrace(allowed ? "GATE OK" : "GATE BLOCKED");
+    return allowed;
 #else
     return 0;
 #endif
@@ -842,10 +866,18 @@ WORD FAR PASCAL Enable(LPVOID destination, WORD style,
     unsigned i;
     (void)device_type; (void)output_file; (void)data;
     if (style == 0u) {
+        int started;
+        pal_boottrace("ENABLE0 ENTER");
         if (!pal_win16_install_ready()) return 0;
-        return pal_win16_activate(destination) ? 1u : 0u;
+        started=pal_win16_activate(destination);
+        pal_boottrace(started ? "ENABLE0 OK" : "ENABLE0 FAIL");
+        return started ? 1u : 0u;
     }
-    if (style != 1u || !destination) return 0;
+    if (style != 1u || !destination) {
+        pal_boottrace("ENABLE BAD STYLE OR NULL");
+        return 0;
+    }
+    pal_boottrace("ENABLE1 ENTER");
     /* Never advertise 640x480 on an unknown or 256KiB card. Until we
      * have an authorized in-Windows capacity probe, require explicit
      * [Palettium] VRAMKiB in SYSTEM.INI. This is still just a candidate
@@ -854,10 +886,14 @@ WORD FAR PASCAL Enable(LPVOID destination, WORD style,
     if ((PAL_U32)(PAL_U16)FP_OFF(destination) +
         (PAL_U32)sizeof(candidate) > 65536UL ||
         !pal_win16_et4k_profile_plan(&plan) ||
-        !pal_et4k_plan_capability(&candidate,&plan)) return 0;
+        !pal_et4k_plan_capability(&candidate,&plan)) {
+        pal_boottrace("ENABLE1 FAIL");
+        return 0;
+    }
     out = (unsigned char FAR *)destination;
     in = (const unsigned char *)&candidate;
     for (i = 0; i < sizeof(candidate); ++i) out[i] = in[i];
+    pal_boottrace("ENABLE1 OK");
     return (WORD)sizeof(candidate);
 }
 
@@ -871,6 +907,7 @@ void FAR PASCAL Disable(LPVOID physical_device)
     token=pal_ddi_far_token((PAL_U16)FP_SEG(physical_device),
                             (PAL_U16)FP_OFF(physical_device));
     if (token != pal_active_host->ddi.screen_token) return;
+    pal_boottrace("DISABLE ENTER");
     /* Detach the public binding before shutting the hardware down.
      * The static session and native selector context must remain valid
      * throughout RG_Hardware.close / BIOS restore. */

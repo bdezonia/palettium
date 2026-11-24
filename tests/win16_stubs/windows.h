@@ -16,6 +16,13 @@ typedef unsigned long DWORD;
 typedef int HMODULE;
 typedef int HINSTANCE;
 typedef int HWND;
+typedef int HFILE;
+#define OF_WRITE 1u
+HFILE _lcreat(const char *filename,int attrs);
+HFILE _lopen(const char *filename,int flags);
+long _llseek(HFILE file,long offset,int origin);
+unsigned _lwrite(HFILE file,const char *source,unsigned count);
+int _lclose(HFILE file);
 typedef char *LPSTR;
 typedef void *LPVOID;
 typedef void (*FARPROC)(void);
