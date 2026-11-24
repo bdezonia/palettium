@@ -17,6 +17,11 @@ def check_win16_recipe():
     assert "hardware/tseng/et4000ax/et4k.c" in sources, "ET4000 backend not linked"
     assert "windows/win31/pal_et4k_session.c" in sources, "session missing"
     assert "windows/win31/pal_et4k_win16.c" in sources, "Win16 adapter missing"
+    assert 'python3 tools/check_win31_imports.py "$OUTPUT"' in script
+    bridge = (ROOT / "windows/win31/pal_et4k_win16.c").read_text()
+    assert "#pragma aux pal_win16_bios_int10" in bridge
+    assert '"int 10h"' in bridge
+    assert "#if defined(__WATCOMC__) && !defined(__386__)" in bridge
     assert "windows/win31/pal_vdd.c" in sources, "Win3.x VDD policy not linked"
     assert "windows/win31/pal_font16.c" in sources
     assert "common/rg_gdi_text.c" in sources

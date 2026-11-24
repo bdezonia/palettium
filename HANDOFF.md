@@ -1,3 +1,77 @@
+# Palettium v0046 — eliminate early USER dependency from trial display driver
+
+**Observed failure (maintainer, Windows 3.1 Standard mode):** v0044 and v0045
+`WIN /S` displayed the splash screen, then reported `Error loading
+PALTRIAL.DRV` and returned to DOS. The supplied `BOOTLOG.TXT` showed:
+
+```
+LoadStart = PALTRIAL.DRV
+LoadStart = USER.DLL
+LoadFail = USER.DLL Failure code is 02
+LoadFail = PALTRIAL.DRV Failure code is 02
+```
+
+The supplied **actual v0045 PALTRIAL.DRV** (34,526 bytes) is an MZ/NE Win16
+DLL. Its NE module-reference table contains exactly `KERNEL`, `USER`, and
+its segment relocation records contain a call to **USER ordinal 1**, the
+Win16 `MessageBox` function. The generated linker file does not explicitly
+request USER and the driver C source does not call MessageBox. The call is
+inside Open Watcom's 16-bit general interrupt dispatcher, introduced by the
+`int86(0x10,...)` calls in `windows/win31/pal_et4k_win16.c`. This explains
+why the same driver can load from PALLOAD **after** Windows has initialized
+USER but can fail when used as the display driver **before** USER has loaded.
+
+## v0046 targeted change
+
+- Replace the two `int86` calls **only in the Windows 3.1 native hardware
+  adapter** with a dedicated `#pragma aux` 16-bit `INT 10h` wrapper. It takes
+  AX, preserves DS and ES, makes one BIOS video interrupt, and returns AX.
+  Existing saved-mode, readback and rollback logic is unchanged. A host
+  fallback remains for non-Watcom source inspection; it cannot be linked
+  into a Win16 build. The shared ET4000AX hardware abstraction is untouched.
+- NEW `tools/check_win31_imports.py` parses the **actual NE module-reference
+  table**, not just exports or strings, and refuses all dependencies except
+  KERNEL during early display bootstrap. The Win16 build script runs this
+  automatically on PALSTAGE.DRV and PALTRIAL.DRV; if USER still appears the
+  build is a **FAIL**, not a false PASS. Synthetic NE tests cover bad imports
+  and malformed images; host tests do NOT validate Watcom assembler.
+- **26 GDI exports unchanged.** `PALSTAGE.DRV` still unconditionally refuses
+  `Enable(style=0)`; separate PALTRIAL still requires actual Windows 3.1
+  Standard mode, configured 256KiB ET4000AX, and TrialEnable=4401.
+- This patch corrects a **known loader dependency defect**. It does not yet
+  demonstrate successful GDI initialization or prove that calling BIOS
+  INT 10h in the Windows Standard-mode context will work. Expect additional
+  issues if the system gets farther into startup.
+
+## Build and verify on maintainer's Open Watcom machine
+
+```
+cd ~/dev/palettium
+unzip -o ~/Downloads/pal46.zip
+make clean && make test
+sh windows/win31/build-palddi.sh
+sh windows/win31/build-paltrial.sh
+python3 tools/check_win31_imports.py tests/exes/PALTRIAL.DRV
+wdump -x tests/exes/PALTRIAL.DRV
+```
+
+**Key success criterion:** the import audit prints `NE imported modules:
+KERNEL` (or equivalent KERNEL-only), and neither driver build fails with a
+USER import warning. If Watcom rejects the pragma assembly, report that
+compiler diagnostic; don't bypass the audit or deploy a driver that fails.
+No Win3.1 runtime boot has been tested with this variant yet.
+
+## Recovery-only 86Box followup
+
+On the **same disposable 86Box snapshot**, replace only PALTRIAL.DRV in
+`C:\WINDOWS\SYSTEM`; preserve the VGA SYSTEM.INI backup and `[Palettium]`
+settings. Boot from DOS with `WIN /B /S` so a fresh BOOTLOG.TXT is recorded.
+If it fails, recover VGA from DOS. NEVER rename, copy, or fabricate USER.DLL
+as a workaround for its early load failure. See v0044/v0045 instructions for
+trial authorization and DOS recovery.
+
+---
+
 # Palettium v0045 — complete missing Win3.1 GDI bootstrap ordinals
 
 **Observed failure:** User's v0044 build compiled and linked cleanly with 19

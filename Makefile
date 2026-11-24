@@ -18,6 +18,7 @@ test: all
 	./tests/exes/format-test
 	./tests/exes/hardware-format-test
 	python3 tests/test_build_maintenance.py
+	python3 tests/test_win31_importcheck.py
 	$(MAKE) -f Makefile.gdiinfo test
 	$(MAKE) -f Makefile.win31diag test
 	$(MAKE) -f Makefile.win31load test

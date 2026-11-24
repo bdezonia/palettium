@@ -108,6 +108,9 @@ EOF_EXPORTS
 wlink @"$LINKFILE"
 test -s "$OUTPUT"
 wdump -x "$OUTPUT" > "tests/exes/$NAME.exports.txt"
+# EARLY LOADER RULE: display drivers must not depend on USER, which has
+# not finished loading when Windows is bringing up the display subsystem.
+python3 tools/check_win31_imports.py "$OUTPUT"
 python3 tools/check_win31_exports.py "tests/exes/$NAME.exports.txt"
 if [ "$NAME" = PALTRIAL ]; then
     printf '%s\n' 'PASS: linked PALTRIAL.DRV (experimental 256KiB Standard-mode GDI boot ONLY).' \

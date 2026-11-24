@@ -1,0 +1,26 @@
+Palettium v0046 incremental patch (OVER user-validated v0045).
+
+Fix: PALTRIAL.DRV contained KERNEL + USER NE imports. USER #1 is MessageBox,
+linked into the driver by the Watcom `int86` interrupt runtime. Windows
+cannot load USER before the display driver is initialized, as confirmed by
+the v0045 BOOTLOG.TXT (`USER.DLL` fail 02, then PALTRIAL fail 02).
+
+Win16 native ET4000AX mode BIOS access now calls INT 10h through a small
+Watcom-specific inline pragma, retaining existing mode readback/rollback.
+No shared renderer or four-OS hardware backend change. A new binary-level
+NE import checker runs after EACH linked Win16 driver build, rejecting
+USER, GDI and any unexpected early module dependency. New host tests check
+synthetic NE import tables, but Watcom compilation and VM boot remain pending.
+
+Apply/build:
+ cd ~/dev/palettium
+ unzip -o ~/Downloads/pal46.zip
+ make clean && make test
+ sh windows/win31/build-palddi.sh
+ sh windows/win31/build-paltrial.sh
+ python3 tools/check_win31_imports.py tests/exes/PALTRIAL.DRV
+ wdump -x tests/exes/PALTRIAL.DRV
+
+Only if both import audits pass, retry WIN /B /S in disposable 86Box
+Standard-mode 256KiB trial setup with DOS recovery. Expected 26 exports.
+Normal PALSTAGE remains non-installable; PALTRIAL remains experimental.

@@ -35,19 +35,46 @@ static void win16_write(void *ctx, unsigned offset, rg_u8 value)
     p=(volatile rg_u8 FAR *)MK_FP(w->aperture_selector,offset);
     *p=value;
 }
+/* Win3.1 loads its display driver before USER.EXE is initialized.  The
+ * Open Watcom `int86` runtime pulls in a fallback error handler that imports
+ * USER ordinal 1 (MessageBox).  That creates a recursive early USER load:
+ * BOOTLOG.TXT reports USER.DLL failure 02 and then PALTRIAL.DRV failure 02.
+ *
+ * Use a narrowly scoped, register-preserving INT 10h wrapper instead of
+ * linking the entire dynamic `int86` runtime dispatcher.  The old int86
+ * implementation ultimately executed INT 10h as well.  This does NOT
+ * certify BIOS/VDD correctness; the trial remains Standard/256KiB gated.
+ * Keep the OS-specific assembly here, not in the shared ET4000AX backend.
+ *
+ * The host branch is solely to permit alternate compilers to syntax-check
+ * this platform bridge.  Only the Watcom path is linked in the Win16 DRV.
+ */
+#if defined(__WATCOMC__) && !defined(__386__)
+static unsigned pal_win16_bios_int10(unsigned ax);
+#pragma aux pal_win16_bios_int10 = \
+    "push ds" \
+    "push es" \
+    "int 10h" \
+    "pop es" \
+    "pop ds" \
+    parm [ax] value [ax] modify [bx cx dx si di];
+#else
+static unsigned pal_win16_bios_int10(unsigned ax)
+{
+    union REGS input,output;
+    input.x.ax=ax;
+    int86(0x10,&input,&output);
+    return (unsigned)output.x.ax;
+}
+#endif
+
 static unsigned win16_bios_current_mode(void)
 {
-    union REGS r;
-    r.h.ah=0x0Fu;
-    int86(0x10,&r,&r);
-    return (unsigned)r.h.al;
+    return pal_win16_bios_int10(0x0f00u) & 255u;
 }
 static void win16_bios_set(unsigned mode)
 {
-    union REGS r;
-    r.h.ah=0;
-    r.h.al=(unsigned char)mode;
-    int86(0x10,&r,&r);
+    (void)pal_win16_bios_int10(mode & 255u);
 }
 static int win16_set_mode(void *ctx, unsigned width, unsigned height)
 {

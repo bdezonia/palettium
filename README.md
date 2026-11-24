@@ -1,3 +1,15 @@
+## v0046 — pre-USER driver import fix (pending Watcom and VM validation)
+
+The maintainer's v0045 BOOTLOG.TXT showed a failed nested `USER.DLL` load.
+A direct NE inspection of the actual PALTRIAL.DRV verified the cause:
+`KERNEL` and `USER` imports, with `USER` ordinal 1 = `MessageBox` coming
+from Open Watcom's generic `int86` interrupt runtime. The Win3.1 platform
+bridge now uses a narrowly scoped protected-mode INT 10h pragma instead,
+so that the loader does not need USER before it is initialized. Both Win16
+builds now run a binary-level NE import audit and refuse any non-KERNEL
+module. **This is not yet a verified display boot.** Hardware and BIOS
+startup, Standard-mode authorization and original DOS recovery rules remain.
+
 ## v0045 — Windows 3.1 GDI bootstrap export correction
 
 v0044's first `WIN /S` PALTRIAL boot displayed `Error loading PALTRIAL.DRV`.
@@ -26,7 +38,7 @@ pixel rendering and video-card backends reusable across four operating-system
 adapters: **Windows 3.1, Windows for Workgroups 3.11, Windows 95, and
 Windows 98**.
 
-Current development milestone: **v0045** (incremental tags are fixed-width).
+Current development milestone: **v0046** (incremental tags are fixed-width).
 The immediate objective is the **first working Windows 3.1 ET4000AX display
 driver**. Palettium is *not* yet an installable driver package.
 
