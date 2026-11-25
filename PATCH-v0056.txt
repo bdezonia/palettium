@@ -1,0 +1,1 @@
+v0056: Trace logical brush fields during RealizeObject, increase bounded synchronous DDI trace budget to 256. No rendering or hardware behavior changes. v0055 prerequisite. Runtime and Watcom compilation unverified.

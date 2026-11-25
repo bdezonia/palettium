@@ -66,7 +66,7 @@
 
 static PAL_ScreenHost *pal_active_host = 0;
 #if defined(PAL_WIN31_BOOTTRACE)
-static unsigned pal_ddi_trace_budget = 64u;
+static unsigned pal_ddi_trace_budget = 256u;
 static int pal_ddi_trace_enter(const char *name)
 {
     if (!pal_ddi_trace_budget) return 0;
@@ -764,6 +764,15 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
     if (traced) pal_boottrace_hex("  style", (unsigned)style);
     if (traced) pal_boottrace_hex("  (input != 0)", (unsigned)(input != 0));
     if (traced) pal_boottrace_hex("  (output != 0)", (unsigned)(output != 0));
+    if (traced && style == 2 && input) {
+        const PAL_LogicalBrush FAR *b = (const PAL_LogicalBrush FAR *)input;
+        pal_boottrace_hex("BRUSH STYLE", b->style);
+        pal_boottrace_hex("BRUSH COLOR LO", (unsigned)b->color);
+        pal_boottrace_hex("BRUSH COLOR HI", (unsigned)(b->color >> 16));
+        pal_boottrace_hex("BRUSH HATCH", b->hatch);
+        pal_boottrace_hex("BRUSH BACKGROUND LO", (unsigned)b->background);
+        pal_boottrace_hex("BRUSH BACKGROUND HI", (unsigned)(b->background >> 16));
+    }
     result = pal_trace_impl_RealizeObject(dest, style, input, output, text_xform);
     if (traced) pal_boottrace_hex("DDI RealizeObject RETURN LO", (unsigned)result);
     if (traced) pal_boottrace_hex("DDI RealizeObject RETURN HI", (unsigned)(result >> 16));
