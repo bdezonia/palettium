@@ -29,7 +29,11 @@ int rg_palette_set_entry(RG_Palette *p, unsigned index, RG_Color color);
 int rg_palette_get_entry(const RG_Palette *p, unsigned index, RG_Color *out);
 int rg_palette_set_translation(RG_Palette *p, const unsigned short *map);
 void rg_palette_rebuild_inverse(RG_Palette *p);
-unsigned rg_palette_translate(const RG_Palette *p, unsigned logical_index);
+/* Return 1 on success; on failure leave the output unchanged. */
+int rg_palette_translate(const RG_Palette *p, unsigned logical_index,
+                         unsigned *physical_index);
+int rg_palette_untranslate(const RG_Palette *p, unsigned physical_index,
+                           unsigned *logical_index);
 /* Win3.x ColorInfo: 0x00BBGGRR or 0xFF00iiii; index and physical
  * input are 0..255. Returns zero on invalid arguments. A successful
  * forward conversion returns both the physical index and logical result.

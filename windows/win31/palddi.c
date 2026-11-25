@@ -1582,10 +1582,17 @@ void FAR PASCAL GetPalTrans(LPVOID translation)
 #endif
 {
     WORD FAR *dst = (WORD FAR *)translation;
-    unsigned i;
+    unsigned i, physical;
     if (!pal_active_host || !pal_active_host->running || !dst) return;
+    /* Validate the entire table before publishing any entry. */
     for (i=0; i<256u; ++i)
-        dst[i] = (WORD)pal_active_host->palette.logical_to_physical[i];
+        if (!rg_palette_translate(&pal_active_host->palette, i, &physical))
+            return;
+    for (i=0; i<256u; ++i) {
+        if (!rg_palette_translate(&pal_active_host->palette, i, &physical))
+            return;
+        dst[i] = (WORD)physical;
+    }
 }
 #if defined(PAL_WIN31_BOOTTRACE)
 void FAR PASCAL GetPalTrans(LPVOID translation)

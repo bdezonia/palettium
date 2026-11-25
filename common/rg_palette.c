@@ -92,10 +92,28 @@ int rg_palette_set_translation(RG_Palette *p, const unsigned short *map)
     return 1;
 }
 
-unsigned rg_palette_translate(const RG_Palette *p, unsigned logical_index)
+int rg_palette_translate(const RG_Palette *p, unsigned logical_index,
+                         unsigned *physical_index)
 {
-    if (!p || !p->initialized || logical_index >= 256u) return 256u;
-    return p->logical_to_physical[logical_index];
+    unsigned index;
+    if (!p || !p->initialized || !physical_index ||
+        logical_index >= RG_PALETTE_SIZE) return 0;
+    index = p->logical_to_physical[logical_index];
+    if (index >= RG_PALETTE_SIZE) return 0;
+    *physical_index = index;
+    return 1;
+}
+
+int rg_palette_untranslate(const RG_Palette *p, unsigned physical_index,
+                           unsigned *logical_index)
+{
+    unsigned index;
+    if (!p || !p->initialized || !logical_index ||
+        physical_index >= RG_PALETTE_SIZE) return 0;
+    index = p->physical_to_logical[physical_index];
+    if (index >= RG_PALETTE_SIZE) return 0;
+    *logical_index = index;
+    return 1;
 }
 
 static rg_pixel rg_colorref(const RG_Color *color)
@@ -108,7 +126,7 @@ int rg_palette_color_info(const RG_Palette *p, rg_pixel input,
                           int to_physical, rg_pixel *logical,
                           rg_pixel *physical)
 {
-    unsigned i, chosen=0;
+    unsigned i, chosen=0, translated;
     rg_pixel best=~0UL, distance;
     int r, g, b, dr, dg, db;
     if (!p || !p->initialized || !logical) return 0;
@@ -116,8 +134,8 @@ int rg_palette_color_info(const RG_Palette *p, rg_pixel input,
         if (!physical) return 0;
         if ((input & 0xFFFF0000UL) == 0xFF000000UL) {
             chosen = (unsigned)(input & 0xFFFFUL);
-            if (chosen >= 256u) return 0;
-            *physical = (rg_pixel)p->logical_to_physical[chosen];
+            if (!rg_palette_translate(p, chosen, &translated)) return 0;
+            *physical = (rg_pixel)translated;
             *logical = input;
             return 1;
         }
@@ -148,7 +166,8 @@ int rg_palette_color_info(const RG_Palette *p, rg_pixel input,
     chosen = (unsigned)input;
     /* GDI handles dynamic colors by index, not potentially stale RGB. */
     if (!rg_palette_is_static(chosen)) {
-        *logical = RG_COLOR_INDEX_TAG | (rg_pixel)p->physical_to_logical[chosen];
+        if (!rg_palette_untranslate(p, chosen, &translated)) return 0;
+        *logical = RG_COLOR_INDEX_TAG | (rg_pixel)translated;
     } else {
         *logical = rg_colorref(&p->entries[chosen]);
     }

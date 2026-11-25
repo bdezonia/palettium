@@ -1,0 +1,11 @@
+Palettium v0066: palette API correctness (on v0065).
+Revised distribution based on the complete pre-patch palsrc66.zip snapshot.
+Replace 256 sentinel with status + output, validate both input and stored
+mapping value, add symmetric reverse lookup, route ColorInfo, background
+realization and GetPalTrans through checked accessors. Existing mapping
+semantics are unchanged. GetPalTrans validates before publishing any entry.
+The updated include/rg_palette.h is supplied directly; no migration script
+is needed. This archive replaces the earlier pal66.zip, not an additional
+patch. Host tests passed: make clean && make test, Makefile.win31link,
+Makefile.win31native and Makefile.et4k test targets. Watcom build and Windows
+runtime remain untested. Wider defensive API audit remains outstanding.

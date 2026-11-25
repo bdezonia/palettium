@@ -21,8 +21,7 @@ int pal_object_background(const RG_Palette *palette, PAL_U32 specified,
     if (!palette || !physical || !palette->initialized) return 0;
     if ((specified & 0xFFFF0000UL) == 0xFF000000UL) {
         index = (unsigned)(specified & 0xFFFFUL);
-        if (index >= 256u) return 0;
-        index = rg_palette_translate(palette, index);
+        if (!rg_palette_translate(palette, index, &index)) return 0;
     } else {
         if (specified >= 256UL) return 0;
         index = (unsigned)specified;

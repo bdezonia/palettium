@@ -1,5 +1,6 @@
 /* Test common INDEX8 palette rules separately from legacy Win16 FAR ABI. */
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include "rg_palette.h"
@@ -21,8 +22,25 @@ int main(void)
     RG_Device dev;
     unsigned short map[256];
     rg_pixel logical, physical, prev;
-    unsigned i, j;
+    unsigned i, j, translated;
+    memset(&pal, 0, sizeof(pal));
+    translated=42;
+    assert(!rg_palette_translate(&pal,0,&translated) && translated==42);
+    assert(!rg_palette_untranslate(&pal,0,&translated) && translated==42);
     rg_palette_init(&pal);
+    for (i=0; i<256u; ++i) {
+        assert(rg_palette_translate(&pal,i,&translated) && translated==i);
+        assert(rg_palette_untranslate(&pal,i,&translated) && translated==i);
+    }
+    translated=42;
+    assert(!rg_palette_translate(0,0,&translated) && translated==42);
+    assert(!rg_palette_untranslate(0,0,&translated) && translated==42);
+    assert(!rg_palette_translate(&pal,256u,&translated) && translated==42);
+    assert(!rg_palette_untranslate(&pal,256u,&translated) && translated==42);
+    assert(!rg_palette_translate(&pal,UINT_MAX,&translated) && translated==42);
+    assert(!rg_palette_untranslate(&pal,UINT_MAX,&translated) && translated==42);
+    assert(!rg_palette_translate(&pal,0,0));
+    assert(!rg_palette_untranslate(&pal,0,0));
     assert(pal.initialized);
     assert(rg_palette_is_static(0) && rg_palette_is_static(9) &&
            rg_palette_is_static(246) && rg_palette_is_static(255));
@@ -57,16 +75,27 @@ int main(void)
     for (i=0; i<256u; ++i) map[i]=(unsigned short)i;
     map[10]=100; map[11]=100; map[12]=200;
     assert(rg_palette_set_translation(&pal,map));
-    assert(rg_palette_translate(&pal,10)==100 && rg_palette_translate(&pal,11)==100);
-    assert(pal.physical_to_logical[100]==10 && pal.physical_to_logical[200]==12);
+    assert(rg_palette_translate(&pal,10,&translated) && translated==100 && rg_palette_translate(&pal,11,&translated) && translated==100);
+    assert(rg_palette_untranslate(&pal,100,&translated) && translated==10);
+    assert(rg_palette_untranslate(&pal,200,&translated) && translated==12);
     assert(rg_palette_color_info(&pal,100,0,&logical,0) && logical==0xFF00000AUL);
     assert(rg_palette_color_info(&pal,0xFF00000BUL,1,&logical,&physical) && physical==100);
     map[12]=256;
-    assert(!rg_palette_set_translation(&pal,map) && rg_palette_translate(&pal,12)==200);
+    assert(!rg_palette_set_translation(&pal,map) && rg_palette_translate(&pal,12,&translated) && translated==200);
     map[12]=200; map[0]=1;
-    assert(!rg_palette_set_translation(&pal,map) && rg_palette_translate(&pal,0)==0);
+    assert(!rg_palette_set_translation(&pal,map) && rg_palette_translate(&pal,0,&translated) && translated==0);
     assert(rg_palette_set_translation(&pal,0));
-    assert(pal.physical_to_logical[100]==100 && rg_palette_translate(&pal,12)==12);
+    assert(pal.physical_to_logical[100]==100 && rg_palette_translate(&pal,12,&translated) && translated==12);
+    /* Corrupt tables must not leak invalid indices or change outputs. */
+    pal.logical_to_physical[20]=256u;
+    pal.physical_to_logical[20]=256u;
+    translated=42; logical=0x123UL; physical=0x456UL;
+    assert(!rg_palette_translate(&pal,20,&translated) && translated==42);
+    assert(!rg_palette_untranslate(&pal,20,&translated) && translated==42);
+    assert(!rg_palette_color_info(&pal,0xFF000014UL,1,&logical,&physical));
+    assert(logical==0x123UL && physical==0x456UL);
+    assert(!rg_palette_color_info(&pal,20,0,&logical,0) && logical==0x123UL);
+    assert(rg_palette_set_translation(&pal,0));
     /* UpdateColors must validate the whole map and rectangle before writes. */
     assert(rg_init(&dev,px,W,H,W,sizeof(px),RG_FMT_INDEX8));
     dev.ops.pixel=pixel_override;
