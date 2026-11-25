@@ -62,7 +62,8 @@ rm -f "$LINKFILE" "$OUTPUT" "tests/exes/$NAME.exports.txt"
 # through wcl -fd: the previous script duplicated its SYSTEM block.
 {
     printf '%s\n' 'option quiet' 'system windows_dll' \
-        "name tests/exes/$NAME.DRV" 'option modname=DISPLAY'
+        "name tests/exes/$NAME.DRV" 'option modname=DISPLAY' \
+        "option map=tests/exes/$NAME.map"
 } > "$LINKFILE"
 
 for source in $SOURCES; do

@@ -1,0 +1,1 @@
+v0063: Fix RealizeObject OBJ_BRUSH packed POINT ABI, observed GPF 0001:72DF (LES DI,[BP+06]). Preserve 32-bit argument width, never dereference origin. Generate linker maps for both builds. Runtime and Watcom build not tested here.

@@ -869,15 +869,14 @@ static void pal_trace_object_target(LPVOID dest)
 
 #if defined(PAL_WIN31_BOOTTRACE)
 static DWORD FAR PASCAL pal_trace_impl_RealizeObject(LPVOID dest, short style, LPVOID input,
-                               LPVOID output, LPVOID text_xform)
+                               LPVOID output, DWORD text_xform)
 #else
 DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
-                               LPVOID output, LPVOID text_xform)
+                               LPVOID output, DWORD text_xform)
 #endif
 {
     const PAL_LogicalPen FAR *in_pen;
     const PAL_LogicalBrush FAR *in_brush;
-    const PAL_POINT16 FAR *phase;
     RG_Pen phys_pen;
     RG_Brush phys_brush;
     const unsigned char *source;
@@ -898,11 +897,10 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
     } else if (style == 2) { /* OBJ_BRUSH */
         unsigned x_phase=0, y_phase=0, background=0;
         in_brush = (const PAL_LogicalBrush FAR *)input;
-        if (text_xform) {
-            phase = (const PAL_POINT16 FAR *)text_xform;
-            x_phase = (unsigned)phase->x & 7u;
-            y_phase = (unsigned)phase->y & 7u;
-        }
+        /* OBJ_BRUSH carries a POINT by value, not a far pointer.
+         * Low word is x, high word is y; never load a selector here. */
+        x_phase = (unsigned)(text_xform & 7UL);
+        y_phase = (unsigned)((text_xform >> 16) & 7UL);
         if (in_brush->style == RG_BRUSH_HATCHED &&
             !pal_object_background(&pal_active_host->palette,
                                     in_brush->background, &background)) return 0;
@@ -921,7 +919,7 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
 }
 #if defined(PAL_WIN31_BOOTTRACE)
 DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
-                               LPVOID output, LPVOID text_xform)
+                               LPVOID output, DWORD text_xform)
 {
     DWORD result;
     int traced = pal_ddi_trace_enter("DDI RealizeObject ENTER");
@@ -931,6 +929,8 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
     if (traced) pal_boottrace_hex("  (output != 0)", (unsigned)(output != 0));
     if (traced && style == 2 && input) {
         const PAL_LogicalBrush FAR *b = (const PAL_LogicalBrush FAR *)input;
+        pal_boottrace_hex("BRUSH ORIGIN X", (unsigned)text_xform);
+        pal_boottrace_hex("BRUSH ORIGIN Y", (unsigned)(text_xform >> 16));
         pal_boottrace_hex("BRUSH STYLE", b->style);
         pal_boottrace_hex("BRUSH COLOR LO", (unsigned)b->color);
         pal_boottrace_hex("BRUSH COLOR HI", (unsigned)(b->color >> 16));
