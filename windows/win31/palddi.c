@@ -295,6 +295,22 @@ static void pal_win16_bits_write(void *ctx, rg_offset offset, rg_u8 value)
     *p=value;
 }
 
+#if defined(PAL_WIN31_BOOTTRACE)
+static unsigned pal_bitmap_fail_budget=8u;
+static unsigned pal_mode_fail_budget=8u;
+static unsigned pal_text_fail_budget=12u;
+static DWORD pal_text_fail(unsigned reason)
+{
+    if (pal_text_fail_budget) {
+        --pal_text_fail_budget;
+        pal_boottrace_hex("TEXT FAIL REASON",reason);
+    }
+    return 0x80000000UL;
+}
+#else
+#define pal_text_fail(reason) (0x80000000UL)
+#endif
+
 static int pal_win16_device(LPVOID operand, RG_Device *storage,
                              PAL_Win16Bits *bits, RG_Device **result)
 {
@@ -319,7 +335,26 @@ static int pal_win16_device(LPVOID operand, RG_Device *storage,
     from=(const unsigned char FAR *)operand;
     to=(unsigned char *)&bitmap;
     for (i=0; i<sizeof(bitmap); ++i) to[i]=from[i];
-    if (!pal_ddi_memory_bitmap_ok(&bitmap)) return 0;
+    if (!pal_ddi_memory_bitmap_ok(&bitmap)) {
+#if defined(PAL_WIN31_BOOTTRACE)
+        if (pal_bitmap_fail_budget) {
+            --pal_bitmap_fail_budget;
+            pal_boottrace_hex("BITMAP REJECT WIDTH",(unsigned)bitmap.bmWidth);
+            pal_boottrace_hex("BITMAP HEIGHT",(unsigned)bitmap.bmHeight);
+            pal_boottrace_hex("BITMAP STRIDE",(unsigned)bitmap.bmWidthBytes);
+            pal_boottrace_hex("BITMAP PLANES",(unsigned)bitmap.bmPlanes);
+            pal_boottrace_hex("BITMAP BPP",(unsigned)bitmap.bmBitsPixel);
+            pal_boottrace_hex("BITMAP BITS OFF",(unsigned)bitmap.bmBits);
+            pal_boottrace_hex("BITMAP BITS SEL",(unsigned)(bitmap.bmBits>>16));
+            pal_boottrace_hex("BITMAP PLANE BYTES LO",(unsigned)bitmap.bmWidthPlanes);
+            pal_boottrace_hex("BITMAP PLANE BYTES HI",(unsigned)(bitmap.bmWidthPlanes>>16));
+            pal_boottrace_hex("BITMAP SEG INDEX",(unsigned)bitmap.bmSegmentIndex);
+            pal_boottrace_hex("BITMAP SCAN SEG",(unsigned)bitmap.bmScanSegment);
+            pal_boottrace_hex("BITMAP FILL BYTES",(unsigned)bitmap.bmFillBytes);
+        }
+#endif
+        return 0;
+    }
     bits->address=bitmap.bmBits;
     io.read_byte=pal_win16_bits_read;
     io.write_byte=pal_win16_bits_write;
@@ -341,7 +376,18 @@ static int pal_win16_mode_colors(LPVOID mode, unsigned *text,
         (PAL_U32)(PAL_U16)FP_OFF(mode)+12UL>65536UL) return 0;
     bg=(PAL_U32)w[2] | ((PAL_U32)w[3] << 16);
     fg=(PAL_U32)w[4] | ((PAL_U32)w[5] << 16);
-    if (bg > 255UL || fg > 255UL) return 0;
+    if (bg > 255UL || fg > 255UL) {
+#if defined(PAL_WIN31_BOOTTRACE)
+        if (pal_mode_fail_budget) {
+            --pal_mode_fail_budget;
+            pal_boottrace_hex("MODE REJECT BG LO",(unsigned)bg);
+            pal_boottrace_hex("MODE REJECT BG HI",(unsigned)(bg>>16));
+            pal_boottrace_hex("MODE REJECT FG LO",(unsigned)fg);
+            pal_boottrace_hex("MODE REJECT FG HI",(unsigned)(fg>>16));
+        }
+#endif
+        return 0;
+    }
     *background=(unsigned)bg;
     *text=(unsigned)fg;
     return 1;
@@ -399,24 +445,24 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
     long space_adjust, min_end, max_end;
     int pass;
     (void)text_transform; /* string precision, no arbitrary rotation */
-    if ((options & (WORD)~6u) != 0u || !pal_active_host || !dest ||
-        !pal_win16_device(dest,&mem,&bits,&target) ||
-        !pal_win16_mode_colors(drawmode,&fg,&bg) ||
-        (PAL_U32)(PAL_U16)FP_OFF(drawmode)+24UL>65536UL)
-        return 0x80000000UL;
+    if ((options & (WORD)~6u) != 0u) return pal_text_fail(101u);
+    if (!pal_active_host || !dest) return pal_text_fail(102u);
+    if (!pal_win16_device(dest,&mem,&bits,&target)) return pal_text_fail(103u);
+    if (!pal_win16_mode_colors(drawmode,&fg,&bg)) return pal_text_fail(104u);
+    if ((PAL_U32)(PAL_U16)FP_OFF(drawmode)+24UL>65536UL) return pal_text_fail(105u);
     bgmode=(unsigned)mode[1];
-    if (bgmode!=1u && bgmode!=2u) return 0x80000000UL;
+    if (bgmode!=1u && bgmode!=2u) return pal_text_fail(1u);
     if (target->surface.format==RG_FMT_INDEX1) {
         fg=rg_gdi_mono_color(fg,bg);
         bg=1u; /* GDI monochrome: set bit is background */
     }
     if (clip_rect) {
-        if (!pal_win16_rect(clip_rect,&clip)) return 0x80000000UL;
+        if (!pal_win16_rect(clip_rect,&clip)) return pal_text_fail(2u);
         clip_use=&clip;
     }
     if (options & 6u) {
         if (!opaque_rect || !pal_win16_rect(opaque_rect,&opaque))
-            return 0x80000000UL;
+            return pal_text_fail(3u);
         if (options & 4u) {
             if (!clip_use) { clip=opaque; clip_use=&clip; }
             else {
@@ -428,22 +474,22 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
         }
     }
     if (count==0) {
-        if (!(options & 2u)) return 0x80000000UL;
+        if (!(options & 2u)) return pal_text_fail(4u);
         return rg_gdi_text_fill(target,opaque,clip_use,bg) ?
-               1UL : 0x80000000UL;
+               1UL : pal_text_fail(5u);
     }
-    if (count == (-32767-1)) return 0x80000000UL;
+    if (count == (-32767-1)) return pal_text_fail(6u);
     n=(unsigned)(count<0 ? -count : count);
     if (!text || !font_address || !n ||
         (PAL_U32)(PAL_U16)FP_OFF(text)+(PAL_U32)n>65536UL ||
         (widths && (PAL_U32)(PAL_U16)FP_OFF(widths)+
                       (PAL_U32)n*2UL>65536UL))
-        return 0x80000000UL;
+        return pal_text_fail(7u);
     fb.selector=(PAL_U16)FP_SEG(font_address);
     fb.base=(PAL_U16)FP_OFF(font_address);
     if (!pal_font16_open(&font,pal_win16_font_read,&fb,
                           65536UL-(PAL_U32)fb.base))
-        return 0x80000000UL;
+        return pal_text_fail(8u);
     /* Two passes: check EVERY glyph/advance before any pixel changes.
      * This also makes width-only calls fully read-only. */
     cursor=(long)x; minimum=cursor; maximum=cursor;
@@ -452,8 +498,8 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
         for (i=0;i<n;++i) {
             code=(unsigned)str[i];
             if (!pal_font16_glyph(&font,pal_win16_font_read,&fb,code,&glyph))
-                return 0x80000000UL;
-            if (cursor< -32768L || cursor>32767L) return 0x80000000UL;
+                return pal_text_fail(9u);
+            if (cursor< -32768L || cursor>32767L) return pal_text_fail(10u);
             min_end=cursor;
             max_end=cursor+(long)glyph.width;
             if (min_end<minimum) minimum=min_end;
@@ -462,18 +508,18 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
             advance+=(long)mode[11]; /* CharExtra at DRAWMODE +22 */
             if (code==font.break_char) advance+=(long)mode[7];
             next=cursor+advance;
-            if (next < -32768L || next>32767L) return 0x80000000UL;
+            if (next < -32768L || next>32767L) return pal_text_fail(11u);
             if (next<minimum) minimum=next;
             if (next>maximum) maximum=next;
             if (pass==1 && count>0 &&
                 !rg_gdi_text_glyph(target,(int)cursor,y,clip_use,&glyph,
                                    pal_win16_font_read,&fb,fg))
-                return 0x80000000UL;
+                return pal_text_fail(12u);
             cursor=next;
         }
         if (pass==0) {
             if ((long)y+(long)font.height>32767L ||
-                minimum < -32768L || maximum>32767L) return 0x80000000UL;
+                minimum < -32768L || maximum>32767L) return pal_text_fail(13u);
             if (count<0) break; /* measure, do not draw */
             text_box.left=(int)minimum;
             text_box.top=y;
@@ -483,10 +529,10 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
              * In normal opaque mode, fill the string's full bounding box. */
             if (options & 2u) {
                 if (!rg_gdi_text_fill(target,opaque,clip_use,bg))
-                    return 0x80000000UL;
+                    return pal_text_fail(14u);
             } else if (bgmode==2u) {
                 if (!rg_gdi_text_fill(target,text_box,clip_use,bg))
-                    return 0x80000000UL;
+                    return pal_text_fail(15u);
             }
         }
     }
@@ -526,6 +572,10 @@ DWORD FAR PASCAL ExtTextOut(LPVOID dest, short x, short y,
 {
     DWORD result;
     int traced = pal_ddi_trace_enter("DDI ExtTextOut ENTER");
+    if (traced) {
+        pal_boottrace_hex("TEXT COUNT",(unsigned)count);
+        pal_boottrace_hex("TEXT OPTIONS",(unsigned)options);
+    }
     result = pal_trace_impl_ExtTextOut(dest, x, y, clip_rect, text, count, font, drawmode, text_transform, widths, opaque_rect, options);
     if (traced) pal_boottrace_hex("DDI ExtTextOut RETURN LO", (unsigned)result);
     if (traced) pal_boottrace_hex("DDI ExtTextOut RETURN HI", (unsigned)(result >> 16));
