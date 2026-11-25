@@ -15,5 +15,5 @@
 *.map
 *.MAP
 *.zip
-__pycache__/
+__pycache__
 *.pyc
