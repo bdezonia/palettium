@@ -1,0 +1,8 @@
+Palettium v0062 incremental experimental patch (requires v0061).
+Separate FONTINFO-relative field reads from segment-relative glyph bitmap reads.
+Windows 3.1 DDK dispfonts.html describes glyph pointers as offsets from the font segment base.
+The v0061 screenshot suggests nearby wrong glyphs are rendered; this hypothesis needs runtime confirmation.
+Retain the conservative existing decoder bounds; this patch does not expand accepted font memory ranges.
+Log the first eight font base offsets and input characters to verify the hypothesis.
+No changes to cursor, raster operations, hardware, or resource handling.
+Host build blocked by missing include directory in available snapshot. Watcom and VM tests pending.

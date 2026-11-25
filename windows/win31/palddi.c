@@ -411,6 +411,15 @@ static rg_u8 pal_win16_font_read(void *context, rg_offset offset)
     return *p;
 }
 
+/* Glyph offsets are segment-relative, unlike FONTINFO field offsets. */
+static rg_u8 pal_win16_glyph_read(void *context, rg_offset offset)
+{
+    PAL_Win16FontBytes *font=(PAL_Win16FontBytes *)context;
+    const rg_u8 FAR *p=(const rg_u8 FAR *)MK_FP(font->selector,
+                                               (unsigned)offset);
+    return *p;
+}
+
 static int pal_win16_rect(LPVOID source, RG_Rect *rect)
 {
     const short FAR *p;
@@ -490,6 +499,17 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
     if (!pal_font16_open(&font,pal_win16_font_read,&fb,
                           65536UL-(PAL_U32)fb.base))
         return pal_text_fail(8u);
+#if defined(PAL_WIN31_BOOTTRACE)
+    {
+        static unsigned font_base_budget=8u;
+        if (font_base_budget) {
+            --font_base_budget;
+            pal_boottrace_hex("FONT SEGMENT BASE OFFSET",fb.base);
+            pal_boottrace_hex("FONT FIRST INPUT CHAR",(unsigned)str[0]);
+            pal_boottrace_hex("FONT FIRST CHAR",font.first);
+        }
+    }
+#endif
     /* Two passes: check EVERY glyph/advance before any pixel changes.
      * This also makes width-only calls fully read-only. */
     cursor=(long)x; minimum=cursor; maximum=cursor;
@@ -539,7 +559,7 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
             if (next>maximum) maximum=next;
             if (pass==1 && count>0 &&
                 !rg_gdi_text_glyph(target,(int)cursor,y,clip_use,&glyph,
-                                   pal_win16_font_read,&fb,fg))
+                                   pal_win16_glyph_read,&fb,fg))
                 return pal_text_fail(12u);
             cursor=next;
         }
