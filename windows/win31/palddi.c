@@ -67,6 +67,7 @@
 static PAL_ScreenHost *pal_active_host = 0;
 #if defined(PAL_WIN31_BOOTTRACE)
 static unsigned pal_ddi_trace_budget = 256u;
+static unsigned pal_color_trace_budget = 24u;
 static int pal_ddi_trace_enter(const char *name)
 {
     if (!pal_ddi_trace_budget) return 0;
@@ -579,8 +580,36 @@ static BOOL pal_win16_bitblt_impl(LPVOID dest, short dx, short dy,
     RG_Device dmem, smem, *d, *s;
     unsigned text=0, background=0;
     (void)brush;
-    if (!pal_active_host || !dest || !src || width <= 0 || height <= 0)
+    if (!pal_active_host || !dest || width <= 0 || height <= 0)
         return FALSE;
+    /* Source-independent fills must not require a source bitmap. */
+    if (((rop >> 16) & 255UL) == 0xF0UL ||
+        ((rop >> 16) & 255UL) == 0x00UL ||
+        ((rop >> 16) & 255UL) == 0xFFUL) {
+        RG_Brush b;
+        unsigned i, value;
+        const unsigned char FAR *from;
+        unsigned char *to;
+        unsigned code=(unsigned)((rop >> 16) & 255UL);
+        if (!pal_win16_device(dest,&dmem,&dbits,&d) || !d->ops.fill)
+            return FALSE;
+        if (code == 0xF0u) {
+            if (!brush || (PAL_U32)(PAL_U16)FP_OFF(brush)+sizeof(b)>65536UL)
+                return FALSE;
+            from=(const unsigned char FAR *)brush;
+            to=(unsigned char *)&b;
+            for (i=0;i<sizeof(b);++i) to[i]=from[i];
+            if (!rg_brush_valid(&b) || b.style != RG_BRUSH_SOLID) return FALSE;
+            value=b.foreground;
+            if (d->surface.format == RG_FMT_INDEX1) {
+                if (!pal_win16_mode_colors(drawmode,&text,&background)) return FALSE;
+                value=rg_gdi_mono_color(value,background);
+            }
+        } else value=code == 0 ? 0u : (d->surface.format == RG_FMT_INDEX1 ? 1u : 255u);
+        d->ops.fill(d,dx,dy,width,height,value);
+        return TRUE;
+    }
+    if (!src) return FALSE;
     dt=pal_ddi_far_token((PAL_U16)FP_SEG(dest),(PAL_U16)FP_OFF(dest));
     st=pal_ddi_far_token((PAL_U16)FP_SEG(src),(PAL_U16)FP_OFF(src));
     if (dt == pal_active_host->ddi.screen_token && dt == st)
@@ -636,6 +665,15 @@ BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
 {
     BOOL result;
     int traced = pal_ddi_trace_enter("DDI BitBlt ENTER");
+    if (traced) {
+        pal_boottrace_hex("BLT ROP3", (unsigned)((rop >> 16) & 255UL));
+        pal_boottrace_hex("BLT SRC PRESENT", (unsigned)(src != 0));
+        pal_boottrace_hex("BLT BRUSH PRESENT", (unsigned)(brush != 0));
+        pal_boottrace_hex("BLT WIDTH", (unsigned)width);
+        pal_boottrace_hex("BLT HEIGHT", (unsigned)height);
+        pal_boottrace_hex("BLT DEST SCREEN", (unsigned)(pal_active_host && dest &&
+           pal_ddi_far_token((PAL_U16)FP_SEG(dest),(PAL_U16)FP_OFF(dest)) == pal_active_host->ddi.screen_token));
+    }
     result = pal_trace_impl_BitBlt(dest, dx, dy, src, sx, sy, width, height, rop, brush, drawmode);
     if (traced) pal_boottrace_hex("DDI BitBlt RETURN LO", (unsigned)result);
     return result;
@@ -1241,8 +1279,32 @@ DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
     if (!pal_active_host || !device) return 0;
     token = pal_ddi_far_token((PAL_U16)FP_SEG(device),
                               (PAL_U16)FP_OFF(device));
-    if (!pal_screen_host_colorinfo(pal_active_host, token, (PAL_U32)color,
-                                   physical != 0, &logical, &index)) return 0;
+    if (token == pal_active_host->ddi.screen_token) {
+        if (!pal_screen_host_colorinfo(pal_active_host, token, (PAL_U32)color,
+                                       physical != 0, &logical, &index)) return 0;
+    } else {
+        const PAL_BITMAP16 FAR *bmp;
+        rg_pixel rgb, idx=0;
+        unsigned sum;
+        if (!pal_win16_object_target(device)) return 0;
+        bmp=(const PAL_BITMAP16 FAR *)device;
+        if (bmp->bmBitsPixel == 8) {
+            if (!rg_palette_color_info(&pal_active_host->palette,(rg_pixel)color,
+                                       physical != 0,&rgb,&idx)) return 0;
+            logical=(PAL_U32)rgb; index=(PAL_U32)idx;
+        } else {
+            if (physical) {
+                if ((color & 0xFF000000UL) != 0) return 0;
+                sum=(unsigned)(color & 255UL)+(unsigned)((color >> 8)&255UL)+
+                    (unsigned)((color >> 16)&255UL);
+                index=sum>=383u ? 1u : 0u;
+            } else {
+                if (color > 1UL) return 0;
+                index=(PAL_U32)color;
+            }
+            logical=index ? 0x00FFFFFFUL : 0UL;
+        }
+    }
     if (physical) *(DWORD FAR *)physical = (DWORD)index;
     return (DWORD)logical;
 }
@@ -1250,7 +1312,11 @@ DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
 DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
 {
     DWORD result;
-    int traced = pal_ddi_trace_enter("DDI ColorInfo ENTER");
+    int traced = 0;
+    if (pal_color_trace_budget) {
+        --pal_color_trace_budget;
+        traced = pal_ddi_trace_enter("DDI ColorInfo ENTER");
+    }
     if (traced) {
         pal_trace_object_target(device);
         pal_boottrace_hex("COLOR INPUT LO", (unsigned)color);
