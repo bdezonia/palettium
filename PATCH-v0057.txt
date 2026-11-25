@@ -1,0 +1,8 @@
+Palettium v0057 (incremental over v0056)
+Allow RealizeObject on 1-plane 1/8bpp system-memory bitmap headers,
+not merely the active screen token. Object realization does not access bits.
+Keep physical object palette representation and existing drawing conversion.
+Trace destination type, screen identity, bitmap format and ColorInfo inputs.
+ColorInfo behavior unchanged pending evidence of its memory-target calls.
+No changes to hardware, resource handling, or authorization.
+Host full build unavailable: source snapshot missing include/. Win16 runtime pending.

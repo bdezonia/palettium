@@ -698,6 +698,41 @@ DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
  * DWORD at byte 8 (unlike the SDK structure). No indirect allocations:
  * deletions are no-ops. Fonts remain GDI-realized; device bitmaps are off.
  */
+/* Object realization needs a device format, not accessible pixel storage.
+ * A size query can precede allocation of the bitmap's bits. Keep the
+ * existing physical pen/brush representation for both screen and memory;
+ * Output already converts physical indices for monochrome destinations. */
+static int pal_win16_object_target(LPVOID dest)
+{
+    const PAL_BITMAP16 FAR *bitmap;
+    PAL_U32 token;
+    if (!pal_active_host || !pal_active_host->running || !dest) return 0;
+    token=pal_ddi_far_token((PAL_U16)FP_SEG(dest), (PAL_U16)FP_OFF(dest));
+    if (token == pal_active_host->ddi.screen_token) return 1;
+    if ((PAL_U32)(PAL_U16)FP_OFF(dest)+10UL > 65536UL) return 0;
+    bitmap=(const PAL_BITMAP16 FAR *)dest;
+    return bitmap->bmType == 0 && bitmap->bmPlanes == 1 &&
+           (bitmap->bmBitsPixel == 1 || bitmap->bmBitsPixel == 8);
+}
+#if defined(PAL_WIN31_BOOTTRACE)
+static void pal_trace_object_target(LPVOID dest)
+{
+    const PAL_BITMAP16 FAR *bitmap;
+    PAL_U32 token;
+    pal_boottrace_hex("DEST PRESENT", (unsigned)(dest != 0));
+    if (!dest || !pal_active_host) return;
+    token=pal_ddi_far_token((PAL_U16)FP_SEG(dest), (PAL_U16)FP_OFF(dest));
+    pal_boottrace_hex("DEST SCREEN", (unsigned)(token == pal_active_host->ddi.screen_token));
+    if ((PAL_U32)(PAL_U16)FP_OFF(dest)+2UL > 65536UL) return;
+    bitmap=(const PAL_BITMAP16 FAR *)dest;
+    pal_boottrace_hex("DEST TYPE", (unsigned)bitmap->bmType);
+    if (bitmap->bmType == 0 && (PAL_U32)(PAL_U16)FP_OFF(dest)+10UL <= 65536UL) {
+        pal_boottrace_hex("DEST PLANES", bitmap->bmPlanes);
+        pal_boottrace_hex("DEST BPP", bitmap->bmBitsPixel);
+    }
+}
+#endif
+
 #if defined(PAL_WIN31_BOOTTRACE)
 static DWORD FAR PASCAL pal_trace_impl_RealizeObject(LPVOID dest, short style, LPVOID input,
                                LPVOID output, LPVOID text_xform)
@@ -706,7 +741,6 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
                                LPVOID output, LPVOID text_xform)
 #endif
 {
-    PAL_U32 token;
     const PAL_LogicalPen FAR *in_pen;
     const PAL_LogicalBrush FAR *in_brush;
     const PAL_POINT16 FAR *phase;
@@ -715,11 +749,7 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
     const unsigned char *source;
     unsigned char FAR *target;
     unsigned i, size;
-    if (!pal_active_host || !pal_active_host->running || !dest ||
-        !pal_object_layout_ok()) return 0;
-    token = pal_ddi_far_token((PAL_U16)FP_SEG(dest),
-                              (PAL_U16)FP_OFF(dest));
-    if (token != pal_active_host->ddi.screen_token) return 0;
+    if (!pal_object_layout_ok() || !pal_win16_object_target(dest)) return 0;
     if (style == -1 || style == -2) return 1; /* no owned resources */
     if (!input) return 0;
     source = 0;
@@ -761,6 +791,7 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
 {
     DWORD result;
     int traced = pal_ddi_trace_enter("DDI RealizeObject ENTER");
+    if (traced) pal_trace_object_target(dest);
     if (traced) pal_boottrace_hex("  style", (unsigned)style);
     if (traced) pal_boottrace_hex("  (input != 0)", (unsigned)(input != 0));
     if (traced) pal_boottrace_hex("  (output != 0)", (unsigned)(output != 0));
@@ -1220,6 +1251,12 @@ DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
 {
     DWORD result;
     int traced = pal_ddi_trace_enter("DDI ColorInfo ENTER");
+    if (traced) {
+        pal_trace_object_target(device);
+        pal_boottrace_hex("COLOR INPUT LO", (unsigned)color);
+        pal_boottrace_hex("COLOR INPUT HI", (unsigned)(color >> 16));
+        pal_boottrace_hex("COLOR FORWARD", (unsigned)(physical != 0));
+    }
     result = pal_trace_impl_ColorInfo(device, color, physical);
     if (traced) pal_boottrace_hex("DDI ColorInfo RETURN LO", (unsigned)result);
     if (traced) pal_boottrace_hex("DDI ColorInfo RETURN HI", (unsigned)(result >> 16));
