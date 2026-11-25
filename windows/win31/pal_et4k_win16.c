@@ -36,6 +36,17 @@ static void win16_write(void *ctx, unsigned offset, rg_u8 value)
     p=(volatile rg_u8 FAR *)MK_FP(w->aperture_selector,offset);
     *p=value;
 }
+/* Caller has selected the write bank and bounded the span to this aperture.
+ * Use indexed volatile stores: never advance a far pointer past FFFFh. */
+static void win16_fill(void *ctx, unsigned offset, unsigned count, rg_u8 value)
+{
+    volatile rg_u8 FAR *p;
+    unsigned i;
+    PAL_Win16ET4K *w=(PAL_Win16ET4K *)ctx;
+    if (!count || (unsigned long)offset+count>65536UL) return;
+    p=(volatile rg_u8 FAR *)MK_FP(w->aperture_selector,offset);
+    for (i=0;i<count;++i) p[i]=value;
+}
 /* Win3.1 loads its display driver before USER.EXE is initialized.  The
  * Open Watcom `int86` runtime pulls in a fallback error handler that imports
  * USER ordinal 1 (MessageBox).  That creates a recursive early USER load:
@@ -143,6 +154,7 @@ int pal_win16_et4k_port(PAL_Win16ET4K *w, ET4K_Port *out)
     out->out_port=win16_out;
     out->mem_read=win16_read;
     out->mem_write=win16_write;
+    out->mem_fill=win16_fill;
     out->set_mode=win16_set_mode;
     out->restore=win16_restore;
     out->query_capacity=0; /* Never guess VRAM from register bits. */

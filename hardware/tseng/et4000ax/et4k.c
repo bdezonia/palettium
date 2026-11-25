@@ -185,6 +185,54 @@ static void et4k_write(void *ctx, rg_offset offset, rg_u8 value)
     s->io.mem_write(s->io.cookie, (unsigned)(offset & 65535UL), value);
 }
 
+/* Software fill override: bank selection once per contiguous aperture run,
+ * not once per pixel. The platform may implement a tight aperture loop. */
+static void et4k_fill(RG_Device *d, int x, int y, int w, int h, rg_pixel p)
+{
+    ET4K_State *s;
+    long l=x, t=y, r=l+(long)w, b=t+(long)h, yy;
+    rg_offset off, remaining, room, chunk;
+    unsigned pos, count, i;
+    if (!d || w<=0 || h<=0) return;
+    s=(ET4K_State *)d->card_data;
+    if (!s || !s->active || !d->vram.write_byte) return;
+    if (d->surface.format!=RG_FMT_INDEX8) {
+        rg_software_fill(d,x,y,w,h,p);
+        return;
+    }
+    if (l<0) l=0;
+    if (t<0) t=0;
+    if (r>(long)d->surface.width) r=d->surface.width;
+    if (b>(long)d->surface.height) b=d->surface.height;
+    if (l>=r || t>=b) return;
+    for (yy=t; yy<b; ++yy) {
+        off=(rg_offset)yy*d->surface.stride+(rg_offset)l;
+        remaining=(rg_offset)(r-l);
+        if (off>=d->surface.capacity || remaining>d->surface.capacity-off ||
+            off>=s->capacity || remaining>s->capacity-off) return;
+        while (remaining) {
+            pos=(unsigned)(off & 65535UL);
+            room=65536UL-(rg_offset)pos;
+            chunk=remaining<room ? remaining : room;
+            if (chunk>65535UL) chunk=65535UL;
+            count=(unsigned)chunk;
+            et4k_select(s,(unsigned)(off>>16),0);
+            if (s->io.mem_fill)
+                s->io.mem_fill(s->io.cookie,pos,count,(rg_u8)p);
+            else
+                for (i=0;i<count;++i)
+                    s->io.mem_write(s->io.cookie,pos+i,(rg_u8)p);
+            off+=chunk;
+            remaining-=chunk;
+        }
+    }
+}
+static void et4k_install_software(void *ctx, RG_Device *d)
+{
+    (void)ctx;
+    if (d && d->surface.format==RG_FMT_INDEX8) d->ops.fill=et4k_fill;
+}
+
 static void et4k_palette(void *ctx, unsigned index,
                          rg_u8 red, rg_u8 green, rg_u8 blue)
 {
@@ -216,5 +264,5 @@ void et4k_make_hardware(ET4K_State *s, RG_Hardware *hw)
     hw->read_byte = et4k_read;
     hw->write_byte = et4k_write;
     hw->set_palette = et4k_palette;
-    hw->install_accel = 0;
+    hw->install_accel = et4k_install_software;
 }

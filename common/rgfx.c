@@ -1,5 +1,6 @@
 #include "rgfx.h"
 #include <limits.h>
+#include <string.h>
 
 unsigned rg_pixel_bits(RG_PixelFormat f)
 {
@@ -175,6 +176,23 @@ void rg_software_fill(RG_Device *d, int x, int y, int w, int h, rg_pixel p)
     if (t < 0) t = 0;
     if (r > (long)d->surface.width) r = d->surface.width;
     if (b > (long)d->surface.height) b = d->surface.height;
+    if (l >= r || t >= b) return;
+    /* Packed INDEX8 requires no read/modify/write. Preserve padding. */
+    if (d->surface.format == RG_FMT_INDEX8) {
+        rg_offset off, n, i;
+        n = (rg_offset)(r - l);
+        for (yy = t; yy < b; ++yy) {
+            off = (rg_offset)yy * d->surface.stride + (rg_offset)l;
+            if (off >= d->surface.capacity || n > d->surface.capacity - off)
+                return;
+            if (d->surface.pixels)
+                memset(d->surface.pixels + off, (rg_u8)p, (unsigned)n);
+            else if (d->vram.write_byte)
+                for (i = 0; i < n; ++i)
+                    d->vram.write_byte(d->vram_context, off + i, (rg_u8)p);
+        }
+        return;
+    }
     for (yy = t; yy < b; ++yy)
         for (xx = l; xx < r; ++xx) rg_software_pixel(d, (int)xx, (int)yy, p);
 }

@@ -1,0 +1,17 @@
+Palettium v0065: INDEX8 solid rectangle fast paths, on top of v0064.
+Generic software fill skips per-pixel format/coordinate decoding; linear rows
+use memset, callback-backed rows retain byte writes. ET4000AX installs a
+software fill override via the existing install_accel hook. Each row is split
+at 64 KiB bank boundaries and limited to 65535 bytes per aperture callback.
+Native Win16 writes volatile bytes through the existing aperture selector,
+with no far pointer dereference beyond the bank. Other providers can omit
+mem_fill and use the existing byte write callback. ET4K_Port gains an optional
+field: all providers must zero-initialize the struct or set mem_fill explicitly.
+No change to Windows DDI signatures, mode setup, palette, or non-INDEX8 fills.
+Other rendering paths (including glyphs, general GDI ROPs) are unchanged.
+Tests add independent whole-VRAM comparisons, read-bank preservation, clipped
+cross-bank fill, fallback and closed-device guard, and linear stride padding.
+The supplied source snapshot lacks include/; host compilation is blocked.
+Run make clean && make test, make -f Makefile.et4k test, and
+make -f Makefile.win31native test on the complete checkout before Win16 trial.
+Runtime performance and native far-pointer compilation remain unverified.

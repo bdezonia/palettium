@@ -23,6 +23,8 @@ int main(void)
     PAL_BankSim sim;
     RG_VramOps access;
     unsigned x;
+    rg_u8 padded[24];
+    RG_Device pad;
     memset(linear, 0, sizeof(linear));
     memset(banked, 0, sizeof(banked));
     pal_bank_init(&sim, banked, sizeof(banked));
@@ -54,6 +56,11 @@ int main(void)
         rg_read_byte(&b, 65535UL) != linear[65535UL] ||
         rg_read_byte(&b, 65536UL) != linear[65536UL]) return 8;
     if (sim.switch_count < 4) return 9;
+    memset(padded,0xA5,sizeof padded);
+    if (!rg_init(&pad,padded,5,3,8,24,RG_FMT_INDEX8)) return 10;
+    pad.ops.fill(&pad,-1,1,4,4,0x142);
+    for (x=0;x<sizeof padded;++x)
+        if (padded[x] != (x/8>=1 && x%8<3 ? 0x42 : 0xA5)) return 11;
     printf("PASS: banked 640x480 agrees with linear framebuffer; bank switches=%lu\n",
            sim.switch_count);
     return 0;

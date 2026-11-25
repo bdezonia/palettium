@@ -39,6 +39,10 @@ typedef struct ET4K_Port {
     ET4K_RestoreFn restore;
     ET4K_CapacityFn query_capacity;
     ET4K_ModeQueryFn query_mode;
+    /* Optional software aperture fill. count is 1..65535, and the
+     * entire range is in the currently selected write bank. Zero if absent.
+     * All callers must initialize this field (or zero-initialize ET4K_Port). */
+    void (*mem_fill)(void *cookie, unsigned offset, unsigned count, rg_u8 value);
 } ET4K_Port;
 
 typedef struct ET4K_State {
