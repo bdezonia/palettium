@@ -1,0 +1,10 @@
+Palettium v0069 - cursor rendering overhead and mask-content diagnostics
+Baseline: runtime-tested v0068. Cursor movement and clicking work, but image is a black 32x32 block and flickers.
+
+Shared compositor: skip transparent pixels entirely and skip writes/restores for unchanged pixels. Keep two-pass saved-under capture and existing AND/XOR rules.
+Win16 adapter: hold cursor composition across BitBlt, exclude cursor only when source or destination is the screen and its rectangle intersects the visible cursor. Other drawing operations retain conservative full exclusion. Nested full drawing still hides the cursor if necessary.
+Trace builds: measure raw and decoded mask pixel classes (black, white, transparent, invert), and exact per-pixel mismatches; capture counts in memory, report from ordinary drawing or Disable. Up to eight additional shape snapshots plus normal state-change and shutdown snapshots. No file writes from cursor callbacks.
+
+The cause of the black cursor is not established yet; this is a performance/diagnostic release. No invented replacement shape or change to accepted wire layout. No change to trial gate, hardware initialization, or DDI signatures.
+
+Validation: make clean && make test, and make -f each of all 21 Makefile.* test targets PASS on Linux. Trace-enabled actual cursor entry test validates raw/decoded counts; banked tests check no I/O for transparent shapes, nested guard, edge/disjoint and overlapping rectangles. Watcom build and 86Box validation pending.

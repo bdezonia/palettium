@@ -103,6 +103,32 @@ static volatile unsigned pal_cursor_moves, pal_cursor_checks;
 static volatile unsigned pal_cursor_header[6];
 static volatile unsigned pal_cursor_header_seen;
 static unsigned pal_cursor_trace_seen;
+static unsigned pal_cursor_masks_logged, pal_cursor_mask_budget=8u;
+static unsigned pal_cursor_raw_counts[4], pal_cursor_decoded_counts[4];
+static unsigned pal_cursor_mask_mismatches;
+static void pal_cursor_measure_masks(const unsigned char *raw,
+                                     const RG_Cursor *image)
+{
+    unsigned x,y,b,a,v,n,raw_code,decoded_code;
+    pal_cursor_mask_mismatches=0;
+    for (n=0;n<4u;++n) {
+        pal_cursor_raw_counts[n]=0;
+        pal_cursor_decoded_counts[n]=0;
+    }
+    for (y=0;y<image->height;++y) for (x=0;x<image->width;++x) {
+        b=0x80u>>(x&7u);
+        n=y*4u+x/8u;
+        a=(raw[PAL_CURSOR16_HEADER+n]&b)!=0;
+        v=(raw[PAL_CURSOR16_HEADER+image->height*4u+n]&b)!=0;
+        raw_code=a*2u+v;
+        ++pal_cursor_raw_counts[raw_code];
+        a=(image->and_bits[n]&b)!=0;
+        v=(image->xor_bits[n]&b)!=0;
+        decoded_code=a*2u+v;
+        ++pal_cursor_decoded_counts[decoded_code];
+        if (raw_code!=decoded_code) ++pal_cursor_mask_mismatches;
+    }
+}
 static void pal_cursor_count(volatile unsigned *counter)
 {
     if (*counter != 0xffffu) ++*counter;
@@ -115,8 +141,13 @@ static void pal_cursor_trace_snapshot(int force)
           (pal_cursor_checks?16u:0u) |
           (pal_win16_cursor.image.visible?32u:0u) |
           (pal_cursor_header_seen?64u:0u) | (pal_cursor_nulls?128u:0u);
-    if (!force && !(state & ~pal_cursor_trace_seen)) return;
+    if (!force && !(state & ~pal_cursor_trace_seen) &&
+        (!pal_cursor_mask_budget || pal_cursor_accepts==pal_cursor_masks_logged))
+        return;
     pal_cursor_trace_seen |= state;
+    if (pal_cursor_mask_budget && pal_cursor_accepts!=pal_cursor_masks_logged)
+        --pal_cursor_mask_budget;
+    pal_cursor_masks_logged=pal_cursor_accepts;
     pal_boottrace("CURSOR SNAPSHOT");
     pal_boottrace_hex("CURSOR SET CALLS",pal_cursor_sets);
     pal_boottrace_hex("CURSOR NULL CALLS",pal_cursor_nulls);
@@ -131,6 +162,17 @@ static void pal_cursor_trace_snapshot(int force)
         pal_boottrace_hex("CURSOR HEIGHT",pal_cursor_header[3]);
         pal_boottrace_hex("CURSOR STRIDE",pal_cursor_header[4]);
         pal_boottrace_hex("CURSOR COLOR",pal_cursor_header[5]);
+    }
+    if (pal_cursor_accepts) {
+        pal_boottrace_hex("CURSOR RAW BLACK",pal_cursor_raw_counts[0]);
+        pal_boottrace_hex("CURSOR RAW WHITE",pal_cursor_raw_counts[1]);
+        pal_boottrace_hex("CURSOR RAW TRANSPARENT",pal_cursor_raw_counts[2]);
+        pal_boottrace_hex("CURSOR RAW INVERT",pal_cursor_raw_counts[3]);
+        pal_boottrace_hex("CURSOR DECODED BLACK",pal_cursor_decoded_counts[0]);
+        pal_boottrace_hex("CURSOR DECODED WHITE",pal_cursor_decoded_counts[1]);
+        pal_boottrace_hex("CURSOR DECODED TRANSPARENT",pal_cursor_decoded_counts[2]);
+        pal_boottrace_hex("CURSOR DECODED INVERT",pal_cursor_decoded_counts[3]);
+        pal_boottrace_hex("CURSOR MASK MISMATCHES",pal_cursor_mask_mismatches);
     }
     pal_boottrace_hex("CURSOR WANTS SHAPE",pal_win16_cursor.wants_shape);
     pal_boottrace_hex("CURSOR VISIBLE",pal_win16_cursor.image.visible);
@@ -300,6 +342,9 @@ void FAR PASCAL SetCursor(LPVOID shape)
     }
     for (i=0;i<need;++i) raw[i]=far_bytes[i];
     if (pal_cursor16_set(&pal_win16_cursor,raw,need)) {
+#if defined(PAL_WIN31_BOOTTRACE)
+        pal_cursor_measure_masks(raw,&pal_win16_cursor.image);
+#endif
         PAL_CURSOR_COUNT(pal_cursor_accepts);
         /* Shape changes need not wait for another GDI drawing call.
          * Existing compositor guard still defers if drawing is active. */
@@ -843,7 +888,17 @@ BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
 #endif
 {
     BOOL result;
-    pal_cursor_draw_begin(); /* exclude from BOTH screen read and write */
+    /* Hold the compositor even for memory-only operations; hide only if
+     * a screen source or destination overlaps the saved-under rectangle. */
+    if (pal_active_host && pal_win16_cursor.screen==&pal_active_host->device) {
+        pal_cursor16_hold(&pal_win16_cursor);
+        if (dest && pal_ddi_far_token((PAL_U16)FP_SEG(dest),
+             (PAL_U16)FP_OFF(dest))==pal_active_host->ddi.screen_token)
+            pal_cursor16_exclude_rect(&pal_win16_cursor,dx,dy,width,height);
+        if (src && pal_ddi_far_token((PAL_U16)FP_SEG(src),
+             (PAL_U16)FP_OFF(src))==pal_active_host->ddi.screen_token)
+            pal_cursor16_exclude_rect(&pal_win16_cursor,sx,sy,width,height);
+    }
     result=pal_win16_bitblt_impl(dest,dx,dy,src,sx,sy,width,height,
                                  rop,brush,drawmode);
     pal_cursor_draw_end();

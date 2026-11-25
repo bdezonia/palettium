@@ -53,6 +53,12 @@ static unsigned test_fp_off(const void *p)
 #undef FP_OFF
 #define FP_OFF(pointer) test_fp_off(pointer)
 
+#if defined(PAL_WIN31_BOOTTRACE)
+void pal_boottrace(const char *event) { (void)event; }
+void pal_boottrace_hex(const char *event,unsigned value)
+{ (void)event; (void)value; }
+#endif
+
 /* Include the real Win16 implementation to exercise exported wrappers.
  * Unused Win16 DDI functions are dropped via --gc-sections at link time. */
 #include "../windows/win31/palddi.c"
@@ -168,6 +174,13 @@ int main(void)
     cursor_shape[10]=1;cursor_shape[11]=1;
     SetCursor(cursor_shape);
     assert(pixels[0]==0u); /* shape is displayed immediately at current position */
+#if defined(PAL_WIN31_BOOTTRACE)
+    assert(pal_cursor_mask_mismatches==0u);
+    assert(pal_cursor_raw_counts[0]==1u && pal_cursor_raw_counts[1]==0u);
+    assert(pal_cursor_raw_counts[2]==63u && pal_cursor_raw_counts[3]==0u);
+    for (i=0;i<4u;++i)
+        assert(pal_cursor_raw_counts[i]==pal_cursor_decoded_counts[i]);
+#endif
     offset_pointer=cursor_shape;
     simulated_offset=65461u; /* only 75 bytes remain: reject without changing shape */
     SetCursor(cursor_shape);

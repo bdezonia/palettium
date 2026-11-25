@@ -162,7 +162,24 @@ void pal_cursor16_begin_draw(PAL_Cursor16 *s)
 {
     if (!s) return;
     ++s->draw_depth;
-    if (s->draw_depth==1u) rg_cursor_hide(&s->image);
+    rg_cursor_hide(&s->image); /* also exclude nested drawing after a hold */
+}
+/* Hold timer composition while a drawing transaction is active, but do
+ * not hide unless a screen region actually intersects the cursor. */
+void pal_cursor16_hold(PAL_Cursor16 *s)
+{
+    if (s) ++s->draw_depth;
+}
+void pal_cursor16_exclude_rect(PAL_Cursor16 *s,int x,int y,int w,int h)
+{
+    long left,top,right,bottom;
+    if (!s || !s->draw_depth || !s->image.visible || w<=0 || h<=0) return;
+    left=(long)s->image.x-s->image.hot_x;
+    top=(long)s->image.y-s->image.hot_y;
+    right=left+s->image.width;
+    bottom=top+s->image.height;
+    if ((long)x<right && (long)x+w>left &&
+        (long)y<bottom && (long)y+h>top) rg_cursor_hide(&s->image);
 }
 void pal_cursor16_end_draw(PAL_Cursor16 *s)
 {

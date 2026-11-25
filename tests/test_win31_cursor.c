@@ -36,7 +36,7 @@ static void shape(rg_u8 *p,unsigned width,unsigned height,int hotx,int hoty)
     word(p+6,(int)height);word(p+8,4);word(p+10,0);
     for(i=0;i<4u*height;++i) p[PAL_CURSOR16_HEADER+i]=0xff;
     /* first row: AND0/XOR0 black, AND0/XOR1 white, transparent, inverted */
-    p[12]=0x30u;
+    p[12]=0x3fu;
     p[12+height*4u]=0x50u;
 }
 int main(void)
@@ -45,7 +45,7 @@ int main(void)
     RG_Device d,banked;
     RG_VramOps io;
     rg_u8 wire[PAL_CURSOR16_MAX_WIRE];
-    unsigned i,write_before;
+    unsigned i,write_before,read_before;
     memset(&cursor,0,sizeof(cursor));
     assert(rg_init(&d,frame,W,H,W,W*H,RG_FMT_INDEX8));
     memset(frame,0x55,sizeof(frame));
@@ -105,6 +105,31 @@ int main(void)
     pal_cursor16_check(&cursor);
     assert(vram[102UL*640UL+254UL]==0);
     assert(vram[102UL*640UL+255UL]==255);
+    /* Only three nontransparent pixels in the 8x8 shape. */
+    assert(reads==3u && writes==3u);
+    write_before=writes; read_before=reads;
+    pal_cursor16_hold(&cursor);
+    pal_cursor16_exclude_rect(&cursor,262,102,10,8); /* touches edge only */
+    pal_cursor16_exclude_rect(&cursor,0,0,32,32);
+    assert(cursor.image.visible && cursor.draw_depth==1u);
+    pal_cursor16_check(&cursor);
+    pal_cursor16_end_draw(&cursor);
+    assert(cursor.image.visible && reads==read_before && writes==write_before);
+    /* Nested full draw must still hide after an outer non-hiding hold. */
+    pal_cursor16_hold(&cursor);
+    pal_cursor16_begin_draw(&cursor);
+    assert(!cursor.image.visible && cursor.draw_depth==2u);
+    assert(vram[102UL*640UL+254UL]==0x55);
+    pal_cursor16_end_draw(&cursor);
+    assert(!cursor.image.visible);
+    pal_cursor16_end_draw(&cursor);
+    assert(cursor.image.visible);
+    pal_cursor16_hold(&cursor);
+    pal_cursor16_exclude_rect(&cursor,253,101,2,2); /* overlaps one pixel */
+    assert(!cursor.image.visible);
+    assert(vram[102UL*640UL+254UL]==0x55);
+    pal_cursor16_end_draw(&cursor);
+    assert(cursor.image.visible);
     pal_cursor16_begin_draw(&cursor);
     write_before=writes;
     pal_cursor16_post_move(&cursor,256,102);
@@ -131,6 +156,20 @@ int main(void)
     assert(!cursor.incoming.ready);
     pal_cursor16_unbind(&cursor);
     irq_target=0;
+    /* All-transparent 32x32 cursor does no video I/O, even while moving. */
+    shape(wire,32,32,0,0);
+    memset(wire+12,0xff,128u);
+    memset(wire+140,0,128u);
+    assert(pal_cursor16_set(&cursor,wire,sizeof(wire)));
+    pal_cursor16_bind(&cursor,&banked);
+    read_before=reads; write_before=writes;
+    pal_cursor16_post_move(&cursor,640-10,400-10);
+    pal_cursor16_check(&cursor);
+    assert(cursor.image.visible);
+    pal_cursor16_post_move(&cursor,0,0);
+    pal_cursor16_check(&cursor);
+    pal_cursor16_unbind(&cursor);
+    assert(reads==read_before && writes==write_before);
     puts("PASS: Win3.x CURSORSHAPE, atomic-mailbox model, nested compositor guard, banked save-under");
     return 0;
 }

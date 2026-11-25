@@ -36,5 +36,10 @@ void pal_cursor16_unbind(PAL_Cursor16 *);
 void pal_cursor16_post_move(PAL_Cursor16 *, short, short);
 void pal_cursor16_check(PAL_Cursor16 *);
 void pal_cursor16_begin_draw(PAL_Cursor16 *);
+/* Begin a guarded transaction without automatically removing the cursor.
+ * Exclude every screen source/destination rectangle before touching VRAM.
+ * End with the ordinary end_draw; full begin_draw is still conservative. */
+void pal_cursor16_hold(PAL_Cursor16 *);
+void pal_cursor16_exclude_rect(PAL_Cursor16 *,int,int,int,int);
 void pal_cursor16_end_draw(PAL_Cursor16 *);
 #endif

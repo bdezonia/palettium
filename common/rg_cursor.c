@@ -13,6 +13,18 @@ static unsigned bit_at(const rg_u8 *bits,unsigned stride,unsigned x,unsigned y)
 {
     return ((unsigned)bits[(rg_offset)y*stride+x/8u] >> (7u-(x&7u)))&1u;
 }
+/* A transparent pixel needs neither saved-under storage nor video I/O.
+ * For the other mask combinations, an unchanged output also needs no write. */
+static int cursor_transparent(const RG_Cursor *c,unsigned x,unsigned y)
+{
+    return bit_at(c->and_bits,4u,x,y) && !bit_at(c->xor_bits,4u,x,y);
+}
+static rg_pixel cursor_value(const RG_Cursor *c,unsigned x,unsigned y,
+                             rg_pixel old,rg_pixel mask)
+{
+    return (old & (bit_at(c->and_bits,4u,x,y)?mask:0UL)) ^
+                  (bit_at(c->xor_bits,4u,x,y)?mask:0UL);
+}
 void rg_cursor_init(RG_Cursor *c)
 {
     if (c) memset(c,0,sizeof(*c));
@@ -22,15 +34,20 @@ void rg_cursor_hide(RG_Cursor *c)
     unsigned xx,yy;
     long xpos,ypos;
     RG_Device *d;
+    rg_pixel mask,old;
     if (!c || !c->visible || !c->device) return;
     d=c->device;
+    mask=(1UL<<rg_pixel_bits(d->surface.format))-1UL;
     for (yy=0;yy<c->height;++yy) for (xx=0;xx<c->width;++xx) {
+        if (cursor_transparent(c,xx,yy)) continue;
+        old=c->saved[yy*RG_CURSOR_MAX_WIDTH+xx];
+        if (cursor_value(c,xx,yy,old,mask)==old) continue;
         xpos=(long)c->x-(long)c->hot_x+(long)xx;
         ypos=(long)c->y-(long)c->hot_y+(long)yy;
         if (xpos>=0 && xpos<(long)d->surface.width &&
             ypos>=0 && ypos<(long)d->surface.height)
             d->ops.pixel(d,(int)xpos,(int)ypos,
-                       c->saved[yy*RG_CURSOR_MAX_WIDTH+xx]);
+                       old);
     }
     c->visible=0;
     c->device=0;
@@ -73,6 +90,7 @@ int rg_cursor_show(RG_Cursor *c,RG_Device *d,int x,int y)
     /* Read saved pixels before drawing ANY cursor pixels, so subsequent
      * overlapping moves/hides cannot read altered background values. */
     for (yy=0;yy<c->height;++yy) for (xx=0;xx<c->width;++xx) {
+        if (cursor_transparent(c,xx,yy)) continue;
         xpos=(long)x-(long)c->hot_x+(long)xx;
         ypos=(long)y-(long)c->hot_y+(long)yy;
         old=0;
@@ -86,14 +104,14 @@ int rg_cursor_show(RG_Cursor *c,RG_Device *d,int x,int y)
     }
     c->visible=1;
     for (yy=0;yy<c->height;++yy) for (xx=0;xx<c->width;++xx) {
+        if (cursor_transparent(c,xx,yy)) continue;
         xpos=(long)x-(long)c->hot_x+(long)xx;
         ypos=(long)y-(long)c->hot_y+(long)yy;
         if (xpos<0 || xpos>=(long)d->surface.width ||
             ypos<0 || ypos>=(long)d->surface.height) continue;
         value=c->saved[yy*RG_CURSOR_MAX_WIDTH+xx];
-        value=(value & (bit_at(c->and_bits,4u,xx,yy)?mask:0UL)) ^
-                   (bit_at(c->xor_bits,4u,xx,yy)?mask:0UL);
-        d->ops.pixel(d,(int)xpos,(int)ypos,value);
+        old=cursor_value(c,xx,yy,value,mask);
+        if (old!=value) d->ops.pixel(d,(int)xpos,(int)ypos,old);
     }
     return 1;
 }
