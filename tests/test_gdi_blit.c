@@ -61,6 +61,45 @@ int main(void)
     assert(memcmp(a,backup,sizeof(a))==0);
     assert(!rg_gdi_blit_rop3(&da,0,0,0,0,0,8,8,0x00CC0020UL));
     assert(!rg_gdi_blit_rop3(&da,&da,0,0,0,0,0,8,0x00CC0020UL));
-    puts("PASS: GDI BitBlt bridge: 32 overlap/clipping cases, 16 ROP2 reductions, hardware override, safe rejection");
+    /* Exhaustively validate the sixteen source-independent truth tables
+     * for indexed 1/8bpp and clipping. Inversion twice restores bytes. */
+    for (rop=0;rop<256u;++rop) {
+        unsigned i;
+        if ((rop&0x33u)!=((rop>>2)&0x33u)) continue;
+        seed();
+        assert(rg_gdi_blit_solid(&da,-2,1,12,3,(unsigned long)rop<<16,0x5au));
+        for(i=0;i<W*H;++i) {
+            unsigned expected=b[i];
+            if (i/W>=1u && i/W<4u && i%W<10u)
+                expected=rg_gdi_rop3_byte(rop,0x5au,0,b[i]);
+            assert(a[i]==expected);
+        }
+    }
+    for (rop=0;rop<256u;++rop) {
+        unsigned i,bit,old,expected,pattern;
+        if ((rop&0x33u)!=((rop>>2)&0x33u)) continue;
+        for(pattern=0;pattern<2u;++pattern) {
+            seed();
+            assert(rg_init(&da,a,32,8,4,32,RG_FMT_INDEX1));
+            assert(rg_gdi_blit_solid(&da,3,1,9,3,(unsigned long)rop<<16,pattern));
+            for(i=0;i<32u;++i) for(bit=0;bit<8u;++bit) {
+                unsigned x=(i%4u)*8u+bit, y=i/4u;
+                old=(b[i]>>(7u-bit))&1u;
+                expected=old;
+                if(x>=3u && x<12u && y>=1u && y<4u)
+                    expected=rg_gdi_rop3_byte(rop,(rg_u8)pattern,0,(rg_u8)old)&1u;
+                assert(((a[i]>>(7u-bit))&1u)==expected);
+            }
+        }
+    }
+    seed();
+    assert(rg_init(&da,a,32,8,4,32,RG_FMT_INDEX1));
+    memcpy(backup,a,32);
+    assert(rg_gdi_blit_solid(&da,0,0,32,8,0x00550009UL,0));
+    assert(rg_gdi_blit_solid(&da,0,0,32,8,0x00550009UL,0));
+    assert(!memcmp(a,backup,32));
+    assert(!rg_gdi_blit_solid(&da,0,0,32,8,0x00CC0020UL,0));
+    assert(!memcmp(a,backup,32));
+    puts("PASS: GDI BitBlt bridge: 32 overlap/clipping cases, 16 ROP2 reductions, hardware override, safe rejection, source-independent solid ROPs");
     return 0;
 }

@@ -10,18 +10,24 @@
 #include "pal_screen_host.h"
 #include "pal_bitmap_device.h"
 #include "rg_gdi_text.h"
+#include "rg_gdi_blit.h"
 #include "pal_font16.h"
 #include "driver_syntax.h"
 
 static unsigned char font_area[256];
+static unsigned char bitmap_source[512], bitmap_dest[512];
+static PAL_BITMAP16 source_header, dest_header;
 void *paldiag_test_mk_fp(unsigned selector,unsigned offset)
 {
-    (void)selector;
+    if (selector==0x30u || selector==0x40u) {
+        assert(offset<sizeof(bitmap_source));
+        return (selector==0x30u?bitmap_source:bitmap_dest)+offset;
+    }
     assert(offset < sizeof(font_area));
     return font_area+offset;
 }
 PAL_U32 pal_ddi_far_token(PAL_U16 seg, PAL_U16 off)
-{ (void)seg; (void)off; return 0UL; }
+{ return ((PAL_U32)seg<<16)|off; }
 int pal_screen_host_output_ready(PAL_ScreenHost *host,PAL_U32 token)
 { return host && host->running && token==host->ddi.screen_token; }
 int pal_screen_host_pixel(PAL_ScreenHost *h,PAL_U32 token,
@@ -38,11 +44,12 @@ int pal_screen_host_pixel(PAL_ScreenHost *h,PAL_U32 token,
     *result=(PAL_U32)p;
     return 1;
 }
-int pal_ddi_memory_bitmap_ok(const PAL_BITMAP16 *bitmap)
-{ (void)bitmap; return 0; }
-int pal_ddi_bitmap_device(RG_Device *device,const PAL_BITMAP16 *bitmap,
-                          RG_VramOps ops,void *context)
-{ (void)device;(void)bitmap;(void)ops;(void)context;return 0; }
+int pal_screen_host_bitblt(PAL_ScreenHost *h,PAL_U32 dt,int dx,int dy,
+    PAL_U32 st,int sx,int sy,int width,int height,unsigned long rop)
+{
+    if (!h || !h->running || dt!=h->ddi.screen_token || st!=dt) return 0;
+    return rg_gdi_blit_rop3(&h->device,&h->device,dx,dy,sx,sy,width,height,rop);
+}
 
 /* Simulate an offset only for a selected host pointer. This tests
  * actual guard branches, not protected-mode selector access. */
@@ -52,11 +59,27 @@ static unsigned test_fp_off(const void *p)
 { return p == offset_pointer ? simulated_offset : 0u; }
 #undef FP_OFF
 #define FP_OFF(pointer) test_fp_off(pointer)
+#undef FP_SEG
+#define FP_SEG(pointer) ((pointer)==&source_header?0x10u:(pointer)==&dest_header?0x20u:0u)
 
 #if defined(PAL_WIN31_BOOTTRACE)
-void pal_boottrace(const char *event) { (void)event; }
+static unsigned trace_pixels, trace_nonzero, trace_hash;
+static unsigned source_pixels, source_nonzero, source_hash;
+static int trace_source;
+void pal_boottrace(const char *event) {
+    if (!strcmp(event,"BMP SOURCE")) trace_source=1;
+    if (!strcmp(event,"BMP DEST AFTER")) trace_source=0;
+}
 void pal_boottrace_hex(const char *event,unsigned value)
-{ (void)event; (void)value; }
+{
+    if (!strcmp(event,"BMP SAMPLE PIXELS")) {
+        if (trace_source) source_pixels=value; else trace_pixels=value;
+    } else if (!strcmp(event,"BMP NONZERO")) {
+        if (trace_source) source_nonzero=value; else trace_nonzero=value;
+    } else if (!strcmp(event,"BMP HASH")) {
+        if (trace_source) source_hash=value; else trace_hash=value;
+    }
+}
 #endif
 
 /* Include the real Win16 implementation to exercise exported wrappers.
@@ -82,6 +105,7 @@ int main(void)
 {
     unsigned char cursor_shape[76];
     WORD mouse_info[2];
+    RG_Brush solid;
     short mode[12];
     short clip[4],opaque[4],widths[2];
     DWORD ext;
@@ -105,7 +129,7 @@ int main(void)
     assert(EnumObj(0,1u,0,0)==1u);
     assert(DeviceBitmap(0,0u,0,0)==0u);
     assert(SetAttribute(0,0u,0u,0u)==0u);
-    assert(FastBorder(0,0u,0u,0UL,0,0,0,0)!=0UL);
+    assert(FastBorder(0,0u,0u,0UL,0,0,0,0)==0UL);
     assert(GetCharWidth(0,glyph_widths,'A','C',font_area,0,0)==1u);
     assert(glyph_widths[0]==8u && glyph_widths[1]==8u && glyph_widths[2]==8u);
     glyph_widths[0]=1000u;
@@ -206,11 +230,62 @@ int main(void)
     SetCursor(0);
     assert(pixels[3]==7u); /* new underlying Pixel wins after restore */
     pal_cursor16_unbind(&pal_win16_cursor);
+    /* Exercise native bitmap marshaling with two distinct selectors,
+     * nonzero bit offsets, real bitmap validators and actual BitBlt.
+     * This does NOT emulate Watcom FAR pointers or protected-mode ABI. */
+    memset(&source_header,0,sizeof(source_header));
+    source_header.bmWidth=32; source_header.bmHeight=64;
+    source_header.bmWidthBytes=4; source_header.bmPlanes=1;
+    source_header.bmBitsPixel=1; source_header.bmWidthPlanes=256;
+    source_header.bmBits=0x00300010UL;
+    dest_header=source_header;
+    dest_header.bmBits=0x0040000cUL;
+    memset(bitmap_source,0,sizeof(bitmap_source));
+    memset(bitmap_dest,0xA5,sizeof(bitmap_dest));
+    memset(bitmap_source+16,0xff,128);
+    bitmap_source[16]=0x7f; /* black pixel at (0,0), rest transparent */
+    bitmap_source[16+128]=0x40; /* invert the second pixel */
+    assert(BitBlt(&dest_header,0,0,&source_header,0,0,32,64,
+                  0x00CC0020UL,0,0));
+    assert(!memcmp(bitmap_source+16,bitmap_dest+12,256));
+    assert(bitmap_dest[11]==0xA5 && bitmap_dest[268]==0xA5);
+#if defined(PAL_WIN31_BOOTTRACE)
+    assert(source_pixels==2048u && trace_pixels==2048u);
+    assert(source_nonzero==1024u && trace_nonzero==source_nonzero);
+    assert(source_hash==trace_hash);
+#endif
+    /* Cursor mask is generated by actual bitmap transfer, not a second
+     * handcrafted independent fixture. */
+    memset(bitmap_dest,0,12);
+    bitmap_dest[4]=32; bitmap_dest[6]=32; bitmap_dest[8]=4;
+    bitmap_dest[10]=1; bitmap_dest[11]=1;
+    memset(pixels,0x55,sizeof(pixels));
+    pal_cursor16_bind(&pal_win16_cursor,&host.device);
+    MoveCursor(0,0); CheckCursor();
+    SetCursor(bitmap_dest);
+    assert(pixels[0]==0 && pixels[1]==0xaa && pixels[2]==0x55);
+    SetCursor(0);
+    assert(pixels[0]==0x55 && pixels[1]==0x55);
+    pal_cursor16_unbind(&pal_win16_cursor);
+    assert(BitBlt(&dest_header,0,0,0,0,0,32,64,0x00550009UL,0,0));
+    for(i=0;i<256;++i)
+        assert((unsigned)bitmap_dest[12+i]+bitmap_source[16+i]==255u);
+    assert(BitBlt(&dest_header,0,0,0,0,0,32,64,0x00550009UL,0,0));
+    assert(!memcmp(bitmap_dest+12,bitmap_source+16,256));
+    /* A typical moving-window outline: two PATINVERTs cancel exactly. */
+    assert(rg_brush_realize(&host.palette,RG_BRUSH_SOLID,0x00FFFFFFUL,
+                            0,0,0,0,&solid));
+    memset(pixels,0x55,sizeof(pixels));
+    assert(BitBlt(&host.pdevice,3,2,0,0,0,9,1,0x005A0049UL,&solid,0));
+    for(i=0;i<sizeof(pixels);++i)
+        assert(pixels[i]==(i>=67u && i<76u?0xaau:0x55u));
+    assert(BitBlt(&host.pdevice,3,2,0,0,0,9,1,0x005A0049UL,&solid,0));
+    for(i=0;i<sizeof(pixels);++i) assert(pixels[i]==0x55u);
     /* No destination/session: fail closed, never touch memory. */
     pal_active_host=0;
     ext=ExtTextOut((LPVOID)&host.pdevice,0,0,clip,(LPSTR)str,2,
          (LPVOID)font_area,(LPVOID)mode,0,0,opaque,0);
     assert(ext==0x80000000UL);
-    puts("PASS: actual Win16 text wrappers plus required DDK bootstrap exports, font widths, cursor");
+    puts("PASS: actual Win16 text wrappers plus required DDK bootstrap exports, font widths, cursor, memory bitmap transfers and outline inversion");
     return 0;
 }

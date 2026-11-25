@@ -18,6 +18,10 @@ int rg_gdi_blit_color(RG_Device *dst, RG_Device *src,
                       int dx, int dy, int sx, int sy,
                       int width, int height, unsigned long win_rop,
                       unsigned text_color, unsigned background_color);
+/* All source-independent ROP3 with a solid pattern, including
+ * PATINVERT/DSTINVERT. INDEX1/INDEX8, no source object required. */
+int rg_gdi_blit_solid(RG_Device *dst, int dx, int dy, int width, int height,
+                       unsigned long win_rop, unsigned pattern);
 /* Map a physical 8bpp palette index into a monochrome output bit.
  * The DDK's white/background bit is 1. */
 unsigned rg_gdi_mono_color(unsigned physical, unsigned background_color);

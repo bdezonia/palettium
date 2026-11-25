@@ -1,0 +1,30 @@
+Palettium v0070 — bitmap preparation diagnostics and window outline corrections
+Baseline: v0069, user validated startup, mouse interaction and normal operation;
+32x32 black cursor persists; occasional title-bar artifacts after rapid drags.
+PALBOOT shows RAW BLACK=0400, all other classes zero, decoded identical.
+Root cause of zero incoming cursor masks remains unconfirmed.
+
+1. Correct unimplemented FastBorder return from 1 to 0 (DDK failure/fallback).
+   ABI and exported ordinal unchanged. See Windows 3.0 DDK Adaptation Guide,
+   chapter 10 FastBorder: AX=0 error, AX=1 success; chapter 2 notes GDI fallback.
+   https://www.pcjs.org/documents/books/mspl13/win/w3ddkadp/
+2. Shared rg_gdi_blit_solid handles all sixteen source-independent ROP3 truth
+   tables for INDEX1/INDEX8, using solid brush if needed. Constant results
+   retain hardware fill override; destination inversion and solid PATINVERT
+   do not require a source. Arbitrary patterns and three-operand ROPs remain
+   unsupported. No change to existing mono brush conversion policy.
+3. Independent traced-build budget of 96 validated memory-to-memory copies.
+   Log BPP, geometry, bit selector and offset, origins, source content before
+   transfer, destination content afterward, counts, sample step and 16-bit
+   rolling fingerprint. Exact for <=2048 pixels; sampled otherwise. No
+   screen reads or file I/O from interrupt callbacks. Extra diagnostic cost
+   means traced build is NOT a performance benchmark.
+4. Host actual-entry simulation now uses real bitmap validator/device adapter
+   and synthetic distinct selectors with nonzero offsets. Copy a constructed
+   32x64 monochrome image into cursor storage, check trace counts, display
+   through SetCursor, verify restoration, invert twice, check PATINVERT twice.
+   Tests also cover all sixteen source-independent ROP3s at both depths.
+   The host does not emulate the true Win16 segmented calling convention.
+
+Clean make test and all 21 Makefile.* test targets PASS. Watcom and VM pending.
+No changes to Enhanced-mode gate, hardware init, cursor compositor, or resources.

@@ -81,3 +81,39 @@ int rg_gdi_blit_color(RG_Device *dst, RG_Device *src,
     }
     return 1;
 }
+
+/* Source-independent ROP3, using a solid pattern when needed.  Preserve
+ * fill overrides for destination-independent operations.  All geometry is
+ * clipped before access; the caller owns cursor exclusion. */
+int rg_gdi_blit_solid(RG_Device *dst, int dx, int dy, int width, int height,
+                       unsigned long win_rop, unsigned pattern)
+{
+    unsigned code=rg_gdi_rop3_code(win_rop), mask, lo, hi;
+    long l=dx, t=dy, r=l+(long)width, b=t+(long)height, x,y;
+    rg_pixel old;
+    if (!dst || width<=0 || height<=0 || !dst->ops.fill || !dst->ops.pixel ||
+        !dst->surface.width || !dst->surface.height ||
+        (!dst->surface.pixels && (!dst->vram.read_byte || !dst->vram.write_byte)) ||
+        (code & 0x33u)!=((code>>2)&0x33u)) return 0;
+    if (dst->surface.format==RG_FMT_INDEX1) mask=1u;
+    else if (dst->surface.format==RG_FMT_INDEX8) mask=255u;
+    else return 0;
+    if (pattern>mask) return 0;
+    lo=rg_gdi_rop3_byte(code,(rg_u8)pattern,0,0)&mask;
+    hi=rg_gdi_rop3_byte(code,(rg_u8)pattern,0,(rg_u8)mask)&mask;
+    if (lo==hi) {
+        dst->ops.fill(dst,dx,dy,width,height,lo);
+        return 1;
+    }
+    if (lo==0u && hi==mask) return 1; /* destination unchanged */
+    if (l<0) l=0;
+    if (t<0) t=0;
+    if (r>(long)dst->surface.width) r=dst->surface.width;
+    if (b>(long)dst->surface.height) b=dst->surface.height;
+    if (l>=r || t>=b) return 1;
+    for (y=t;y<b;++y) for (x=l;x<r;++x) {
+        if (!rg_get_pixel(dst,(int)x,(int)y,&old)) return 0;
+        dst->ops.pixel(dst,(int)x,(int)y,(old & hi) | (~old & lo));
+    }
+    return 1;
+}

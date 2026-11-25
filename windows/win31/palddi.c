@@ -58,6 +58,7 @@
 #include "pal_objects.h"
 #include "pal_bitmap_device.h"
 #include "rg_gdi_blit.h"
+#include "rg_gdi_rop.h"
 #include "rg_gdi_text.h"
 #include "pal_font16.h"
 #include "pal_cursor16.h"
@@ -803,10 +804,52 @@ DWORD FAR PASCAL StrBlt(LPVOID dest, short x, short y,
 }
 #endif
 
+#if defined(PAL_WIN31_BOOTTRACE)
+/* Independent budget: capture startup bitmap preparation, including the
+ * 32x64 transfers that may build cursor AND/XOR masks.  Read ONLY validated
+ * memory bitmaps, never screen VRAM.  Exact counts for small rectangles;
+ * larger rectangles are sampled and the step is logged explicitly. */
+static unsigned pal_bitmap_trace_budget=96u;
+static void pal_trace_bitmap_region(RG_Device *d, PAL_Win16Bits *bits,
+                                    int x,int y,int w,int h)
+{
+    long l=x,t=y,r=l+(long)w,b=t+(long)h,xx,yy;
+    unsigned n=0, nonzero=0, hash=0, step=1u;
+    rg_pixel pixel;
+    if (l<0) l=0;
+    if (t<0) t=0;
+    if (r>(long)d->surface.width) r=d->surface.width;
+    if (b>(long)d->surface.height) b=d->surface.height;
+    pal_boottrace_hex("BMP BPP",rg_pixel_bits(d->surface.format));
+    pal_boottrace_hex("BMP WIDTH",d->surface.width);
+    pal_boottrace_hex("BMP HEIGHT",d->surface.height);
+    pal_boottrace_hex("BMP STRIDE",(unsigned)d->surface.stride);
+    pal_boottrace_hex("BMP BITS SEL",(unsigned)(bits->address>>16));
+    pal_boottrace_hex("BMP BITS OFF",(unsigned)bits->address);
+    pal_boottrace_hex("BMP REGION X",(unsigned)x);
+    pal_boottrace_hex("BMP REGION Y",(unsigned)y);
+    if (l<r && t<b) {
+        while (((r-l+step-1)/step)*((b-t+step-1)/step)>2048L)
+            step*=2u;
+        for (yy=t;yy<b;yy+=step) for (xx=l;xx<r;xx+=step) {
+            if (!rg_get_pixel(d,(int)xx,(int)yy,&pixel)) continue;
+            ++n;
+            if (pixel) ++nonzero;
+            hash=(unsigned)((hash*33UL+pixel)&65535UL);
+        }
+    }
+    pal_boottrace_hex("BMP SAMPLE STEP",step);
+    pal_boottrace_hex("BMP SAMPLE PIXELS",n);
+    pal_boottrace_hex("BMP NONZERO",nonzero);
+    pal_boottrace_hex("BMP HASH",hash);
+}
+#endif
+
 /* DDK: BitBlt(dest,dx,dy,src,sx,sy,w,h,rop,brush,drawmode).
  * Same-screen keeps the existing hardware blit path. All 1/8bpp
  * memory combinations use shared software/hardware RG_Device operations.
- * Pattern-dependent ROP3 still refuses without writing. */
+ * Source-independent solid patterns are supported; arbitrary three-operand
+ * and patterned-brush ROP3 still refuse without writing. */
 static BOOL pal_win16_bitblt_impl(LPVOID dest, short dx, short dy,
                        LPVOID src, short sx, short sy,
                        short width, short height, DWORD rop,
@@ -816,23 +859,23 @@ static BOOL pal_win16_bitblt_impl(LPVOID dest, short dx, short dy,
     PAL_Win16Bits dbits, sbits;
     RG_Device dmem, smem, *d, *s;
     unsigned text=0, background=0;
-    (void)brush;
+    unsigned code=rg_gdi_rop3_code((unsigned long)rop);
+#if defined(PAL_WIN31_BOOTTRACE)
+    int trace_bitmap=0;
+    BOOL result;
+#endif
     if (!pal_active_host || !dest || width <= 0 || height <= 0)
         return FALSE;
-    /* Source-independent fills must not require a source bitmap. */
-    if (((rop >> 16) & 255UL) == 0xF0UL ||
-        ((rop >> 16) & 255UL) == 0x00UL ||
-        ((rop >> 16) & 255UL) == 0xFFUL) {
+    /* Ignore source entirely whenever the truth table does not depend on
+     * it.  Previously PATINVERT and DSTINVERT with NULL source failed. */
+    if ((code & 0x33u)==((code>>2)&0x33u)) {
         RG_Brush b;
-        unsigned i, value;
+        unsigned i, value=0;
         const unsigned char FAR *from;
         unsigned char *to;
-        unsigned code=(unsigned)((rop >> 16) & 255UL);
-        if (!pal_win16_device(dest,&dmem,&dbits,&d) || !d->ops.fill)
-            return FALSE;
-        if (code == 0xF0u) {
-            if (!brush || (PAL_U32)(PAL_U16)FP_OFF(brush)+sizeof(b)>65536UL)
-                return FALSE;
+        if (!pal_win16_device(dest,&dmem,&dbits,&d)) return FALSE;
+        if ((code & 15u)!=(code>>4)) {
+            if (!brush || !PAL_FAR_FITS(brush,sizeof(b))) return FALSE;
             from=(const unsigned char FAR *)brush;
             to=(unsigned char *)&b;
             for (i=0;i<sizeof(b);++i) to[i]=from[i];
@@ -842,9 +885,9 @@ static BOOL pal_win16_bitblt_impl(LPVOID dest, short dx, short dy,
                 if (!pal_win16_mode_colors(drawmode,&text,&background)) return FALSE;
                 value=rg_gdi_mono_color(value,background);
             }
-        } else value=code == 0 ? 0u : (d->surface.format == RG_FMT_INDEX1 ? 1u : 255u);
-        d->ops.fill(d,dx,dy,width,height,value);
-        return TRUE;
+        }
+        return rg_gdi_blit_solid(d,dx,dy,width,height,(unsigned long)rop,value)
+                   ? TRUE : FALSE;
     }
     if (!src) return FALSE;
     dt=pal_ddi_far_token((PAL_U16)FP_SEG(dest),(PAL_U16)FP_OFF(dest));
@@ -870,9 +913,33 @@ static BOOL pal_win16_bitblt_impl(LPVOID dest, short dx, short dy,
     }
     if (d->surface.format != s->surface.format &&
         !pal_win16_mode_colors(drawmode,&text,&background)) return FALSE;
+#if defined(PAL_WIN31_BOOTTRACE)
+    if (pal_bitmap_trace_budget && d!=&pal_active_host->device &&
+        s!=&pal_active_host->device) {
+        --pal_bitmap_trace_budget;
+        trace_bitmap=1;
+        pal_boottrace("BMP TRANSFER BEFORE");
+        pal_boottrace_hex("BMP ROP3",code);
+        pal_boottrace_hex("BMP COPY WIDTH",(unsigned)width);
+        pal_boottrace_hex("BMP COPY HEIGHT",(unsigned)height);
+        pal_boottrace_hex("BMP TEXT",text);
+        pal_boottrace_hex("BMP BACKGROUND",background);
+        pal_boottrace("BMP SOURCE");
+        pal_trace_bitmap_region(s,s==d?&dbits:&sbits,sx,sy,width,height);
+    }
+    result=rg_gdi_blit_color(d,s,dx,dy,sx,sy,width,height,
+                            (unsigned long)rop,text,background)?TRUE:FALSE;
+    if (trace_bitmap) {
+        pal_boottrace_hex("BMP RESULT",(unsigned)result);
+        pal_boottrace("BMP DEST AFTER");
+        pal_trace_bitmap_region(d,&dbits,dx,dy,width,height);
+    }
+    return result;
+#else
     return rg_gdi_blit_color(d,s,dx,dy,sx,sy,width,height,
                               (unsigned long)rop,text,background)
                ? TRUE : FALSE;
+#endif
 }
 
 #if defined(PAL_WIN31_BOOTTRACE)
@@ -1396,7 +1463,7 @@ WORD FAR PASCAL DeviceBitmap(LPVOID device, WORD command,
 }
 #endif
 /* FastBorder is present for historical ordinal compatibility but not yet
- * supported by our renderer. Nonzero signals failure; no pixels touched. */
+ * supported by our renderer. AX=0 requests GDI fallback (DDK); no pixels touched. */
 #if defined(PAL_WIN31_BOOTTRACE)
 static DWORD FAR PASCAL pal_trace_impl_FastBorder(LPVOID rect, WORD hx, WORD vy, DWORD rop,
                             LPVOID device, LPVOID brush, LPVOID mode,
@@ -1409,7 +1476,7 @@ DWORD FAR PASCAL FastBorder(LPVOID rect, WORD hx, WORD vy, DWORD rop,
 {
     (void)rect; (void)hx; (void)vy; (void)rop;
     (void)device; (void)brush; (void)mode; (void)clip;
-    return 1UL;
+    return 0UL;
 }
 #if defined(PAL_WIN31_BOOTTRACE)
 DWORD FAR PASCAL FastBorder(LPVOID rect, WORD hx, WORD vy, DWORD rop,
