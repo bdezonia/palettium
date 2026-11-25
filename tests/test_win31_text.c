@@ -36,10 +36,10 @@ static void make_font(void)
     font_bytes[29]='A'; font_bytes[30]='B';
     font_bytes[31]=0; /* default first char */
     font_bytes[32]=(rg_u8)('B'-'A');
-    word_at(font_bytes,51,8); word_at(font_bytes,53,63);
-    word_at(font_bytes,55,8); word_at(font_bytes,57,71);
-    word_at(font_bytes,59,8); word_at(font_bytes,61,79); /* sentinel */
-    for (j=0;j<8;++j) {font_bytes[63+j]=a[j];font_bytes[71+j]=b[j];}
+    word_at(font_bytes,52,8); word_at(font_bytes,54,64);
+    word_at(font_bytes,56,8); word_at(font_bytes,58,72);
+    word_at(font_bytes,60,8); word_at(font_bytes,62,80); /* sentinel */
+    for (j=0;j<8;++j) {font_bytes[64+j]=a[j];font_bytes[72+j]=b[j];}
 }
 static rg_u8 vr(void *ctx,rg_offset off) { (void)ctx; return video[off]; }
 static void vw(void *ctx,rg_offset off,rg_u8 val)
@@ -58,17 +58,17 @@ int main(void)
     assert(font.height==8 && font.max_width==8 && font.first=='A' &&
            font.last=='B' && font.default_char=='A');
     assert(pal_font16_glyph(&font,fr,font_bytes,'A',&glyph));
-    assert(glyph.width==8 && glyph.height==8 && glyph.offset==63);
+    assert(glyph.width==8 && glyph.height==8 && glyph.offset==64);
     assert(pal_font16_glyph(&font,fr,font_bytes,'Z',&glyph));
-    assert(glyph.offset==63); /* missing character => default */
-    assert(!pal_font16_open(&font,fr,font_bytes,55));
+    assert(glyph.offset==64); /* missing character => default */
+    assert(!pal_font16_open(&font,fr,font_bytes,56));
     font_bytes[0]=1; /* vector is forbidden */
     assert(!pal_font16_open(&font,fr,font_bytes,128));
     font_bytes[0]=0;
     assert(pal_font16_open(&font,fr,font_bytes,128));
-    word_at(font_bytes,53,122); /* bounds crossing */
+    word_at(font_bytes,54,122); /* bounds crossing */
     assert(!pal_font16_glyph(&font,fr,font_bytes,'A',&glyph));
-    word_at(font_bytes,53,63);
+    word_at(font_bytes,54,64);
     assert(pal_font16_glyph(&font,fr,font_bytes,'A',&glyph));
 
     memset(surface,7,sizeof(surface));

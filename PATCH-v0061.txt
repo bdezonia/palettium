@@ -1,0 +1,5 @@
+v0061: correct standard FONTINFO character table offset from 51 to 52,
+including the reserved byte after dfBitsOffset. Correct both synthetic fixtures.
+Bounded diagnostic on glyph failure reports actual header and entry fields.
+No changes to shared rendering, bitmap handling or cursor callbacks.
+Segment-relative addressing still needs verification if font base is nonzero.

@@ -60,8 +60,8 @@ static void make_font(void)
     memset(font_area,0,sizeof(font_area));
     ww(20,8); ww(22,8); ww(27,8);
     font_area[29]='A';font_area[30]='B';font_area[31]=0;
-    ww(51,8);ww(53,63);ww(55,8);ww(57,71);ww(59,8);ww(61,79);
-    for(i=0;i<8;++i) {font_area[63+i]=a[i];font_area[71+i]=b[i];}
+    ww(52,8);ww(54,64);ww(56,8);ww(58,72);ww(60,8);ww(62,80);
+    for(i=0;i<8;++i) {font_area[64+i]=a[i];font_area[72+i]=b[i];}
 }
 int main(void)
 {

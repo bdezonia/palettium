@@ -2,13 +2,13 @@
 #define PAL_FONT16_H
 /* Win3.x GDI standard (non-big) raster FONTINFO decoder. The in-memory
  * GDI structure starts at dfType (NOT .FNT's dfVersion/copyright header).
- * Standard 2.x FONTINFO has a 51-byte header, then 4-byte glyph entries.
+ * Standard 2.x FONTINFO has a 52-byte header (including dfReserved), then 4-byte glyph entries.
  * GDI must not advertise RC_BIGFONT until 3.x layouts are supported.
  * The caller provides a verified bounded byte reader; no FAR casts here.
  */
 #include "rg_gdi_text.h"
-#define PAL_FONT16_HEADER_BYTES 51u
-#define PAL_FONT16_CHARTABLE_OFFSET 51u
+#define PAL_FONT16_HEADER_BYTES 52u
+#define PAL_FONT16_CHARTABLE_OFFSET 52u
 
 typedef struct PAL_Font16 {
     unsigned first, last, default_char, break_char;

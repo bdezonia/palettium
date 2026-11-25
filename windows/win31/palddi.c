@@ -497,8 +497,34 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
         cursor=(long)x; minimum=cursor; maximum=cursor;
         for (i=0;i<n;++i) {
             code=(unsigned)str[i];
-            if (!pal_font16_glyph(&font,pal_win16_font_read,&fb,code,&glyph))
+            if (!pal_font16_glyph(&font,pal_win16_font_read,&fb,code,&glyph)) {
+#if defined(PAL_WIN31_BOOTTRACE)
+                if (pal_text_fail_budget) {
+                    rg_offset entry;
+                    unsigned actual;
+                    actual=(code<font.first || code>font.last) ?
+                           font.default_char : code;
+                    entry=PAL_FONT16_CHARTABLE_OFFSET+
+                          (rg_offset)(actual-font.first)*4UL;
+                    pal_boottrace_hex("FONT BASE",fb.base);
+                    pal_boottrace_hex("FONT FIRST",font.first);
+                    pal_boottrace_hex("FONT LAST",font.last);
+                    pal_boottrace_hex("FONT MAX WIDTH",font.max_width);
+                    pal_boottrace_hex("FONT FIXED WIDTH",font.fixed_width);
+                    pal_boottrace_hex("FONT HEIGHT",font.height);
+                    pal_boottrace_hex("FONT CHAR",actual);
+                    if (entry+4UL<=font.segment_bytes) {
+                        pal_boottrace_hex("FONT ENTRY WIDTH",
+                            (unsigned)pal_win16_font_read(&fb,entry) |
+                            ((unsigned)pal_win16_font_read(&fb,entry+1UL)<<8));
+                        pal_boottrace_hex("FONT ENTRY OFFSET",
+                            (unsigned)pal_win16_font_read(&fb,entry+2UL) |
+                            ((unsigned)pal_win16_font_read(&fb,entry+3UL)<<8));
+                    }
+                }
+#endif
                 return pal_text_fail(9u);
+            }
             if (cursor< -32768L || cursor>32767L) return pal_text_fail(10u);
             min_end=cursor;
             max_end=cursor+(long)glyph.width;
