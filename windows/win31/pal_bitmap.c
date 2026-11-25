@@ -33,8 +33,8 @@ int pal_ddi_memory_bitmap_ok(const PAL_BITMAP16 *bmp)
      * Windows-specific segmented access will be added separately. */
     if (total > 65535UL || bmp->bmWidthPlanes != total ||
         (bmp->bmBits & 65535UL) + total > 65536UL) return 0;
-    if (bmp->bmSegmentIndex != 0 || bmp->bmScanSegment != 0 ||
-        bmp->bmFillBytes != 0) return 0;
+    /* ScanSegment and FillBytes are unused for non-huge bitmaps. */
+    if (bmp->bmSegmentIndex != 0) return 0;
     return 1;
 }
 

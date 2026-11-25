@@ -1,0 +1,2 @@
+Palettium v0060 (incremental over v0059)
+Fix single-segment bitmap validation: bmScanSegment and bmFillBytes are not required to be zero when bmSegmentIndex is zero. Keep size, stride, format, offset-wrap and huge bitmap rejection checks. Regression tests reproduce real v0059 GDI bitmap headers. No font or cursor behavior changes. Text failure 0x67 (bitmap validation) may improve; independent glyph failure 0x09 remains. Host bitmap test passed; Win16 build/runtime pending.

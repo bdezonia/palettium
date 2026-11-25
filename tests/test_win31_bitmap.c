@@ -35,6 +35,19 @@ int main(void)
     CHECK(!pal_ddi_memory_bitmap_ok(&b));
     b.bmHeight = 16;
     b.bmWidthPlanes = 512;
+    /* Actual GDI startup bitmap headers from v0059. */
+    b.bmWidth = 36; b.bmHeight = 18; b.bmWidthBytes = 36;
+    b.bmBits = 0x062f0020UL; b.bmWidthPlanes = 648;
+    b.bmScanSegment = 0x071c; b.bmFillBytes = 16;
+    CHECK(pal_ddi_memory_bitmap_ok(&b));
+    b.bmWidth = 13; b.bmHeight = 14; b.bmWidthBytes = 2;
+    b.bmBitsPixel = 1; b.bmWidthPlanes = 28;
+    b.bmScanSegment = 0x8000; b.bmFillBytes = 0;
+    CHECK(pal_ddi_memory_bitmap_ok(&b));
+    b.bmSegmentIndex = 8;
+    CHECK(!pal_ddi_memory_bitmap_ok(&b));
+    b.bmSegmentIndex = 0; b.bmBits = 0x062ffff0UL;
+    CHECK(!pal_ddi_memory_bitmap_ok(&b));
     CHECK(pal_pd_prepare(&pd, 640, 480, 640));
     CHECK(pal_ddi_target_kind(PAL_PD_DISPLAY_TYPE, 0, &pd) == PAL_TARGET_SCREEN);
     CHECK(pal_ddi_target_kind(1, 0, &pd) == PAL_TARGET_INVALID);
