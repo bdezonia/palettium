@@ -10,6 +10,8 @@
 #define EnumObj PalWinApiEnumObj
 #define GetCharWidth PalWinApiGetCharWidth
 #define DeviceBitmap PalWinApiDeviceBitmap
+#define DeviceBitmapBits PalWinApiDeviceBitmapBits
+#define CreateDIBitmap PalWinApiCreateDIBitmap
 #define FastBorder PalWinApiFastBorder
 #define SetAttribute PalWinApiSetAttribute
 #define Inquire PalWinApiInquire
@@ -33,6 +35,8 @@
 #undef EnumObj
 #undef GetCharWidth
 #undef DeviceBitmap
+#undef DeviceBitmapBits
+#undef CreateDIBitmap
 #undef FastBorder
 #undef SetAttribute
 #undef Inquire
@@ -505,6 +509,158 @@ static int pal_win16_device(LPVOID operand, RG_Device *storage,
     return 1;
 }
 
+/* DIB conversion @19. Win3.x GDI supplies a 40-byte BITMAPINFOHEADER,
+ * DWORD-aligned bottom-up scanlines and, on a palette device, WORD
+ * logical palette indices after the header. A partial scan buffer starts
+ * at its first supplied scan, not at the beginning of the whole DIB.
+ * Use the shared pixel API for DDB access. Unsupported formats return -1
+ * (GDI simulation); malformed requests return 0. No GDI imports needed.
+ * First implementation: uncompressed indexed 1/4/8bpp, single segment. */
+static unsigned pal_dib_word(const unsigned char FAR *p)
+{
+    return (unsigned)p[0] | ((unsigned)p[1]<<8);
+}
+static PAL_U32 pal_dib_dword(const unsigned char FAR *p)
+{
+    return (PAL_U32)pal_dib_word(p) | ((PAL_U32)pal_dib_word(p+2)<<16);
+}
+#if defined(PAL_WIN31_BOOTTRACE)
+static unsigned pal_dib_trace_budget=24u;
+#endif
+static WORD pal_win16_dib_impl(LPVOID dest, WORD get, WORD start, WORD scans,
+                               LPVOID data, LPVOID info, LPVOID translate,
+                               int traced)
+{
+    unsigned char FAR *h=(unsigned char FAR *)info;
+    unsigned char FAR *buffer=(unsigned char FAR *)data;
+    const unsigned char FAR *table=(const unsigned char FAR *)translate;
+    RG_Device mem,*d;
+    PAL_Win16Bits bits;
+    PAL_U32 width,height,stride,bytes,used,off;
+    unsigned bpp,colors,n,x,y,i,v,shift,mask,physical,dbpp;
+    unsigned char map[256];
+    rg_pixel pixel;
+    RG_Color rgb;
+    if (get>1u || !PAL_FAR_FITS(info,40UL)) return 0;
+    if (pal_dib_dword(h)!=40UL || pal_dib_dword(h+16)!=0UL) return 0xffffu;
+    width=pal_dib_dword(h+4); height=pal_dib_dword(h+8);
+    bpp=pal_dib_word(h+14);
+    if (pal_dib_word(h+12)!=1u || !width || !height ||
+        width>32767UL || height>32767UL) return 0xffffu;
+    if (bpp!=1u && bpp!=4u && bpp!=8u) return 0xffffu;
+    stride=((width*bpp+31UL)/32UL)*4UL;
+    if (!pal_win16_device(dest,&mem,&bits,&d) || d!=&mem ||
+        d->surface.width!=width || d->surface.height!=height) return 0xffffu;
+    dbpp=rg_pixel_bits(d->surface.format);
+    if (dbpp!=1u && dbpp!=8u) return 0xffffu;
+    colors=1u<<bpp;
+    used=pal_dib_dword(h+32);
+    if (used>colors) return 0;
+    n=used?(unsigned)used:colors;
+    if (get && !data) {
+        bytes=stride*height;
+        for (i=0;i<4u;++i) h[20u+i]=(unsigned char)(bytes>>(8u*i));
+        return 1u;
+    }
+    if (!scans || start>=height || (PAL_U32)scans>height-start) return 0;
+    bytes=stride*(PAL_U32)scans;
+    if (!PAL_FAR_FITS(data,bytes)) return 0xffffu;
+    mask=colors-1u;
+    if (!get) {
+        if (!PAL_FAR_FITS(info,40UL+2UL*n)) return 0;
+        for (i=0;i<n;++i) {
+            v=pal_dib_word(h+40u+2u*i);
+            if (v>=256u) return 0;
+            if (dbpp==1u) {
+                if (!rg_palette_translate(&pal_active_host->palette,v,&physical) ||
+                    !rg_palette_get_entry(&pal_active_host->palette,physical,&rgb)) return 0;
+                map[i]=(unsigned char)(((unsigned)rgb.red+rgb.green+rgb.blue)>=383u);
+            } else map[i]=(unsigned char)v; /* memory DDB uses logical indices */
+        }
+        /* Preflight truncated color tables before modifying destination. */
+        if (n<colors) {
+            for (i=0;i<scans;++i) for (x=0;x<(unsigned)width;++x) {
+                off=(PAL_U32)i*stride+((PAL_U32)x*bpp)/8UL;
+                shift=8u-bpp-((x*bpp)&7u);
+                if (((buffer[(unsigned)off]>>shift)&mask)>=n) return 0;
+            }
+        }
+#if defined(PAL_WIN31_BOOTTRACE)
+        if (traced) {
+            unsigned nonzero=0;
+            for (off=0;off<bytes;++off)
+                if (buffer[(unsigned)off] && nonzero<65535u) ++nonzero;
+            pal_boottrace_hex("DIB INPUT NONZERO BYTES",nonzero);
+            pal_boottrace_hex("DIB TABLE FIRST",pal_dib_word(h+40u));
+            if (n>1u) pal_boottrace_hex("DIB TABLE SECOND",pal_dib_word(h+42u));
+            pal_boottrace_hex("DIB MAP FIRST",map[0]);
+            if (n>1u) pal_boottrace_hex("DIB MAP SECOND",map[1]);
+        }
+#endif
+    } else {
+        n=dbpp==1u?2u:256u;
+        if (dbpp==8u && bpp==8u) {
+            for (i=0;i<n;++i) map[i]=(unsigned char)i;
+        } else {
+            if (!PAL_FAR_FITS(translate,(PAL_U32)n)) return 0xffffu;
+            for (i=0;i<n;++i) map[i]=(unsigned char)(table[i]&mask);
+        }
+    }
+    (void)traced;
+    for (i=0;i<scans;++i) {
+        y=(unsigned)height-1u-(unsigned)start-i;
+        if (get) for (off=0;off<stride;++off)
+            buffer[(unsigned)((PAL_U32)i*stride+off)]=0;
+        for (x=0;x<(unsigned)width;++x) {
+            off=(PAL_U32)i*stride+((PAL_U32)x*bpp)/8UL;
+            shift=8u-bpp-((x*bpp)&7u);
+            if (!get) {
+                v=(buffer[(unsigned)off]>>shift)&mask;
+                if (!rg_put_pixel(d,(int)x,(int)y,map[v])) return 0;
+            } else {
+                if (!rg_get_pixel(d,(int)x,(int)y,&pixel)) return 0;
+                buffer[(unsigned)off]|=(unsigned char)(map[(unsigned)pixel]<<shift);
+            }
+        }
+    }
+    return scans;
+}
+WORD FAR PASCAL DeviceBitmapBits(LPVOID dest, WORD get, WORD start, WORD scans,
+                                  LPVOID data, LPVOID info, LPVOID drawmode,
+                                  LPVOID translate)
+{
+    WORD result;
+    int traced=0;
+    (void)drawmode;
+#if defined(PAL_WIN31_BOOTTRACE)
+    if (pal_dib_trace_budget) {
+        --pal_dib_trace_budget;
+        traced=1;
+        pal_boottrace("DIB ENTER");
+        pal_boottrace_hex("DIB GET",get);
+        pal_boottrace_hex("DIB START",start);
+        pal_boottrace_hex("DIB SCANS",scans);
+        if (PAL_FAR_FITS(info,40UL)) {
+            const unsigned char FAR *h=(const unsigned char FAR *)info;
+            pal_boottrace_hex("DIB WIDTH",(unsigned)pal_dib_dword(h+4));
+            pal_boottrace_hex("DIB HEIGHT",(unsigned)pal_dib_dword(h+8));
+            pal_boottrace_hex("DIB BPP",pal_dib_word(h+14));
+        }
+    }
+#endif
+    result=pal_win16_dib_impl(dest,get,start,scans,data,info,translate,traced);
+#if defined(PAL_WIN31_BOOTTRACE)
+    if (traced) pal_boottrace_hex("DIB RETURN",result);
+#endif
+    return result;
+}
+/* GDI creates ordinary memory DDBs itself. VGA @20 has a zero-argument
+ * far stub; no device-resident allocation is advertised. */
+WORD FAR PASCAL CreateDIBitmap(void)
+{
+    return 0;
+}
+
 /* The Win3.x DRAWMODE begins with Rop2, bkMode, bkColor (physical
  * DWORD) and TextColor (physical DWORD). For mixed-depth bitmap blits
  * we need both physical indices. Return failure for absent/invalid data;
@@ -826,6 +982,14 @@ static void pal_trace_bitmap_region(RG_Device *d, PAL_Win16Bits *bits,
     pal_boottrace_hex("BMP STRIDE",(unsigned)d->surface.stride);
     pal_boottrace_hex("BMP BITS SEL",(unsigned)(bits->address>>16));
     pal_boottrace_hex("BMP BITS OFF",(unsigned)bits->address);
+    if (d->surface.capacity<=8192UL) {
+        const unsigned char FAR *raw=(const unsigned char FAR *)MK_FP(
+            (unsigned)(bits->address>>16),(unsigned)(bits->address&65535UL));
+        unsigned raw_nonzero=0, j;
+        for (j=0;j<(unsigned)d->surface.capacity;++j)
+            if (raw[j]) ++raw_nonzero;
+        pal_boottrace_hex("BMP DIRECT NONZERO BYTES",raw_nonzero);
+    }
     pal_boottrace_hex("BMP REGION X",(unsigned)x);
     pal_boottrace_hex("BMP REGION Y",(unsigned)y);
     if (l<r && t<b) {

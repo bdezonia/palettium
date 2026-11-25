@@ -103,6 +103,8 @@ export GetCharWidth.15
 export DeviceBitmap.16
 export FastBorder.17
 export SetAttribute.18
+export DeviceBitmapBits.19
+export CreateDIBitmap.20
 export SetPalette.22
 export GetPalette.23
 export SetPalTrans.24

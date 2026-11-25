@@ -41,6 +41,7 @@ typedef struct PAL_GDIINFO {
  * Do not set RC_DEVBITS/RC_STRETCHBLT until the matching DDIs exist. */
 #define PAL_RC_BITBLT        0x0001u
 #define PAL_RC_GDI20_OUTPUT  0x0010u
+#define PAL_RC_DI_BITMAP     0x0080u
 #define PAL_RC_PALETTE       0x0100u
 #define PAL_TC_OP_CHARACTER  0x0001u
 #define PAL_TC_RA_ABLE       0x2000u

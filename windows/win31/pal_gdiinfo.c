@@ -42,7 +42,8 @@ int pal_win31_make_candidate(PAL_GDIINFO *info,
      * simulation from these fields; zeroes here prevent a real desktop.
      * 20 colors = reserved physical system colors on palette devices.
      * No RC_DEVBITS (GDI must not expect RealizeObject(OBJ_PBITMAP)) and no
-     * RC_STRETCHBLT or RC_DI_BITMAP (corresponding DDIs not implemented).
+     * RC_STRETCHBLT (not implemented). RC_DI_BITMAP is limited to indexed
+     * single-segment DIBs, with GDI simulation requested for other formats.
      * The limited BitBlt implementation may refuse unsupported pattern ROPs
      * so that GDI can simulate them using the primitives we do provide. */
     info->dpNumBrushes = 20;
@@ -54,7 +55,7 @@ int pal_win31_make_candidate(PAL_GDIINFO *info,
     /* GDI realizes standard raster fonts; advertise their support. */
     info->dpText = PAL_TC_OP_CHARACTER | PAL_TC_RA_ABLE;
     info->dpClip = PAL_CP_RECTANGLE;
-    info->dpRaster = PAL_RC_BITBLT | PAL_RC_GDI20_OUTPUT | PAL_RC_PALETTE;
+    info->dpRaster = PAL_RC_BITBLT | PAL_RC_GDI20_OUTPUT | PAL_RC_DI_BITMAP | PAL_RC_PALETTE;
     info->dpDCManage = 4;
     info->dpPalColors = 256;
     info->dpPalReserved = 20;
@@ -86,6 +87,6 @@ int pal_win31_make_candidate(PAL_GDIINFO *info,
     info->dpELoVpt.y = info->dpEHiVpt.y = -96;
     info->dpTwpVpt.y = -96;
     /* GDIINFO matches implemented software operations, but Win16 startup
-     * remains a separate experimental step: no DIB/large-font claims. */
+     * remains a separate experimental step: no direct DIB-to-screen/large-font claims. */
     return 1;
 }

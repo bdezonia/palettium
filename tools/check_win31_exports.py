@@ -8,7 +8,7 @@ import sys
 
 EXPECTED = {"BITBLT": 1, "COLORINFO": 2, "CONTROL": 3, "DISABLE": 4,
             "ENABLE": 5, "ENUMDFONTS": 6, "ENUMOBJ": 7, "OUTPUT": 8, "PIXEL": 9, "REALIZEOBJECT": 10, "STRBLT": 11, "SCANLR": 12, "EXTTEXTOUT": 14, "GETCHARWIDTH": 15,
-            "DEVICEBITMAP": 16, "FASTBORDER": 17, "SETATTRIBUTE": 18,
+            "DEVICEBITMAP": 16, "FASTBORDER": 17, "SETATTRIBUTE": 18, "DEVICEBITMAPBITS": 19, "CREATEDIBITMAP": 20,
             "SETPALETTE": 22, "GETPALETTE": 23, "SETPALTRANS": 24,
             "GETPALTRANS": 25, "UPDATECOLORS": 26, "INQUIRE": 101, "SETCURSOR": 102,
             "MOVECURSOR": 103, "CHECKCURSOR": 104, "USERREPAINTDISABLE": 500}
@@ -38,7 +38,7 @@ def main():
                 for name, ord_ in EXPECTED.items() if found.get(name) != ord_]
     if failures:
         raise SystemExit("FAIL: " + "; ".join(failures))
-    print("PASS: 27 Win31 exports including @3,@6,@7,@15..18 and StrBlt @11, ExtTextOut @14, "
+    print("PASS: 29 Win31 exports including @3,@6,@7,@15..18 and StrBlt @11, ExtTextOut @14, "
           "ScanLR @12, cursor @101..104, palette @22..26, repaint @500")
 
 

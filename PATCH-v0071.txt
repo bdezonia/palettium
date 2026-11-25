@@ -1,0 +1,28 @@
+Palettium v0071 - first indexed DIB conversion trial (v0070 baseline)
+
+Runtime v0070: 96 sampled source/destination memory transfers all zero
+before/after; all nine logged cursor mask snapshots black (1024 pixels).
+No reproduced window-drag artifact in latest user test. Root cause not
+proven. Win3.x DDK and original VGA.DRV ordinal 19 show DIB conversion
+entry point; original GDI.EXE segment 11 checks RC_DI_BITMAP at 08D0,
+invokes conversion callback at 091E, and uses simulation if AX=FFFF.
+
+Adds DeviceBitmapBits @19 and zero-return CreateDIBitmap @20 (zero-argument
+stub like original VGA). Advertises RC_DI_BITMAP (0x0080), experimental
+single-segment BI_RGB 1/4/8bpp indexed memory DIB set/get, bottom-up,
+DWORD-aligned rows, logical palette indices, supplied partial scan buffers.
+Monochrome destination uses palette RGB brightness matching. Unsupported
+formats and huge buffers request GDI simulation; no direct screen DIB,
+24bpp conversion, RLE, StretchDIBits or huge DIB implementation yet.
+No change to cursor masks, compositor, Enhanced-mode gate, hardware init.
+Direct source/dest byte count cross-checks pixel-based diagnostics.
+DIB independent trace budget: header, first entries, mapping, input bytes,
+return. Trace counts saturate at 65535. No file writes in cursor IRQs.
+
+Validation: host main and 21 supplemental Makefile tests passed; after
+last diagnostic saturation and truncated-table test, Win31text rerun
+passed, shell syntax and export regression passed. Watcom and real Windows
+not tested here. DIB ABI and color conversion remain trial implementations.
+Use traced build on disposable VM, reinstall resource-bound PALRES.DRV as
+PALTRIAL.DRV. Verify new GDIINFO RASTER=0191, look for DIB ENTER/RETURN,
+nonzero source/cursor counts. If startup regresses revert to v0070.
