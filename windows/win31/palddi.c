@@ -93,6 +93,56 @@ static PAL_Win16ET4K pal_native_adapter;
  * on the small Win16 stack. Used only after GDI publishes a screen host. */
 static PAL_Cursor16 pal_win16_cursor;
 
+/* Cursor entry points may run on interrupt stacks. Capture only bounded
+ * scalar observations there. Flush from ordinary drawing or Disable,
+ * never call DOS/KERNEL file services from a cursor entry point. */
+#if defined(PAL_WIN31_BOOTTRACE)
+static volatile unsigned pal_cursor_sets, pal_cursor_nulls;
+static volatile unsigned pal_cursor_accepts, pal_cursor_rejects;
+static volatile unsigned pal_cursor_moves, pal_cursor_checks;
+static volatile unsigned pal_cursor_header[6];
+static volatile unsigned pal_cursor_header_seen;
+static unsigned pal_cursor_trace_seen;
+static void pal_cursor_count(volatile unsigned *counter)
+{
+    if (*counter != 0xffffu) ++*counter;
+}
+static void pal_cursor_trace_snapshot(int force)
+{
+    unsigned state;
+    state=(pal_cursor_sets?1u:0u) | (pal_cursor_accepts?2u:0u) |
+          (pal_cursor_rejects?4u:0u) | (pal_cursor_moves?8u:0u) |
+          (pal_cursor_checks?16u:0u) |
+          (pal_win16_cursor.image.visible?32u:0u) |
+          (pal_cursor_header_seen?64u:0u) | (pal_cursor_nulls?128u:0u);
+    if (!force && !(state & ~pal_cursor_trace_seen)) return;
+    pal_cursor_trace_seen |= state;
+    pal_boottrace("CURSOR SNAPSHOT");
+    pal_boottrace_hex("CURSOR SET CALLS",pal_cursor_sets);
+    pal_boottrace_hex("CURSOR NULL CALLS",pal_cursor_nulls);
+    pal_boottrace_hex("CURSOR ACCEPTS",pal_cursor_accepts);
+    pal_boottrace_hex("CURSOR REJECTS",pal_cursor_rejects);
+    pal_boottrace_hex("CURSOR MOVE CALLS",pal_cursor_moves);
+    pal_boottrace_hex("CURSOR CHECK CALLS",pal_cursor_checks);
+    if (pal_cursor_header_seen) {
+        pal_boottrace_hex("CURSOR HOT X",pal_cursor_header[0]);
+        pal_boottrace_hex("CURSOR HOT Y",pal_cursor_header[1]);
+        pal_boottrace_hex("CURSOR WIDTH",pal_cursor_header[2]);
+        pal_boottrace_hex("CURSOR HEIGHT",pal_cursor_header[3]);
+        pal_boottrace_hex("CURSOR STRIDE",pal_cursor_header[4]);
+        pal_boottrace_hex("CURSOR COLOR",pal_cursor_header[5]);
+    }
+    pal_boottrace_hex("CURSOR WANTS SHAPE",pal_win16_cursor.wants_shape);
+    pal_boottrace_hex("CURSOR VISIBLE",pal_win16_cursor.image.visible);
+    pal_boottrace_hex("CURSOR X",(unsigned)pal_win16_cursor.x);
+    pal_boottrace_hex("CURSOR Y",(unsigned)pal_win16_cursor.y);
+}
+#define PAL_CURSOR_COUNT(x) pal_cursor_count(&(x))
+#else
+#define PAL_CURSOR_COUNT(x) ((void)0)
+#define pal_cursor_trace_snapshot(force) ((void)0)
+#endif
+
 static void pal_cursor_draw_begin(void)
 {
     if (pal_active_host && pal_win16_cursor.screen ==
@@ -103,6 +153,7 @@ static void pal_cursor_draw_end(void)
 {
     if (pal_win16_cursor.draw_depth)
         pal_cursor16_end_draw(&pal_win16_cursor);
+    pal_cursor_trace_snapshot(0);
 }
 
 
@@ -222,16 +273,40 @@ void FAR PASCAL SetCursor(LPVOID shape)
     const unsigned char FAR *far_bytes=(const unsigned char FAR *)shape;
     unsigned available,need,i;
     PAL_U32 remaining;
-    if (!shape) { (void)pal_cursor16_set(&pal_win16_cursor,0,0); return; }
+    PAL_CURSOR_COUNT(pal_cursor_sets);
+    if (!shape) {
+        PAL_CURSOR_COUNT(pal_cursor_nulls);
+        (void)pal_cursor16_set(&pal_win16_cursor,0,0);
+        return;
+    }
     remaining=65536UL-(PAL_U32)(PAL_U16)FP_OFF(shape);
-    if (remaining<(PAL_U32)PAL_CURSOR16_HEADER) return;
+    if (remaining<(PAL_U32)PAL_CURSOR16_HEADER) {
+        PAL_CURSOR_COUNT(pal_cursor_rejects);
+        return;
+    }
     available=(unsigned)(remaining>(PAL_U32)PAL_CURSOR16_MAX_WIRE ?
                 (PAL_U32)PAL_CURSOR16_MAX_WIRE : remaining);
     for (i=0;i<PAL_CURSOR16_HEADER;++i) header[i]=far_bytes[i];
+#if defined(PAL_WIN31_BOOTTRACE)
+    for (i=0;i<6u;++i)
+        pal_cursor_header[i]=(unsigned)header[i*2u] |
+                             ((unsigned)header[i*2u+1u]<<8);
+    pal_cursor_header_seen=1;
+#endif
     need=pal_cursor16_wire_size(header,available);
-    if (!need) return;
+    if (!need) {
+        PAL_CURSOR_COUNT(pal_cursor_rejects);
+        return;
+    }
     for (i=0;i<need;++i) raw[i]=far_bytes[i];
-    (void)pal_cursor16_set(&pal_win16_cursor,raw,need);
+    if (pal_cursor16_set(&pal_win16_cursor,raw,need)) {
+        PAL_CURSOR_COUNT(pal_cursor_accepts);
+        /* Shape changes need not wait for another GDI drawing call.
+         * Existing compositor guard still defers if drawing is active. */
+        pal_cursor16_check(&pal_win16_cursor);
+    } else {
+        PAL_CURSOR_COUNT(pal_cursor_rejects);
+    }
 }
 /* No device access at mouse-interrupt time. CheckCursor is called at
  * timer interrupt time; on a released drawing transaction it may apply
@@ -239,10 +314,12 @@ void FAR PASCAL SetCursor(LPVOID shape)
  * critical-region handling remains unverified, so Enable stays gated. */
 void FAR PASCAL MoveCursor(WORD x,WORD y)
 {
+    PAL_CURSOR_COUNT(pal_cursor_moves);
     pal_cursor16_post_move(&pal_win16_cursor,(short)x,(short)y);
 }
 void FAR PASCAL CheckCursor(void)
 {
+    PAL_CURSOR_COUNT(pal_cursor_checks);
     pal_cursor16_check(&pal_win16_cursor);
 }
 
@@ -1375,6 +1452,7 @@ void FAR PASCAL Disable(LPVOID physical_device)
                             (PAL_U16)FP_OFF(physical_device));
     if (token != pal_active_host->ddi.screen_token) return;
     pal_boottrace("DISABLE ENTER");
+    pal_cursor_trace_snapshot(1);
     /* Detach the public binding before shutting the hardware down.
      * The static session and native selector context must remain valid
      * throughout RG_Hardware.close / BIOS restore. */

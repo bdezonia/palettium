@@ -165,7 +165,17 @@ int main(void)
     assert(mouse_info[0]==1u && mouse_info[1]==2u);
     memset(pixels,5,sizeof(pixels));
     pal_cursor16_bind(&pal_win16_cursor,&host.device);
+    cursor_shape[10]=1;cursor_shape[11]=1;
     SetCursor(cursor_shape);
+    assert(pixels[0]==0u); /* shape is displayed immediately at current position */
+    offset_pointer=cursor_shape;
+    simulated_offset=65461u; /* only 75 bytes remain: reject without changing shape */
+    SetCursor(cursor_shape);
+    assert(pixels[0]==0u && pal_win16_cursor.wants_shape);
+    simulated_offset=65460u; /* 76 bytes: exact fit */
+    SetCursor(cursor_shape);
+    assert(pixels[0]==0u);
+    offset_pointer=0;
     MoveCursor(3u,0u);
     assert(pixels[3]==5u); /* deferred, no mouse IRQ hardware write */
     CheckCursor();

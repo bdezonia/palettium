@@ -60,13 +60,17 @@ static void pal_irq_consume(PAL_Move16 *move, PAL_Move16 *snapshot)
 
 unsigned pal_cursor16_wire_size(const rg_u8 *p, unsigned available)
 {
-    int width,height;
+    int width,height,color;
     unsigned total;
     if (!p || available < PAL_CURSOR16_HEADER) return 0;
     width=signed_word(p+4); height=signed_word(p+6);
+    color=signed_word(p+10);
     if (width<1 || width>32 || height<1 || height>32 ||
-        signed_word(p+8)!=4 || signed_word(p+10)!=0)
+        signed_word(p+8)!=4 || (color!=0 && color!=0x0101))
         return 0;
+    /* Old DDK specifies zero. Also accept explicit one-plane/one-bit
+     * metadata (0101h), with exactly the same bounded monochrome layout.
+     * Native Windows shape metadata is still to be measured. */
     total=PAL_CURSOR16_HEADER + (unsigned)height*8u;
     return total <= available ? total : 0;
 }

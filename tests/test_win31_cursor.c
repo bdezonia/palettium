@@ -54,7 +54,10 @@ int main(void)
     assert(pal_cursor16_wire_size(wire,76)==76);
     assert(pal_cursor16_wire_size(wire,75)==0);
     wire[8]=3;assert(!pal_cursor16_wire_size(wire,76));wire[8]=4;
-    wire[10]=1;assert(!pal_cursor16_wire_size(wire,76));wire[10]=0;
+    wire[10]=1;assert(!pal_cursor16_wire_size(wire,76));
+    wire[11]=1;assert(pal_cursor16_wire_size(wire,76)==76);
+    wire[10]=2;assert(!pal_cursor16_wire_size(wire,76));
+    wire[10]=1; /* explicit one-plane/one-bit metadata */
     assert(pal_cursor16_set(&cursor,wire,76));
     pal_cursor16_bind(&cursor,&d);
     assert(!cursor.image.visible);

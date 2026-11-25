@@ -1,0 +1,28 @@
+Palettium v0068 -- Win31 cursor activation and diagnostics
+Baseline: runtime-validated v0067.
+
+- Preserve the shared software cursor, AND/XOR masks, save-under, clipping,
+  and deferred mouse IRQ mailbox. No hardware-specific cursor code.
+- Accept the documented 12-byte Win3.x shape with csColor=0, plus explicit
+  monochrome metadata 0101h as a bounded compatibility hypothesis. Keep
+  4-byte row stride, width/height limits and complete-segment checks.
+- After accepting a shape, attempt to display it immediately at the current
+  position via the existing compositor guard rather than wait for a timer
+  or another draw. Mouse IRQ still only queues movement.
+- Make draw_depth volatile for interrupt-visible cursor exclusion.
+- Collect SetCursor, MoveCursor and CheckCursor observations without file
+  I/O inside these callbacks. Print bounded snapshots at ordinary drawing
+  exits when new milestones are seen, and at Disable. Counter snapshots
+  are observational, not an atomic IRQ trace. Counts saturate at FFFFh.
+- Test explicit monochrome metadata, segment-boundary rejection and exact
+  fit at the actual DDI entry point, immediate initial shape display, and
+  unchanged deferred movement/save-under behavior.
+
+Reference: Microsoft Windows 3.0 DDK adaptation guide, CURSORSHAPE and
+SetCursor; Windows 3.1 DDK CheckCursor and MoveCursor. The locally supplied
+VGA.DRV Inquire data matches 1,2; its SetCursor skips the two metadata words
+and attempts a redraw. This does not prove that native USER supplies 0101h.
+
+Validation: clean make test and every Makefile.* test target pass under
+host C89 builds. Watcom compilation and actual Win16 IRQ/runtime behavior
+remain unverified here. No changes to Standard-mode trial gate or VDD.

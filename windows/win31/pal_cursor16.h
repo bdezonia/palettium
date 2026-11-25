@@ -23,7 +23,8 @@ typedef struct PAL_Cursor16 {
     PAL_Move16 incoming, snapshot;
     volatile unsigned composing;
     int x, y;
-    unsigned draw_depth, wants_shape;
+    volatile unsigned draw_depth;
+    unsigned wants_shape;
 } PAL_Cursor16;
 
 /* Wire header is six little-endian signed WORDs, masks are two consecutive
