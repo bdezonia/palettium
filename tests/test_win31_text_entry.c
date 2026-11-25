@@ -44,6 +44,15 @@ int pal_ddi_bitmap_device(RG_Device *device,const PAL_BITMAP16 *bitmap,
                           RG_VramOps ops,void *context)
 { (void)device;(void)bitmap;(void)ops;(void)context;return 0; }
 
+/* Simulate an offset only for a selected host pointer. This tests
+ * actual guard branches, not protected-mode selector access. */
+static const void *offset_pointer;
+static unsigned simulated_offset;
+static unsigned test_fp_off(const void *p)
+{ return p == offset_pointer ? simulated_offset : 0u; }
+#undef FP_OFF
+#define FP_OFF(pointer) test_fp_off(pointer)
+
 /* Include the real Win16 implementation to exercise exported wrappers.
  * Unused Win16 DDI functions are dropped via --gc-sections at link time. */
 #include "../windows/win31/palddi.c"
@@ -72,9 +81,15 @@ int main(void)
     DWORD ext;
     WORD glyph_widths[3]={1000u,1000u,1000u};
     WORD query_escape=8u;
+    WORD palette_table[256];
     unsigned i;
     unsigned char str[2]={'A','B'};
     make_font();
+    assert(pal_far_range(0u,65536UL));
+    assert(!pal_far_range(0u,65537UL));
+    assert(pal_far_range(65535u,1UL));
+    assert(!pal_far_range(65535u,2UL));
+    assert(!pal_far_range(1u,0xffffffffUL));
     /* Exercise v0045 DDK-required exports using the real Win16 source. */
     assert(Control(0,8u,&query_escape,0)==1u);
     query_escape=9u;
@@ -96,6 +111,16 @@ int main(void)
     host.running=1;
     host.ddi.screen_token=0UL;
     pal_active_host=&host;
+    rg_palette_init(&host.palette);
+    for (i=0;i<256u;++i) palette_table[i]=0xffffu;
+    offset_pointer=palette_table;
+    simulated_offset=65025u;
+    GetPalTrans(palette_table);
+    for (i=0;i<256u;++i) assert(palette_table[i]==0xffffu);
+    simulated_offset=65024u; /* exactly fits 512 bytes */
+    GetPalTrans(palette_table);
+    for (i=0;i<256u;++i) assert(palette_table[i]==i);
+    offset_pointer=0;
     memset(mode,0,sizeof(mode));
     mode[1]=1; /* transparent */
     mode[2]=2; /* bg physical index */

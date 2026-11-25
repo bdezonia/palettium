@@ -1,0 +1,23 @@
+Palettium v0067: defensive coding audit, second stage (requires v0066/pal66b).
+
+- Core: reject surface dimensions exceeding INT_MAX, since the public
+  drawing API uses signed int coordinates and exclusive endpoints. Reject
+  flat/near buffers whose declared capacity exceeds size_t; banked VRAM
+  retains wide offsets. Pixel access rejects absent backing/invalid format.
+- Hardware close: invalidate surface geometry and reset every drawing
+  override to its software default before clearing the hardware context.
+  Late drawing calls are harmless and pixel get/put report failure.
+- Win16: preflight far-offset spans for palette transactions, ColorInfo
+  output, logical/physical objects (including trace reads), and Output
+  drawmode, clip, pen and brush. Do not accept a memory bitmap with a null
+  protected-mode selector (0..3). The span check does not validate actual
+  descriptor limits, permissions or non-null selector validity.
+- Tests: geometry, hardware close and late dispatch, bitmap exact-end and
+  null selector, real GetPalTrans entry point with synthetic far offset.
+  Host tests do not emulate real Win16 pointer/ABI behavior.
+
+Validation: make test and every one of the 21 Makefile.* test targets pass
+on Linux using host compilers. Open Watcom and actual Windows runtime
+validation remain pending. No mode gate, cursor implementation, palette
+semantics, driver exports or intended rendering changes. Enhanced mode
+remains required; VESA is out of scope. Audit is targeted, not exhaustive.

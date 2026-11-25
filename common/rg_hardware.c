@@ -53,6 +53,16 @@ void rg_hw_close(RG_HwBinding *binding)
         binding->hardware->shutdown(binding->hardware->context);
     /* Guard against accidental reuse after closing hardware. */
     binding->device->surface.pixels = 0;
+    binding->device->surface.width = 0;
+    binding->device->surface.height = 0;
+    binding->device->surface.stride = 0;
+    binding->device->surface.capacity = 0;
+    /* Replace all card overrides before clearing their context.  Keep
+     * callable no-op software defaults for accidental late dispatch. */
+    binding->device->ops.pixel = rg_software_pixel;
+    binding->device->ops.line = rg_software_line;
+    binding->device->ops.fill = rg_software_fill;
+    binding->device->ops.blit = rg_software_blit;
     binding->device->vram.read_byte = 0;
     binding->device->vram.write_byte = 0;
     binding->device->vram_context = 0;

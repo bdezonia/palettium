@@ -61,7 +61,9 @@ typedef struct RG_Device {
 unsigned rg_pixel_bits(RG_PixelFormat format);
 rg_offset rg_min_stride(RG_PixelFormat format, unsigned width);
 rg_pixel rg_rgb_pack(RG_PixelFormat format, rg_u8 r, rg_u8 g, rg_u8 b, rg_u8 a);
-/* Memory-backed initialization requires addressable entire buffer.
+/* Both initializers require dimensions <= INT_MAX (signed coordinates
+ * and exclusive rectangle endpoints). Memory-backed initialization
+ * requires an addressable entire buffer that fits size_t.
  * On Win16 screen VRAM, always use rg_init_vram with far-access callbacks.
  */
 int rg_init(RG_Device *, rg_u8 *, unsigned, unsigned, rg_offset,

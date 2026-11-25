@@ -21,6 +21,15 @@ int main(void)
     b.bmWidthPlanes = 512;
     CHECK(pal_ddi_memory_bitmap_ok(&b));
     CHECK(pal_ddi_target_kind(0, &b, 0) == PAL_TARGET_MEMORY);
+    b.bmBits = 0x00000020UL;
+    CHECK(!pal_ddi_memory_bitmap_ok(&b));
+    b.bmBits = 0x00030020UL;
+    CHECK(!pal_ddi_memory_bitmap_ok(&b));
+    b.bmBits = 0x1234fe00UL; /* last byte is exactly ffff */
+    CHECK(pal_ddi_memory_bitmap_ok(&b));
+    ++b.bmBits;
+    CHECK(!pal_ddi_memory_bitmap_ok(&b));
+    b.bmBits = 0x12340000UL;
     b.bmType = 1;
     CHECK(!pal_ddi_memory_bitmap_ok(&b));
     b.bmType = 0;

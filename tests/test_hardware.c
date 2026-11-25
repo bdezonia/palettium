@@ -64,6 +64,7 @@ int main(void)
     RG_Mode selected;
     rg_u8 *expected, *backing;
     int ok = 1;
+    rg_pixel value = 123UL;
     memset(&f, 0, sizeof(f));
     memset(&binding, 0, sizeof(binding));
     backing = (rg_u8 *)calloc((size_t)SIZE, 1);
@@ -103,6 +104,19 @@ int main(void)
     rg_hw_close(&binding);
     ok &= check(f.stops == 1 && !binding.active, "close");
     ok &= check(!rg_hw_palette(&binding, 1, 0, 0, 0), "palette after close");
+    ok &= check(!rg_get_pixel(&dev, 0, 0, &value) && value == 123UL,
+                "closed device read fails without publishing output");
+    ok &= check(!rg_put_pixel(&dev, 0, 0, 9), "closed device write fails");
+    ok &= check(dev.ops.fill == rg_software_fill &&
+                dev.ops.line == rg_software_line &&
+                dev.ops.blit == rg_software_blit &&
+                dev.ops.pixel == rg_software_pixel, "stale overrides removed");
+    dev.ops.fill(&dev, 0, 0, WIDTH, HEIGHT, 9);
+    dev.ops.line(&dev, 0, 0, 10, 10, 9);
+    dev.ops.blit(&dev, &linear, 0, 0, 0, 0, 4, 4, RG_ROP_COPY);
+    ok &= check(f.accelerations == 1 &&
+                memcmp(backing, expected, (size_t)SIZE) == 0,
+                "late calls are harmless");
     f.fail_mode = 1;
     ok &= check(!rg_hw_open(&binding, &dev, &hw, &selected), "failed mode rejected");
     ok &= check(f.stops == 2 && !binding.active, "failed mode shutdown");

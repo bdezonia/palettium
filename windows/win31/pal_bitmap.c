@@ -22,13 +22,13 @@ int pal_ddi_memory_bitmap_ok(const PAL_BITMAP16 *bmp)
     if (bmp->bmType != 0 || bmp->bmWidth <= 0 || bmp->bmHeight <= 0 ||
         bmp->bmWidthBytes <= 0 || bmp->bmPlanes != 1 ||
         (bmp->bmBitsPixel != 1 && bmp->bmBitsPixel != 8) ||
-        bmp->bmBits == 0UL) return 0;
+        (bmp->bmBits >> 16) < 4UL) return 0;
     row = ((unsigned long)(unsigned)bmp->bmWidth *
            (unsigned long)bmp->bmBitsPixel + 7UL) / 8UL;
     if ((unsigned long)(unsigned)bmp->bmWidthBytes < row) return 0;
     total = (unsigned long)(unsigned)bmp->bmHeight *
             (unsigned long)(unsigned)bmp->bmWidthBytes;
-    /* First version: single-segment 8-bit memory bitmaps only.
+    /* First version: single-segment 1-bit and 8-bit memory bitmaps.
      * Don't pretend a >64 KB DDB is directly addressable in Win16.
      * Windows-specific segmented access will be added separately. */
     if (total > 65535UL || bmp->bmWidthPlanes != total ||

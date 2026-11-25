@@ -65,6 +65,15 @@
 #include "pal_boottrace.h"
 
 static PAL_ScreenHost *pal_active_host = 0;
+
+/* A FAR offset must not wrap when indexing an entire object. This is
+ * arithmetic preflight, not proof of selector validity or access rights. */
+static int pal_far_range(PAL_U16 offset, PAL_U32 bytes)
+{
+    return bytes <= 65536UL - (PAL_U32)offset;
+}
+#define PAL_FAR_FITS(pointer, bytes) \
+    ((pointer) && pal_far_range((PAL_U16)FP_OFF(pointer), (PAL_U32)(bytes)))
 #if defined(PAL_WIN31_BOOTTRACE)
 static unsigned pal_ddi_trace_budget = 256u;
 static unsigned pal_color_trace_budget = 24u;
@@ -898,6 +907,7 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
     source = 0;
     size = 0;
     if (style == 1) { /* OBJ_PEN */
+        if (!PAL_FAR_FITS(input, sizeof(*in_pen))) return 0;
         in_pen = (const PAL_LogicalPen FAR *)input;
         if (!rg_pen_realize(&pal_active_host->palette, in_pen->style,
                             in_pen->width.x, (rg_pixel)in_pen->color,
@@ -906,6 +916,7 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
         size = sizeof(phys_pen);
     } else if (style == 2) { /* OBJ_BRUSH */
         unsigned x_phase=0, y_phase=0, background=0;
+        if (!PAL_FAR_FITS(input, sizeof(*in_brush))) return 0;
         in_brush = (const PAL_LogicalBrush FAR *)input;
         /* OBJ_BRUSH carries a POINT by value, not a far pointer.
          * Low word is x, high word is y; never load a selector here. */
@@ -922,6 +933,7 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
         size = sizeof(phys_brush);
     } else return 0; /* no fonts, device bitmaps or unknown styles */
     if (output) {
+        if (!PAL_FAR_FITS(output, size)) return 0;
         target = (unsigned char FAR *)output;
         for (i=0; i<size; ++i) target[i]=source[i];
     }
@@ -937,7 +949,7 @@ DWORD FAR PASCAL RealizeObject(LPVOID dest, short style, LPVOID input,
     if (traced) pal_boottrace_hex("  style", (unsigned)style);
     if (traced) pal_boottrace_hex("  (input != 0)", (unsigned)(input != 0));
     if (traced) pal_boottrace_hex("  (output != 0)", (unsigned)(output != 0));
-    if (traced && style == 2 && input) {
+    if (traced && style == 2 && PAL_FAR_FITS(input, sizeof(PAL_LogicalBrush))) {
         const PAL_LogicalBrush FAR *b = (const PAL_LogicalBrush FAR *)input;
         pal_boottrace_hex("BRUSH ORIGIN X", (unsigned)text_xform);
         pal_boottrace_hex("BRUSH ORIGIN Y", (unsigned)(text_xform >> 16));
@@ -993,6 +1005,11 @@ static WORD pal_win16_output_impl(LPVOID dest, WORD style, WORD count,
      * sequence across a 64 KiB segment wrap. */
     if ((PAL_U32)(PAL_U16)FP_OFF(points) +
         (PAL_U32)count * (PAL_U32)sizeof(PAL_POINT16) > 65536UL)
+        return (WORD)-1;
+    if (!PAL_FAR_FITS(drawmode, 4UL) ||
+        (cliprect && !PAL_FAR_FITS(cliprect, sizeof(PAL_Rect16))) ||
+        (pen && !PAL_FAR_FITS(pen, sizeof(near_pen))) ||
+        (brush && !PAL_FAR_FITS(brush, sizeof(near_brush))))
         return (WORD)-1;
     pt = (const PAL_POINT16 FAR *)points;
     draw = (const WORD FAR *)drawmode;
@@ -1382,7 +1399,8 @@ DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
 {
     PAL_U32 logical, index;
     PAL_U32 token;
-    if (!pal_active_host || !device) return 0;
+    if (!pal_active_host || !device ||
+        (physical && !PAL_FAR_FITS(physical, 4UL))) return 0;
     token = pal_ddi_far_token((PAL_U16)FP_SEG(device),
                               (PAL_U16)FP_OFF(device));
     if (token == pal_active_host->ddi.screen_token) {
@@ -1489,7 +1507,8 @@ void FAR PASCAL SetPalette(short start, short count, LPVOID palette)
     unsigned i, idx, off;
     if (!host || !host->running || !src || start < 0 || count < 0 ||
         (unsigned)start > 256u ||
-        (unsigned)count > 256u-(unsigned)start) return;
+        (unsigned)count > 256u-(unsigned)start ||
+        !PAL_FAR_FITS(palette, 4UL*(unsigned)count)) return;
     /* Validate the entire transaction before any hardware write. */
     for (i=0; i<(unsigned)count; ++i) {
         idx = (unsigned)start+i;
@@ -1530,7 +1549,8 @@ void FAR PASCAL GetPalette(short start, short count, LPVOID palette)
     unsigned i, off;
     if (!pal_active_host || !pal_active_host->running || !dst ||
         start < 0 || count < 0 || (unsigned)start > 256u ||
-        (unsigned)count > 256u-(unsigned)start) return;
+        (unsigned)count > 256u-(unsigned)start ||
+        !PAL_FAR_FITS(palette, 4UL*(unsigned)count)) return;
     for (i=0; i<(unsigned)count; ++i) {
         if (!rg_palette_get_entry(&pal_active_host->palette,
                                    (unsigned)start+i, &color)) return;
@@ -1562,6 +1582,7 @@ void FAR PASCAL SetPalTrans(LPVOID translation)
     unsigned short table[256];
     unsigned i;
     if (!pal_active_host || !pal_active_host->running) return;
+    if (src && !PAL_FAR_FITS(translation, 512UL)) return;
     if (src) for (i=0; i<256u; ++i) table[i] = src[i];
     (void)rg_palette_set_translation(&pal_active_host->palette,
                                       src ? table : 0);
@@ -1584,6 +1605,7 @@ void FAR PASCAL GetPalTrans(LPVOID translation)
     WORD FAR *dst = (WORD FAR *)translation;
     unsigned i, physical;
     if (!pal_active_host || !pal_active_host->running || !dst) return;
+    if (!PAL_FAR_FITS(translation, 512UL)) return;
     /* Validate the entire table before publishing any entry. */
     for (i=0; i<256u; ++i)
         if (!rg_palette_translate(&pal_active_host->palette, i, &physical))
@@ -1619,6 +1641,7 @@ void FAR PASCAL UpdateColors(WORD x, WORD y, WORD width, WORD height,
     unsigned short table[256];
     unsigned i;
     if (!pal_active_host || !pal_active_host->running || !src) return;
+    if (!PAL_FAR_FITS(translation, 512UL)) return;
     for (i=0; i<256u; ++i) table[i] = src[i];
     pal_cursor_draw_begin();
     (void)pal_screen_host_update_colors(pal_active_host, x, y,

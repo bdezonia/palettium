@@ -34,7 +34,8 @@ static int setup(RG_Device *d, unsigned w, unsigned h, rg_offset stride,
                  rg_offset capacity, RG_PixelFormat f)
 {
     rg_offset row = rg_min_stride(f, w);
-    if (!d || !row || !h || stride < row || !capacity ||
+    if (!d || !row || !h || w > (unsigned)INT_MAX ||
+        h > (unsigned)INT_MAX || stride < row || !capacity ||
         (rg_offset)(h - 1) > (ULONG_MAX - row) / stride ||
         ((rg_offset)(h - 1) * stride + row) > capacity)
         return 0;
@@ -50,7 +51,10 @@ static int setup(RG_Device *d, unsigned w, unsigned h, rg_offset stride,
 int rg_init(RG_Device *d, rg_u8 *pixels, unsigned w, unsigned h,
             rg_offset stride, rg_offset capacity, RG_PixelFormat f)
 {
-    if (!pixels || !setup(d, w, h, stride, capacity, f)) return 0;
+    /* A flat/near buffer must fit the compiler's object-size type.
+     * Larger VRAM must use the offset-based callback interface. */
+    if (!pixels || capacity > (rg_offset)((size_t)-1) ||
+        !setup(d, w, h, stride, capacity, f)) return 0;
     d->surface.pixels = pixels;
     d->vram.read_byte = 0; d->vram.write_byte = 0;
     d->vram_context = 0;
@@ -82,7 +86,9 @@ void rg_write_byte(RG_Device *d, rg_offset off, rg_u8 v)
 
 static int valid_xy(RG_Device *d, int x, int y)
 {
-    return d && x >= 0 && y >= 0 &&
+    return d && d->surface.capacity &&
+           (d->surface.pixels || (d->vram.read_byte && d->vram.write_byte)) &&
+           rg_pixel_bits(d->surface.format) && x >= 0 && y >= 0 &&
            (unsigned)x < d->surface.width && (unsigned)y < d->surface.height;
 }
 int rg_get_pixel(RG_Device *d, int x, int y, rg_pixel *v)
