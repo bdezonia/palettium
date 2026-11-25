@@ -112,6 +112,7 @@ export Inquire.101
 export SetCursor.102
 export MoveCursor.103
 export CheckCursor.104
+export UserRepaintDisable.500
 EOF_EXPORTS
 
 # Fail early if an edit duplicates the executable-format selection.

@@ -36,6 +36,7 @@ EXPORTS
  SETCURSOR @102
  MOVECURSOR @103
  CHECKCURSOR @104
+ USERREPAINTDISABLE @500
 """
 assert module.parse_exports(sample) == module.EXPECTED
 assert module.parse_exports("ENABLE @1\nDISABLE @2\n") != module.EXPECTED

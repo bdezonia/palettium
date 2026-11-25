@@ -40,7 +40,7 @@ def check_win16_recipe():
     for export in ("Control.3", "EnumDFonts.6", "EnumObj.7",
                    "GetCharWidth.15", "DeviceBitmap.16",
                    "FastBorder.17", "SetAttribute.18",
-                   "Inquire.101", "SetCursor.102", "MoveCursor.103", "CheckCursor.104"):
+                   "Inquire.101", "SetCursor.102", "MoveCursor.103", "CheckCursor.104", "UserRepaintDisable.500"):
         assert "export " + export in script, "missing cursor DDI " + export
     assert (ROOT / "windows/win31/build-paltrial.sh").is_file()
     assert 'TRIAL_OPTION=-dPAL_WIN31_TRIAL_MODE' in script

@@ -237,6 +237,16 @@ void FAR PASCAL CheckCursor(void)
     pal_cursor16_check(&pal_win16_cursor);
 }
 
+/* Standard-mode KERNEL resolves DISPLAY ordinal 500 and calls it with
+ * a WORD to disable (1) or enable (0) driver-initiated USER repaint.
+ * Palettium currently never requests USER repaint, so both states are
+ * already honored. Do not suppress normal GDI drawing or call USER here.
+ * This callback can run in sensitive kernel contexts: no tracing/I/O. */
+void FAR PASCAL UserRepaintDisable(WORD disable)
+{
+    (void)disable;
+}
+
 /* ONLY the separately named PALTRIAL.DRV build may request a first GDI
  * boot in a disposable 86Box guest. Default PALSTAGE.DRV always refuses.
  * Require BOTH the explicit trial key and actual Windows Standard mode,
