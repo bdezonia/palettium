@@ -511,7 +511,9 @@ static int pal_win16_device(LPVOID operand, RG_Device *storage,
 
 /* DIB conversion @19. Win3.x GDI supplies a 40-byte BITMAPINFOHEADER,
  * DWORD-aligned bottom-up scanlines and, on a palette device, WORD
- * logical palette indices after the header. A partial scan buffer starts
+ * logical palette indices after the header for color DDBs. For monochrome
+ * destinations Win3.1 GDI emits WORD 0000/FFFF black/white masks.
+ * A partial scan buffer starts
  * at its first supplied scan, not at the beginning of the whole DIB.
  * Use the shared pixel API for DDB access. Unsupported formats return -1
  * (GDI simulation); malformed requests return 0. No GDI imports needed.
@@ -525,7 +527,7 @@ static PAL_U32 pal_dib_dword(const unsigned char FAR *p)
     return (PAL_U32)pal_dib_word(p) | ((PAL_U32)pal_dib_word(p+2)<<16);
 }
 #if defined(PAL_WIN31_BOOTTRACE)
-static unsigned pal_dib_trace_budget=24u;
+static unsigned pal_dib_trace_budget=128u;
 #endif
 static WORD pal_win16_dib_impl(LPVOID dest, WORD get, WORD start, WORD scans,
                                LPVOID data, LPVOID info, LPVOID translate,
@@ -549,12 +551,35 @@ static WORD pal_win16_dib_impl(LPVOID dest, WORD get, WORD start, WORD scans,
         width>32767UL || height>32767UL) return 0xffffu;
     if (bpp!=1u && bpp!=4u && bpp!=8u) return 0xffffu;
     stride=((width*bpp+31UL)/32UL)*4UL;
-    if (!pal_win16_device(dest,&mem,&bits,&d) || d!=&mem ||
-        d->surface.width!=width || d->surface.height!=height) return 0xffffu;
+    if (!pal_win16_device(dest,&mem,&bits,&d) || d!=&mem) {
+#if defined(PAL_WIN31_BOOTTRACE)
+        if (traced) pal_boottrace("DIB UNSUPPORTED DEST");
+#endif
+        return 0xffffu;
+    }
+    if (d->surface.width!=width || d->surface.height!=height) {
+#if defined(PAL_WIN31_BOOTTRACE)
+        if (traced) {
+            pal_boottrace_hex("DIB DEST WIDTH",d->surface.width);
+            pal_boottrace_hex("DIB DEST HEIGHT",d->surface.height);
+            pal_boottrace("DIB GEOMETRY MISMATCH");
+        }
+#endif
+        return 0xffffu;
+    }
     dbpp=rg_pixel_bits(d->surface.format);
     if (dbpp!=1u && dbpp!=8u) return 0xffffu;
     colors=1u<<bpp;
     used=pal_dib_dword(h+32);
+#if defined(PAL_WIN31_BOOTTRACE)
+    if (traced) {
+        pal_boottrace_hex("DIB DEST BPP",dbpp);
+        pal_boottrace_hex("DIB DEST WIDTH",d->surface.width);
+        pal_boottrace_hex("DIB DEST HEIGHT",d->surface.height);
+        pal_boottrace_hex("DIB COLORS USED LO",(unsigned)used);
+        pal_boottrace_hex("DIB COLORS USED HI",(unsigned)(used>>16));
+    }
+#endif
     if (used>colors) return 0;
     n=used?(unsigned)used:colors;
     if (get && !data) {
@@ -568,9 +593,31 @@ static WORD pal_win16_dib_impl(LPVOID dest, WORD get, WORD start, WORD scans,
     mask=colors-1u;
     if (!get) {
         if (!PAL_FAR_FITS(info,40UL+2UL*n)) return 0;
+#if defined(PAL_WIN31_BOOTTRACE)
+        if (traced) {
+            pal_boottrace_hex("DIB TABLE FIRST",pal_dib_word(h+40u));
+            if (n>1u) pal_boottrace_hex("DIB TABLE SECOND",pal_dib_word(h+42u));
+        }
+#endif
         for (i=0;i<n;++i) {
             v=pal_dib_word(h+40u+2u*i);
-            if (v>=256u) return 0;
+            /* GDI.EXE seg 11:0479..0496 returns 0000 or FFFF;
+             * 05B8..05C8 stores the result as a WORD. Its SetDIBits
+             * path at 0863..087C selects this for a 0101 destination.
+             * These are already monochrome values, not palette indices. */
+            if (dbpp==1u && (v==0u || v==0xffffu)) {
+                map[i]=(unsigned char)(v!=0u);
+                continue;
+            }
+            if (v>=256u) {
+#if defined(PAL_WIN31_BOOTTRACE)
+                if (traced) {
+                    pal_boottrace_hex("DIB BAD TABLE INDEX",i);
+                    pal_boottrace_hex("DIB BAD TABLE VALUE",v);
+                }
+#endif
+                return 0;
+            }
             if (dbpp==1u) {
                 if (!rg_palette_translate(&pal_active_host->palette,v,&physical) ||
                     !rg_palette_get_entry(&pal_active_host->palette,physical,&rgb)) return 0;
@@ -591,8 +638,6 @@ static WORD pal_win16_dib_impl(LPVOID dest, WORD get, WORD start, WORD scans,
             for (off=0;off<bytes;++off)
                 if (buffer[(unsigned)off] && nonzero<65535u) ++nonzero;
             pal_boottrace_hex("DIB INPUT NONZERO BYTES",nonzero);
-            pal_boottrace_hex("DIB TABLE FIRST",pal_dib_word(h+40u));
-            if (n>1u) pal_boottrace_hex("DIB TABLE SECOND",pal_dib_word(h+42u));
             pal_boottrace_hex("DIB MAP FIRST",map[0]);
             if (n>1u) pal_boottrace_hex("DIB MAP SECOND",map[1]);
         }
@@ -645,6 +690,8 @@ WORD FAR PASCAL DeviceBitmapBits(LPVOID dest, WORD get, WORD start, WORD scans,
             pal_boottrace_hex("DIB WIDTH",(unsigned)pal_dib_dword(h+4));
             pal_boottrace_hex("DIB HEIGHT",(unsigned)pal_dib_dword(h+8));
             pal_boottrace_hex("DIB BPP",pal_dib_word(h+14));
+            pal_boottrace_hex("DIB COMPRESSION LO",pal_dib_word(h+16));
+            pal_boottrace_hex("DIB COMPRESSION HI",pal_dib_word(h+18));
         }
     }
 #endif

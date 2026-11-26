@@ -277,6 +277,20 @@ int main(void)
     assert(CreateDIBitmap()==0u);
     assert(DeviceBitmapBits(&source_header,0,0,64,dib_data,dib_header,0,0)==64u);
     assert(!memcmp(bitmap_source+16,bitmap_dest+12,256));
+    /* Real Win3.1 GDI.EXE monochrome DDB translation uses WORD 0000/FFFF,
+     * not 0/255 palette indices. Reproduce v0071 rejected upload exactly. */
+    dib_word(42,0xffffu);
+    memset(bitmap_source+16,0,256);
+    assert(DeviceBitmapBits(&source_header,0,0,64,dib_data,dib_header,0,0)==64u);
+    assert(!memcmp(bitmap_source+16,bitmap_dest+12,256));
+    /* Reversed black/white mapping must invert every pixel. */
+    dib_word(40,0xffffu); dib_word(42,0);
+    assert(DeviceBitmapBits(&source_header,0,0,64,dib_data,dib_header,0,0)==64u);
+    for(i=0;i<256u;++i)
+        assert((unsigned)bitmap_source[16u+i]+bitmap_dest[12u+i]==255u);
+    dib_word(40,0); dib_word(42,0xffffu);
+    assert(DeviceBitmapBits(&source_header,0,0,64,dib_data,dib_header,0,0)==64u);
+    assert(!memcmp(bitmap_source+16,bitmap_dest+12,256));
     /* Partial scan upload begins at the supplied data, not at start*stride. */
     dib_data[0]=0xa5u;
     assert(DeviceBitmapBits(&source_header,0,3,1,dib_data,dib_header,0,0)==1u);
@@ -347,6 +361,12 @@ int main(void)
     assert(bitmap_dest[12]==24u && bitmap_dest[13]==25u && bitmap_dest[14]==26u);
     assert(bitmap_dest[16]==21u && bitmap_dest[17]==22u && bitmap_dest[18]==23u);
     assert(bitmap_dest[15]==0xa5u && bitmap_dest[19]==0xa5u);
+    /* FFFF is valid only for monochrome destinations, never as an 8bpp
+     * logical index. Reject before touching any pixels. */
+    dib_word(40+2*2,0xffffu);
+    assert(DeviceBitmapBits(&dest_header,0,0,2,dib_data,dib_header,0,0)==0u);
+    assert(bitmap_dest[12]==24u && bitmap_dest[16]==21u);
+    dib_word(40+2*2,22u);
     /* Invalid color-table index is rejected before any destination write. */
     dib_word(32,4); /* row 2 has indices 4,5,6 */
     assert(DeviceBitmapBits(&dest_header,0,0,2,dib_data,dib_header,0,0)==0u);

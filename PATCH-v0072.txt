@@ -1,0 +1,28 @@
+Palettium v0072 - Win3.1 GDI monochrome DIB translation (v0071 baseline)
+
+The genuine v0071 PALBOOT trace has GDIINFO RASTER=0191, with the first
+24 DeviceBitmapBits calls consisting of 17 successful 4bpp uploads and
+7 zero-return 1bpp uploads. The icon AND/XOR operations still read blank
+source bitmaps. The cursor masks now contain nonzero but incorrect data.
+
+The supplied original GDI.EXE confirms a monochrome-specific WORD color
+encoding: segment 11:0863 compares the destination planes/bpp with 0101;
+087C calls 051C with a nonzero monochrome flag for that format. At 05B8,
+that routine calls 0479, which returns AX=0000 or FFFF (048E..0495), and
+05C3 stores the result as a WORD. The v0071 DIB uploader incorrectly
+rejected FFFF as an out-of-range palette index. In v0072 monochrome
+DDB uploads accept these two mask values directly; other palette-index
+handling remains unchanged. FFFF is still rejected for 8bpp destinations.
+
+The bounded DIB trace budget is raised from 24 to 128 to reach the cursor
+and icon resource requests. Log destination geometry/depth, compression,
+color-table entries before validation, and invalid table values. No change
+to cursor renderer, mode safety gate, exports or calling conventions.
+
+Regression: actual Win16 entry-point host simulation exercises 32x64
+monochrome upload with 0000/FFFF, reversed polarity, previous 0/255
+palette representation and rejection of FFFF for an 8bpp target. The
+cursor integration test uses the same uploaded data. Clean main suite
+and all 21 supplemental Makefile test targets pass here. Open Watcom
+and Windows execution not available here; runtime cause of every blank
+icon/cursor defect not yet established.
