@@ -1,0 +1,14 @@
+Palettium v0075 -- Enhanced-mode discovery (diagnostic-only, follows v0074)
+
+Adds standalone PALENH.EXE, build script, host test, and research/implementation
+plan in docs/v0075-enhanced-mode.md. Records SYSTEM.INI display driver, 286 and
+386 grabbers, VDD, actual GetWinFlags, and optionally the raw INT 2Fh 1684h
+VDD API address. Protected Enhanced mode and explicit consent are required;
+report checkpoint is closed before the call. No VDD API invocation, no video
+hardware access, no activation authorization. No source changes to PALTRIAL,
+PALSTAGE or the graphics core. No proprietary donor files.
+
+Host test verifies opt-outs, Standard/inconsistent flags, query inputs,
+checkpoint, no-entry/zero-selector/nonzero-selector distinctions and failure
+before lookup. Native compilation/runtime remain untested here. First use
+with known-good 640x480 256-color ET4000 donor in a separate disposable VM.

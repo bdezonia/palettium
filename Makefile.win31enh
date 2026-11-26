@@ -1,0 +1,9 @@
+CC = cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Itests/win16_stubs
+.PHONY: test
+test: tests/exes/palenh-host-test
+	./tests/exes/palenh-host-test
+tests/exes/palenh-host-test: windows/win31/palenh.c tests/test_win31_enh_probe.c tests/win16_stubs/i86.h tests/win16_stubs/windows.h | tests/exes
+	$(CC) $(CFLAGS) windows/win31/palenh.c tests/test_win31_enh_probe.c -o $@
+tests/exes:
+	mkdir -p $@

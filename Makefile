@@ -21,6 +21,7 @@ test: all
 	python3 tests/test_win31_importcheck.py
 	$(MAKE) -f Makefile.gdiinfo test
 	$(MAKE) -f Makefile.win31diag test
+	$(MAKE) -f Makefile.win31enh test
 	$(MAKE) -f Makefile.win31load test
 	$(MAKE) -f Makefile.win31trial test
 	$(MAKE) -f Makefile.win31boottrace test
