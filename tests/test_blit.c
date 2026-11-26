@@ -48,6 +48,75 @@ static int run_case(RG_Device *a, RG_Device *source, int dx, int dy,
     }
     return 1;
 }
+/* Padded rows, all storage combinations and observable I/O counts. */
+#define PW 19
+#define PH 11
+#define PS 24
+#define PN (PS*PH)
+typedef struct CountedBytes {
+    rg_u8 data[PN];
+    unsigned reads, writes;
+} CountedBytes;
+static rg_u8 counted_read(void *ctx, rg_offset off)
+{
+    CountedBytes *b=(CountedBytes *)ctx;
+    ++b->reads;
+    return b->data[off];
+}
+static void counted_write(void *ctx, rg_offset off, rg_u8 value)
+{
+    CountedBytes *b=(CountedBytes *)ctx;
+    ++b->writes;
+    b->data[off]=value;
+}
+static int row_tests(void)
+{
+    RG_Device d,s;
+    RG_VramOps io;
+    CountedBytes db,sb;
+    rg_u8 want[PN], before[PN];
+    unsigned mode,rop,i,x,y,same;
+    io.read_byte=counted_read; io.write_byte=counted_write;
+    for (mode=0;mode<4;++mode) for (rop=0;rop<16;++rop) {
+        for (i=0;i<PN;++i) {
+            db.data[i]=(rg_u8)(i*29u+7u);
+            sb.data[i]=(rg_u8)(i*17u+11u);
+        }
+        memcpy(want,db.data,PN);
+        db.reads=db.writes=sb.reads=sb.writes=0;
+        if (mode&1u) {
+            if (!rg_init_vram(&d,PW,PH,PS,PN,RG_FMT_INDEX8,io,&db)) return 0;
+        } else if (!rg_init(&d,db.data,PW,PH,PS,PN,RG_FMT_INDEX8)) return 0;
+        if (mode&2u) {
+            if (!rg_init_vram(&s,PW,PH,PS,PN,RG_FMT_INDEX8,io,&sb)) return 0;
+        } else if (!rg_init(&s,sb.data,PW,PH,PS,PN,RG_FMT_INDEX8)) return 0;
+        for (y=0;y<5;++y) for (x=0;x<12;++x)
+            want[(y+3)*PS+x+4]=reference_rop(sb.data[(y+1)*PS+x+2],want[(y+3)*PS+x+4],rop);
+        rg_software_blit(&d,&s,4,3,2,1,12,5,rop);
+        if (memcmp(want,db.data,PN)) return 0;
+        if ((mode&1u) && db.writes!=(rop==10u?0u:60u)) return 0;
+        if ((mode&1u) && db.reads!=((rop!=10u && (rop&5u)!=((rop>>1)&5u))?60u:0u)) return 0;
+        if ((mode&2u) && sb.reads!=(((rop&3u)!=(rop>>2))?60u:0u)) return 0;
+        if (sb.writes) return 0;
+    }
+    /* Flat memmove as well as callback rows: horizontal and vertical
+     * overlapping copies in both directions, with padding untouched. */
+    for (mode=0;mode<2;++mode) for (same=0;same<4;++same) {
+        unsigned dx=same==0?5u:1u, sx=same==1?5u:1u;
+        unsigned dy=same==2?4u:1u, sy=same==3?4u:1u;
+        for (i=0;i<PN;++i) db.data[i]=(rg_u8)(i*31u+9u);
+        memcpy(before,db.data,PN); memcpy(want,before,PN);
+        if (mode) {
+            if (!rg_init_vram(&d,PW,PH,PS,PN,RG_FMT_INDEX8,io,&db)) return 0;
+        } else if (!rg_init(&d,db.data,PW,PH,PS,PN,RG_FMT_INDEX8)) return 0;
+        for (y=0;y<6;++y) for (x=0;x<12;++x)
+            want[(dy+y)*PS+dx+x]=before[(sy+y)*PS+sx+x];
+        rg_software_blit(&d,&d,(int)dx,(int)dy,(int)sx,(int)sy,12,6,RG_ROP_COPY);
+        if (memcmp(want,db.data,PN)) return 0;
+    }
+    puts("PASS: 72 padded INDEX8 row cases, flat/callback combinations, overlap, exact I/O counts");
+    return 1;
+}
 int main(void)
 {
     RG_Device dst, src;
@@ -76,6 +145,7 @@ int main(void)
         if (!run_case(&dst,separate ? &src : &dst,dx,dy,sx,sy,w,h,k%16,separate)) return 8;
     }
     if (bank.switch_count == 0) return 9;
+    if (!row_tests()) return 10;
     printf("PASS: 346 BitBlt cases (all 16 ROPs, overlap, clipping, cross-bank, cross-device); bank switches=%lu\n",bank.switch_count);
     return 0;
 }

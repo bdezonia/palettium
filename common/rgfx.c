@@ -211,6 +211,44 @@ static rg_pixel rop_apply(rg_pixel s, rg_pixel d, unsigned rop, rg_pixel mask)
     if (rop & 8U) v |= s & d;
     return v & mask;
 }
+/* INDEX8 is byte-addressable. Work on clipped rows, not individual
+ * pixel coordinates. Offset callbacks preserve segmented/banked access;
+ * no near pointer is manufactured for a callback-backed surface. */
+static void blit_index8_row(RG_Device *dst, RG_Device *src,
+                            rg_offset d, rg_offset s, unsigned n,
+                            int reverse, unsigned rop)
+{
+    unsigned i;
+    rg_u8 sv, dv;
+    int uses_source = (rop & 3u) != (rop >> 2);
+    int uses_dest = (rop & 5u) != ((rop >> 1) & 5u);
+    if (d >= dst->surface.capacity || n > dst->surface.capacity - d ||
+        s >= src->surface.capacity || n > src->surface.capacity - s)
+        return;
+    if (rop == 10u) return; /* destination identity */
+    if (rop == RG_ROP_COPY && dst->surface.pixels && src->surface.pixels) {
+        memmove(dst->surface.pixels + d, src->surface.pixels + s, n);
+        return;
+    }
+    if ((rop == RG_ROP_CLEAR || rop == RG_ROP_SET) && dst->surface.pixels) {
+        memset(dst->surface.pixels + d, rop == RG_ROP_SET ? 255 : 0, n);
+        return;
+    }
+    for (i = 0; i < n; ++i) {
+        unsigned k = reverse ? n - 1u - i : i;
+        sv = uses_source ? (src->surface.pixels ? src->surface.pixels[s+k] :
+                            src->vram.read_byte(src->vram_context,s+k)) : 0;
+        dv = uses_dest ? (dst->surface.pixels ? dst->surface.pixels[d+k] :
+                          dst->vram.read_byte(dst->vram_context,d+k)) : 0;
+        if (rop == RG_ROP_COPY) dv = sv;
+        else if (rop == RG_ROP_XOR) dv ^= sv;
+        else if (rop == RG_ROP_AND) dv &= sv;
+        else if (rop == RG_ROP_OR) dv |= sv;
+        else dv = (rg_u8)rop_apply(sv,dv,rop,255UL);
+        if (dst->surface.pixels) dst->surface.pixels[d+k] = dv;
+        else dst->vram.write_byte(dst->vram_context,d+k,dv);
+    }
+}
 void rg_software_blit(RG_Device *dst, RG_Device *src, int dx, int dy,
                       int sx, int sy, int w, int h, unsigned rop)
 {
@@ -236,6 +274,18 @@ void rg_software_blit(RG_Device *dst, RG_Device *src, int dx, int dy,
     ys = reverse_y ? -1 : 1;
     x0 = reverse_x ? r - 1 : l; x1 = reverse_x ? l - 1 : r;
     xs = reverse_x ? -1 : 1;
+    if (dst->surface.format == RG_FMT_INDEX8 &&
+        (dst->surface.pixels || (dst->vram.read_byte && dst->vram.write_byte)) &&
+        (src->surface.pixels || (src->vram.read_byte && src->vram.write_byte))) {
+        for (yy = y0; yy != y1; yy += ys) {
+            rg_offset doff = (rg_offset)((long)dy + yy) * dst->surface.stride +
+                             (rg_offset)((long)dx + l);
+            rg_offset soff = (rg_offset)((long)sy + yy) * src->surface.stride +
+                             (rg_offset)((long)sx + l);
+            blit_index8_row(dst,src,doff,soff,(unsigned)(r-l),reverse_x,rop);
+        }
+        return;
+    }
     for (yy = y0; yy != y1; yy += ys)
         for (xx = x0; xx != x1; xx += xs) {
             if (!rg_get_pixel(src, sx + (int)xx, sy + (int)yy, &sv)) continue;

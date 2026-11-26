@@ -1,0 +1,23 @@
+Palettium v0073 - shared INDEX8 bitmap row fast path (v0072 baseline)
+
+v0072 runtime confirmed a correct cursor and working icon rendering after
+refreshing the stale Program Manager icon. This patch intentionally does
+not alter the Win16 DDI, cursor, palette, DIB or card-specific interfaces.
+
+rg_software_blit now takes a clipped byte-row path for INDEX8 surfaces.
+For flat-to-flat COPY it uses overlap-safe memmove; callback-backed
+surfaces retain full-width offsets and use their own byte callbacks.
+For all 16 two-input truth tables, avoid reading operands the truth table
+does not depend on. Destination identity performs no reads or writes.
+Preserve reverse traversal for same-device overlapping copies, row padding,
+clipping and hardware blit overrides. Other formats retain the pixel path.
+As before, distinct RG_Device instances are expected not to overlap unless
+the OS adapter normalizes identical backing surfaces to the same device.
+No new bank-span callbacks or hardware acceleration are introduced.
+
+Validation: clean make test and all 21 supplemental Makefile test targets
+passed with the host compiler. The existing 346 reference blit cases and
+72 new padded INDEX8 cases (all four flat/callback combinations, all 16
+ROPs, horizontal and vertical overlap, exact I/O counts) passed. Open
+Watcom and Windows runtime tests remain pending; actual VM performance
+has not been measured. The Enhanced-mode gate remains unchanged.
