@@ -1,0 +1,24 @@
+Palettium v0074 -- shared text runs (incremental over v0073)
+
+- Clip opaque rectangles once and dispatch one fill instead of per-pixel
+  calls. Transparent glyphs use maximal horizontal foreground runs, including
+  runs across glyph-byte boundaries; each visible source byte is read once
+  per scanline. Win3.x glyph bytes remain column-byte-major, MSB first.
+- Honor explicit fill overrides, preserve custom pixel-only overrides when
+  the fill is the default software implementation, and fall back to pixel
+  when fill is absent. No new hardware interface, DDI ABI or chipset code.
+- Applies to the existing shared INDEX1 and INDEX8 text formats, including
+  banked devices; other pixel formats are not newly enabled in this adapter.
+- New 1203 independent comparisons cover glyph widths 1/7/8/9/17/128,
+  128-line height, partial source bytes, exact source reads, runs, clipping,
+  transparent padding, foreground zero, flat buffers and override dispatch.
+  A dense 128x128 glyph uses 2048 reads and 128 fill calls instead of 16384
+  reads and 16384 pixel calls. A clipped 90-pixel opaque fill uses one call.
+  ET4000AX integration test exercises both rectangle and glyph across an
+  actual backend aperture boundary, independently preserving read bank.
+- Main host suite and all 21 Makefile.* test targets PASS (C89 -Werror),
+  including traced/untraced host DDI entry simulations. Native Watcom and
+  Windows runtime are not available here; measured call counts are not timing.
+- No changes to cursor, font parser, DDI, ET4000 backend, boot resources,
+  Standard-mode gate, or Enhanced-mode authorization. All v0073 outstanding
+  objectives remain. Next: Enhanced mode, not another raster optimization.

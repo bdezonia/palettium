@@ -13,7 +13,9 @@ typedef struct RG_Glyph {
     unsigned height;
     rg_offset offset; /* byte offset within caller-owned font storage */
 } RG_Glyph;
-/* Clipping is half-open. All writes go through device->ops.pixel.
+/* Clipping is half-open. Writes use ops.fill for rectangles and horizontal
+ * runs; ops.pixel is the fallback. A custom pixel operation takes precedence
+ * over the default software fill, but an explicit fill override wins.
  * Font data callbacks must remain valid for the complete glyph span.
  * GDI text always uses COPY, not DRAWMODE.Rop2. */
 int rg_gdi_text_fill(RG_Device *dev, RG_Rect rect,

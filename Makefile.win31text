@@ -2,7 +2,8 @@ CC = cc
 CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude -Iwindows/win31
 .PHONY: test
 
-test: tests/exes/win31-text-test tests/exes/win31-text-entry-test tests/exes/win31-text-entry-trace-test
+test: tests/exes/text-runs-test tests/exes/win31-text-test tests/exes/win31-text-entry-test tests/exes/win31-text-entry-trace-test
+	./tests/exes/text-runs-test
 	./tests/exes/win31-text-test
 	./tests/exes/win31-text-entry-test
 	./tests/exes/win31-text-entry-trace-test
@@ -21,3 +22,7 @@ tests/exes/win31-text-entry-test: tests/test_win31_text_entry.c common/rg_palett
 
 tests/exes/win31-text-entry-trace-test: tests/test_win31_text_entry.c common/rg_palette.c common/rg_gdi_blit.c common/rg_gdi_rop.c common/rg_objects.c windows/win31/pal_bitmap.c windows/win31/pal_bitmap_device.c windows/win31/palddi.c common/rg_gdi_text.c windows/win31/pal_font16.c common/rg_cursor.c windows/win31/pal_cursor16.c common/rgfx.c | tests/exes
 	$(CC) $(CFLAGS) -DPAL_WIN31_BOOTTRACE -ffunction-sections -fdata-sections -Itests/win16_stubs -Ihardware/tseng/et4000ax common/rgfx.c common/rg_palette.c common/rg_gdi_text.c common/rg_gdi_blit.c common/rg_gdi_rop.c common/rg_objects.c windows/win31/pal_bitmap.c windows/win31/pal_bitmap_device.c common/rg_cursor.c windows/win31/pal_cursor16.c windows/win31/pal_font16.c tests/test_win31_text_entry.c -Wl,--gc-sections -o $@
+
+# Independent reference and exact dispatch/read counts.
+tests/exes/text-runs-test: tests/test_text_runs.c common/rg_gdi_text.c common/rgfx.c include/rg_gdi_text.h include/rgfx.h | tests/exes
+	$(CC) $(CFLAGS) common/rgfx.c common/rg_gdi_text.c tests/test_text_runs.c -o $@

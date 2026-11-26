@@ -6,8 +6,8 @@ CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude -Ihardware/tseng/et4000ax
 test: tests/exes/et4k-test tests/exes/et4k-crtc37-test
 	./tests/exes/et4k-test
 	./tests/exes/et4k-crtc37-test
-tests/exes/et4k-test: common/rgfx.c common/rg_hardware.c hardware/tseng/et4000ax/et4k.c tests/test_et4k.c include/rgfx.h include/rg_hardware.h hardware/tseng/et4000ax/et4k.h | tests/exes
-	$(CC) $(CFLAGS) common/rgfx.c common/rg_hardware.c hardware/tseng/et4000ax/et4k.c tests/test_et4k.c -o $@
+tests/exes/et4k-test: common/rg_gdi_text.c include/rg_gdi_text.h common/rgfx.c common/rg_hardware.c hardware/tseng/et4000ax/et4k.c tests/test_et4k.c include/rgfx.h include/rg_hardware.h hardware/tseng/et4000ax/et4k.h | tests/exes
+	$(CC) $(CFLAGS) common/rgfx.c common/rg_gdi_text.c common/rg_hardware.c hardware/tseng/et4000ax/et4k.c tests/test_et4k.c -o $@
 tests/exes/et4k-crtc37-test: hardware/tseng/et4000ax/et4k.c tests/test_et4k_crtc37.c hardware/tseng/et4000ax/et4k.h | tests/exes
 	$(CC) $(CFLAGS) common/rgfx.c common/rg_hardware.c hardware/tseng/et4000ax/et4k.c tests/test_et4k_crtc37.c -o $@
 clean:

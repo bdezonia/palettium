@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "et4k.h"
+#include "rg_gdi_text.h"
 
 #define VRAM_SIZE 524288UL
 #define CHECK(expr) do { if (!(expr)) { fprintf(stderr, "FAIL at %d: %s\n", __LINE__, #expr); exit(1); } } while (0)
@@ -68,6 +69,12 @@ static void mock_restore(void *ctx)
 {
     Mock *m = (Mock *)ctx;
     m->restore_calls++;
+}
+
+static rg_u8 text_read(void *ctx, rg_offset offset)
+{
+    const rg_u8 *bytes=(const rg_u8 *)ctx;
+    return bytes[offset];
 }
 
 int main(void)
@@ -142,10 +149,30 @@ int main(void)
     CHECK(m->pal[0] == 7 && m->pal[1] == 63 && m->pal[2] == 32 && m->pal[3] == 0);
     CHECK(m->writes_to_bank > 6);
     CHECK(m->invalid == 0);
+    /* Real backend dispatch: a 9-pixel glyph spanning two source bytes
+     * and the 64KiB aperture boundary. Padding bits must not be drawn. */
+    {
+        RG_Glyph g;
+        RG_Rect opaque;
+        rg_u8 glyph[2];
+        unsigned long before_fill=m->fill_calls, before_byte=m->byte_calls;
+        state.io.mem_fill=mock_fill;
+        glyph[0]=0xFF; glyph[1]=0xFF;
+        g.offset=0; g.width=9; g.height=1;
+        (void)rg_read_byte(&dev,2UL*65536UL); /* distinct read bank */
+        opaque.left=253; opaque.top=102; opaque.right=264; opaque.bottom=103;
+        CHECK(rg_gdi_text_fill(&dev,opaque,0,0x77));
+        CHECK(rg_gdi_text_glyph(&dev,254,102,0,&g,text_read,glyph,0x39));
+        CHECK(m->fill_calls==before_fill+4 && m->byte_calls==before_byte);
+        CHECK((m->reg>>4)==2 && (m->reg&15)==1);
+        for (off=65533UL;off<65544UL;++off)
+            CHECK(m->vram[off]==(off>=65534UL && off<65543UL ? 0x39 : 0x77));
+        CHECK(m->invalid==0);
+    }
     rg_hw_close(&binding);
     CHECK(m->restore_calls == 1);
     dev.ops.fill(&dev,0,0,640,480,0);
-    CHECK(m->byte_calls==3 && m->fill_calls==486UL);
+    CHECK(m->byte_calls==3 && m->fill_calls==490UL);
     /* Same backend MUST reject a pixel format its silicon does not support. */
     mode.format = RG_FMT_RGB565;
     mode.capacity = 0;
