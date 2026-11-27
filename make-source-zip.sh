@@ -13,7 +13,7 @@ import zipfile
 from pathlib import Path
 
 root = Path.cwd()
-output = Path.home() / "Downloads" / "palsrc76.zip"
+output = Path.home() / "Downloads" / "palsrc.zip"
 
 output.parent.mkdir(parents=True, exist_ok=True)
 
