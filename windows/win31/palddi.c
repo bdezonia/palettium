@@ -68,6 +68,9 @@
 #include "pal_cursor16.h"
 #include "pal_trial_gate.h"
 #include "pal_boottrace.h"
+#ifdef PAL_WIN31_ENH_HOOK
+#include "pal_hook.h"
+#endif
 
 static PAL_ScreenHost *pal_active_host = 0;
 
@@ -265,6 +268,9 @@ static int pal_win16_activate(LPVOID destination)
     ET4K_Port port;
     PAL_Win16Commit commit;
     PAL_U32 token;
+#ifdef PAL_WIN31_ENH_HOOK
+    unsigned original_selector;
+#endif
     if (!destination || pal_active_host ||
         !pal_win16_et4k_profile_plan(&plan)) {
         pal_boottrace("ACT PLAN FAIL");
@@ -291,6 +297,9 @@ static int pal_win16_activate(LPVOID destination)
         selector=pal_win16_vdd_selector();
         pal_boottrace_hex("ENH API SELECTOR",selector);
         if (!selector) return 0;
+#ifdef PAL_WIN31_ENH_HOOK
+        original_selector=selector;
+#endif
         pal_boottrace("ENH STARTUP ONLY NO ASSISTED SAVE");
     }
 #endif
@@ -312,6 +321,28 @@ static int pal_win16_activate(LPVOID destination)
                        PAL_ET4K_AUTH_ENH_STARTUP);
 #else
                        PAL_ET4K_AUTH_STANDARD);
+#endif
+#ifdef PAL_WIN31_ENH_HOOK
+        if (succeeded) {
+            unsigned status,selector,count;
+            /* Install only AFTER a complete successful publication. No
+             * hook can escape a failed hardware startup transaction. */
+            pal_boottrace("HOOK INSTALL ENTER");
+            status=pal_hook_install();
+            pal_boottrace_hex("HOOK INSTALL STATUS",status);
+            if (status==1u) {
+                /* A real, read-only chained request; never synthesize a
+                 * switch notification or invoke the returned VDD API. */
+                selector=pal_win16_vdd_selector();
+                pal_boottrace_hex("HOOK CHAIN SELECTOR",selector);
+                count=pal_hook_read(PAL_HOOK_QUERY);
+                pal_boottrace_hex("HOOK CHAIN QUERY COUNT",count);
+                pal_boottrace(selector==original_selector && count ?
+                    "HOOK CHAIN PROBE OK" : "HOOK CHAIN PROBE FAIL");
+            }
+            /* Failures are logged, not converted into GDI load failure:
+             * an uncertain vector may already reference resident code. */
+        }
 #endif
         pal_boottrace(succeeded ? "ACT SESSION OK" : "ACT SESSION FAIL");
         return succeeded;
@@ -431,6 +462,12 @@ static int pal_win16_install_ready(void)
     allowed=n<sizeof(vdd)-1u && m<sizeof(grabber)-1u &&
         pal_win31_enh_startup_permitted(flags,vram,key,vdd,grabber);
     pal_boottrace("ENH EXPERIMENT GATE");
+#ifdef PAL_WIN31_ENH_HOOK
+    if ((unsigned)GetPrivateProfileInt("Palettium","EnhancedHook",0,
+                                      "SYSTEM.INI") != PAL_HOOK_KEY)
+        allowed=0;
+    pal_boottrace("ENH PASSIVE HOOK GATE");
+#endif
 #else
     allowed=pal_win31_trial_permitted(flags,vram,key);
 #endif
@@ -1819,6 +1856,21 @@ void FAR PASCAL Disable(LPVOID physical_device)
                             (PAL_U16)FP_OFF(physical_device));
     if (token != pal_active_host->ddi.screen_token) return;
     pal_boottrace("DISABLE ENTER");
+#ifdef PAL_WIN31_ENH_HOOK
+    if (pal_active_host == &pal_native_session.host) {
+        unsigned status;
+        pal_boottrace("HOOK REMOVE ENTER");
+        status=pal_hook_remove();
+        pal_boottrace_hex("HOOK REMOVE STATUS",status);
+        pal_boottrace_hex("HOOK BACKGROUND",pal_hook_read(PAL_HOOK_BG));
+        pal_boottrace_hex("HOOK FOREGROUND",pal_hook_read(PAL_HOOK_FG));
+        pal_boottrace_hex("HOOK SAVE REGS",pal_hook_read(PAL_HOOK_SAVE));
+        pal_boottrace_hex("HOOK RESTORE REGS",pal_hook_read(PAL_HOOK_RESTORE));
+        pal_boottrace_hex("HOOK LAST FOCUS",pal_hook_read(PAL_HOOK_FOCUS));
+        pal_boottrace_hex("HOOK QUERY COUNT",pal_hook_read(PAL_HOOK_QUERY));
+        if (status!=1u) pal_boottrace("HOOK CONFLICT REBOOT REQUIRED");
+    }
+#endif
     pal_cursor_trace_snapshot(1);
     /* Detach the public binding before shutting the hardware down.
      * The static session and native selector context must remain valid

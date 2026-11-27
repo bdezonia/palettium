@@ -39,7 +39,12 @@ windows/win31/palddi.c
 windows/win31/pal_driver_entry.c
 windows/win31/pal_boottrace.c'
 
-if [ "${PAL_ENH_STARTUP_BUILD:-0}" = 1 ]; then
+if [ "${PAL_ENH_HOOK_BUILD:-0}" = 1 ]; then
+    NAME=PALXHOOK
+    TRIAL_OPTION='-dPAL_WIN31_TRIAL_MODE -dPAL_WIN31_ENH_STARTUP -dPAL_WIN31_ENH_HOOK'
+    TRACE_OPTION=-dPAL_WIN31_BOOTTRACE
+    command -v wasm >/dev/null
+elif [ "${PAL_ENH_STARTUP_BUILD:-0}" = 1 ]; then
     NAME=PALX386
     TRIAL_OPTION='-dPAL_WIN31_TRIAL_MODE -dPAL_WIN31_ENH_STARTUP'
     TRACE_OPTION=-dPAL_WIN31_BOOTTRACE
@@ -88,6 +93,13 @@ for source in $SOURCES; do
     printf 'file %s\n' "$obj" >> "$LINKFILE"
 done
 
+if [ "$NAME" = PALXHOOK ]; then
+    wasm -q -fo=tests/exes/pal_hook.obj windows/win31/pal_hook.asm
+    test -s tests/exes/pal_hook.obj
+    printf '%s\n' 'file tests/exes/pal_hook.obj' \
+        'segment type code fixed preload' 'segment type data fixed preload' >> "$LINKFILE"
+fi
+
 # These ordinals follow the documented Win16 display DDI.
 cat >> "$LINKFILE" <<'EOF_EXPORTS'
 export BitBlt.1
@@ -135,7 +147,11 @@ wdump -x "$OUTPUT" > "tests/exes/$NAME.exports.txt"
 python3 tools/check_win31_modname.py "$OUTPUT"
 python3 tools/check_win31_imports.py "$OUTPUT"
 python3 tools/check_win31_exports.py "tests/exes/$NAME.exports.txt"
-if [ "$NAME" = PALX386 ]; then
+if [ "$NAME" = PALXHOOK ]; then
+    python3 tools/check_win31_resident.py "$OUTPUT"
+    printf '%s\n' 'PASS: linked PALXHOOK.DRV (passive notification observer ONLY).' \
+        'WARNING: snapshot only; no DOS sessions or VM switching on first test.'
+elif [ "$NAME" = PALX386 ]; then
     printf '%s\n' 'PASS: linked PALX386.DRV (Enhanced startup experiment ONLY).' \
         'WARNING: use disposable VM; do not launch DOS sessions or switch VMs.'
 elif [ "$NAME" = PALTRIAL ]; then

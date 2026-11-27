@@ -1,4 +1,4 @@
-# Palettium — v0077 project layout synchronization
+# Palettium — v0078 Enhanced-mode notification observer
 
 A reusable C89 graphics-driver framework for Windows 3.1, Windows for
 Workgroups 3.11, Windows 95 and Windows 98. Shared software rasterization
@@ -17,8 +17,11 @@ and chipset-specific mode/banking code.
 - `PALSTAGE.DRV` remains a non-activating staging binary. Do not install it.
 - Preserve the four-OS architecture; WfW 3.11, Windows 95/98, additional
   display formats and accelerated chipset backends remain future work.
-- v0077 changes build paths, test orchestration and documentation only.
-  No C sources, headers, linker recipes or driver build flags are changed.
+- v0077 synchronized the repository layout. v0078 adds a separate
+  PALXHOOK.DRV passive INT 2F observer with explicit EnhancedHook=4403.
+  Native assembly, link and VM tests remain pending. No assisted save,
+  active screen ownership, or DOS switching support is claimed. See
+  `docs/v0078-notification-observer.md`.
 
 ## Repository layout
 
@@ -44,7 +47,7 @@ make -f makefiles/Makefile test-all
 ```
 
 `test` retains the existing main-suite coverage; `test-all` also runs
-all 22 standalone regression makefiles. A single test can be run with
+all 23 standalone regression makefiles. A single test can be run with
 `make -f makefiles/Makefile.win31native test`, for example. Do not use
 `make -C makefiles`: source paths are relative to the repository root.
 No root Makefile or wrapper is needed.
@@ -55,6 +58,7 @@ With Open Watcom configured, the native build commands remain:
 sh windows/win31/build-palddi.sh
 sh windows/win31/build-paltrial.sh
 sh windows/win31/build-palx386.sh
+sh windows/win31/build-palxhook.sh  # separate experimental observer
 ```
 
 Outputs are still under `tests/exes/`. Host tests do not replace native
@@ -67,8 +71,8 @@ v0076 paths in that document should be translated as below).
 Apply repository-relative ZIP patches from the repository root:
 
 ```sh
-unzip -o ~/Downloads/pal77.zip
-sha256sum -c checksums/CHECKSUMS-v0077.sha256
+unzip -o ~/Downloads/pal78.zip
+sha256sum -c checksums/CHECKSUMS-v0078.sha256
 ```
 
 New notes go in `patch-notes/`, manifests in `checksums/`, and makefiles

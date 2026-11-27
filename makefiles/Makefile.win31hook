@@ -1,0 +1,6 @@
+CC ?= cc
+CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror
+.PHONY: test
+test:
+	python3 tests/test_win31_hook.py
+	$(CC) $(CFLAGS) -fsyntax-only -DPAL_WIN31_TRIAL_MODE -DPAL_WIN31_BOOTTRACE -DPAL_WIN31_ENH_STARTUP -DPAL_WIN31_ENH_HOOK -Itests/win16_stubs -Iinclude -Iwindows/win31 -Ihardware/tseng/et4000ax -include tests/win16_stubs/driver_syntax.h windows/win31/palddi.c

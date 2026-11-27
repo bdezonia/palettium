@@ -1,4 +1,4 @@
-# Windows 3.1 adapter — current v0077 layout
+# Windows 3.1 adapter — v0078 passive notification observer
 
 See the [root README](../../README.md) for current build commands and
 runtime status. v0076 PALX386 achieved Enhanced-mode desktop startup;
@@ -8,6 +8,9 @@ See [v0076 startup notes](../../docs/v0076-enhanced-startup.md) for the
 experimental configuration and resource binding. All make commands run
 from the repository root with `-f makefiles/Makefile` (or the named
 standalone makefile). Native build scripts remain in this directory.
+`build-palxhook.sh` builds the separate resident observer experiment.
+See [v0078 instructions](../../docs/v0078-notification-observer.md).
+Do not use it for DOS switching before Phase A passes.
 
 ---
 

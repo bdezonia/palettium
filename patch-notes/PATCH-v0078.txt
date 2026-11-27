@@ -1,0 +1,8 @@
+Palettium v0078 — passive resident INT 2Fh observer
+Apply over reorganized v0077. New optional PALXHOOK.DRV only; existing
+PALTRIAL and PALX386 behavior retained. No shared renderer or chipset code
+changes. New opt-in EnhancedHook=4403 plus existing EnhancedStartup=4402.
+See docs/v0078-notification-observer.md for exact build/resource binding,
+Phase A runtime test, expected trace markers, and limitations. No assisted
+save/restore, active ownership gating, or actual switching support yet.
+Host main + 23 standalone targets PASS. Native Watcom and runtime pending.
