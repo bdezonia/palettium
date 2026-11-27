@@ -273,12 +273,27 @@ static int pal_win16_activate(LPVOID destination)
     pal_boottrace("ACT PLAN OK");
     /* Platform-adapter lookup is deliberately after the pure planning
      * preflight; no A000 selector or I/O is touched during style=1. */
+#ifdef PAL_WIN31_ENH_STARTUP
+    if (plan.vdd_assessment != PAL_VDD_UNVERIFIED ||
+        plan.configured_bytes != 524288UL || plan.mode.height != 480u ||
+#else
     if (plan.vdd_assessment != PAL_VDD_NOT_ENHANCED ||
+#endif
         (PAL_U32)(PAL_U16)FP_OFF(destination) +
         (PAL_U32)sizeof(PAL_PDEVICE) > 65536UL) {
         pal_boottrace("ACT PRECHECK FAIL");
         return 0;
     }
+#ifdef PAL_WIN31_ENH_STARTUP
+    {
+        unsigned selector;
+        pal_boottrace("ENH API QUERY ENTER");
+        selector=pal_win16_vdd_selector();
+        pal_boottrace_hex("ENH API SELECTOR",selector);
+        if (!selector) return 0;
+        pal_boottrace("ENH STARTUP ONLY NO ASSISTED SAVE");
+    }
+#endif
     if (!pal_win16_et4k_port(&pal_native_adapter,&port)) {
         pal_boottrace("ACT PORT FAIL");
         return 0;
@@ -292,7 +307,12 @@ static int pal_win16_activate(LPVOID destination)
     {
         int succeeded=pal_et4k_session_start_published(&pal_native_session,
                        port,&plan,token,pal_win16_publish_transaction,
-                       &commit,1);
+                       &commit,
+#ifdef PAL_WIN31_ENH_STARTUP
+                       PAL_ET4K_AUTH_ENH_STARTUP);
+#else
+                       PAL_ET4K_AUTH_STANDARD);
+#endif
         pal_boottrace(succeeded ? "ACT SESSION OK" : "ACT SESSION FAIL");
         return succeeded;
     }
@@ -383,11 +403,9 @@ void FAR PASCAL UserRepaintDisable(WORD disable)
     (void)disable;
 }
 
-/* ONLY the separately named PALTRIAL.DRV build may request a first GDI
- * boot in a disposable 86Box guest. Default PALSTAGE.DRV always refuses.
- * Require BOTH the explicit trial key and actual Windows Standard mode,
- * plus explicit 256 or 512 KiB configured VRAM; no enhanced-mode VDD paths permitted.
- * This is an experimental boot gate, NOT a claim of driver correctness. */
+/* Default PALSTAGE always refuses. PALTRIAL remains Standard only;
+ * PALX386 is a separate startup-only Enhanced experiment for a particular
+ * reference configuration and explicit operator key. Neither is production. */
 static int pal_win16_install_ready(void)
 {
 #ifdef PAL_WIN31_TRIAL_MODE
@@ -396,11 +414,27 @@ static int pal_win16_install_ready(void)
                                                 "SYSTEM.INI");
     unsigned key=(unsigned)GetPrivateProfileInt("Palettium","TrialEnable",0,
                                                "SYSTEM.INI");
-    int allowed=pal_win31_trial_permitted(flags,vram,key);
+    int allowed;
 #ifdef PAL_WIN31_BOOTTRACE
     char msg[]="GATE FLAGS=00000000 VRAM=0000 KEY=0000";
     static const char hex[]="0123456789ABCDEF";
     unsigned i;
+#endif
+#ifdef PAL_WIN31_ENH_STARTUP
+    char vdd[32],grabber[32];
+    unsigned n,m;
+    vdd[0]=0; grabber[0]=0;
+    key=(unsigned)GetPrivateProfileInt("Palettium","EnhancedStartup",0,"SYSTEM.INI");
+    n=(unsigned)GetPrivateProfileString("386Enh","display","",vdd,sizeof(vdd),"SYSTEM.INI");
+    m=(unsigned)GetPrivateProfileString("boot","386grabber","",grabber,sizeof(grabber),"SYSTEM.INI");
+    vdd[sizeof(vdd)-1u]=0; grabber[sizeof(grabber)-1u]=0;
+    allowed=n<sizeof(vdd)-1u && m<sizeof(grabber)-1u &&
+        pal_win31_enh_startup_permitted(flags,vram,key,vdd,grabber);
+    pal_boottrace("ENH EXPERIMENT GATE");
+#else
+    allowed=pal_win31_trial_permitted(flags,vram,key);
+#endif
+#ifdef PAL_WIN31_BOOTTRACE
     for (i=0;i<8u;++i)
         msg[18u-i]=hex[(unsigned)(flags >> (4u*i)) & 15u];
     for (i=0;i<4u;++i) {
@@ -1724,8 +1758,8 @@ WORD FAR PASCAL SetAttribute(LPVOID device, WORD a, WORD b, WORD c)
 #endif
 
 /* Windows 3.x DDI: style 1 requests GDIINFO, style 0 requests physical
- * initialization. Production staging build ALWAYS rejects style 0; only an
- * opt-in trial build, in Standard mode, may enter the native transaction. */
+ * initialization. The staging build always refuses style 0; separate
+ * explicitly authorized trial builds may enter the native transaction. */
 WORD FAR PASCAL Enable(LPVOID destination, WORD style,
                        LPSTR device_type, LPSTR output_file, LPVOID data)
 {

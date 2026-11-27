@@ -221,6 +221,31 @@ static void test_published_start(Mock *m)
                                              publish_device,&pub,1));
     CHECK(m->restored==modes+1 && pub.calls==n && !session.host.running);
     m->force_failure=0;
+    /* New authorization is distinct, rejects stock VDD and Standard,
+     * and supports only the explicitly limited Enhanced startup plan. */
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+              publish_device,&pub,PAL_ET4K_AUTH_ENH_STARTUP));
+    CHECK(pal_et4k_plan(&plan,SIZE512,0UL,0x0C29UL,"*vddvga"));
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+              publish_device,&pub,PAL_ET4K_AUTH_ENH_STARTUP));
+    CHECK(pal_et4k_plan(&plan,SIZE512,0UL,0x0C29UL,"VDDTLI4.386"));
+    n=m->attempted;
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+              publish_device,&pub,PAL_ET4K_AUTH_STANDARD));
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+              publish_device,&pub,3));
+    CHECK(m->attempted==n);
+    pub.fail=1;
+    modes=m->restored;
+    CHECK(!pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+              publish_device,&pub,PAL_ET4K_AUTH_ENH_STARTUP));
+    CHECK(m->restored==modes+1 && !session.host.running);
+    pub.fail=0;
+    CHECK(pal_et4k_session_start_published(&session,io,&plan,TOKEN,
+              publish_device,&pub,PAL_ET4K_AUTH_ENH_STARTUP));
+    CHECK(pub.device.height==480u && session.host.running);
+    pal_et4k_session_stop(&session);
+    CHECK(m->restored==modes+2 && !session.host.running);
     CHECK(m->bad==0);
 }
 int main(void)

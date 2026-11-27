@@ -3,7 +3,6 @@
  * Real Win16 compiler/linker validation must be performed with Open Watcom.
  */
 #include <windows.h>
-typedef void *LPVOID;
 typedef int BOOL;
 #ifndef TRUE
 #define TRUE 1

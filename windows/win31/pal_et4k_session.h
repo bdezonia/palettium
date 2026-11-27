@@ -69,9 +69,13 @@ int pal_et4k_session_start_mode(PAL_ET4KSession *session, ET4K_Port io,
  * after failed mode setup, snapshot or commit, including video-mode restore.
  *
  * PLATFORM AUTHORIZATION IS NOT CONFERRED BY A PLAN. The caller must obtain
- * it separately and this API refuses all 386 Enhanced configurations until
- * a verified VDD contract exists. Win16 Enable(style=0) does NOT call this
- * path until mandatory text/cursor DDIs have been completed. */
+ * it separately. The explicit experimental authorization admits ONLY
+ * an unverified 512 KiB 640x480 Enhanced startup plan; the platform must
+ * enforce the exact VDD/grabber configuration and startup-only restriction. */
+/* Distinct authorization values: ordinary Standard callers must never
+ * accidentally admit an Enhanced plan. STARTUP is not a switching permit. */
+#define PAL_ET4K_AUTH_STANDARD 1
+#define PAL_ET4K_AUTH_ENH_STARTUP 2
 typedef int (*PAL_ET4KPublish)(void *context, const PAL_PDEVICE *image);
 int pal_et4k_session_start_published(PAL_ET4KSession *session,
                                      ET4K_Port io,

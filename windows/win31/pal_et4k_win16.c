@@ -80,6 +80,32 @@ static unsigned pal_win16_bios_int10(unsigned ax)
 }
 #endif
 
+/* Native early-driver query: no int86 runtime or USER import. The VDD
+ * selector is only a nonzero-address check, not identity verification. */
+#if defined(PAL_WIN31_ENH_STARTUP)
+#if defined(__WATCOMC__) && !defined(__386__)
+static unsigned pal_win16_vdd_selector_native(void);
+#pragma aux pal_win16_vdd_selector_native = \
+    "push ds" \
+    "push es" \
+    "push bp" \
+    "xor ax,ax" \
+    "mov es,ax" \
+    "xor di,di" \
+    "mov ax,1684h" \
+    "mov bx,000ah" \
+    "int 2fh" \
+    "mov ax,es" \
+    "pop bp" \
+    "pop es" \
+    "pop ds" \
+    value [ax] modify [bx cx dx si di];
+unsigned pal_win16_vdd_selector(void) { return pal_win16_vdd_selector_native(); }
+#else
+unsigned pal_win16_vdd_selector(void) { return 0; }
+#endif
+#endif
+
 static unsigned win16_bios_current_mode(void)
 {
     return pal_win16_bios_int10(0x0f00u) & 255u;

@@ -39,7 +39,11 @@ windows/win31/palddi.c
 windows/win31/pal_driver_entry.c
 windows/win31/pal_boottrace.c'
 
-if [ "${PAL_TRIAL_BUILD:-0}" = 1 ]; then
+if [ "${PAL_ENH_STARTUP_BUILD:-0}" = 1 ]; then
+    NAME=PALX386
+    TRIAL_OPTION='-dPAL_WIN31_TRIAL_MODE -dPAL_WIN31_ENH_STARTUP'
+    TRACE_OPTION=-dPAL_WIN31_BOOTTRACE
+elif [ "${PAL_TRIAL_BUILD:-0}" = 1 ]; then
     NAME=PALTRIAL
     TRIAL_OPTION=-dPAL_WIN31_TRIAL_MODE
     # Trial-only KERNEL file trace is enabled by default; explicitly
@@ -131,7 +135,10 @@ wdump -x "$OUTPUT" > "tests/exes/$NAME.exports.txt"
 python3 tools/check_win31_modname.py "$OUTPUT"
 python3 tools/check_win31_imports.py "$OUTPUT"
 python3 tools/check_win31_exports.py "tests/exes/$NAME.exports.txt"
-if [ "$NAME" = PALTRIAL ]; then
+if [ "$NAME" = PALX386 ]; then
+    printf '%s\n' 'PASS: linked PALX386.DRV (Enhanced startup experiment ONLY).' \
+        'WARNING: use disposable VM; do not launch DOS sessions or switch VMs.'
+elif [ "$NAME" = PALTRIAL ]; then
     printf '%s\n' 'PASS: linked PALTRIAL.DRV (experimental 256/512KiB Standard-mode GDI boot ONLY).' \
         'WARNING: unverified Windows runtime. Use snapshot and DOS recovery; no enhanced mode.'
 else

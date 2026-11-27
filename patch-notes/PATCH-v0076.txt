@@ -1,0 +1,8 @@
+Palettium v0076 (incremental patch after v0075)
+First separately named Enhanced-mode startup experiment, PALX386.DRV.
+Requires disposable VM, exact VDDTLI4.386/V7VGA.3GR configuration, 512KiB,
+EnhancedStartup=4402, protected Enhanced mode and nonzero VDD API selector.
+No assisted-save request or switching support; desktop startup/exit only.
+Preserves PALTRIAL Standard path and PALSTAGE refusal. No shared raster edits.
+Read docs/v0076-enhanced-startup.md BEFORE building/installing.
+Host main + 22 supplemental targets passed; native build/runtime pending.

@@ -23,6 +23,8 @@ int pal_win16_et4k_port(PAL_Win16ET4K *context, ET4K_Port *out);
  * configured [386Enh] VDD. Does not read hardware or authorize Enable.
  * If no valid explicit capacity is set, returns zero (fail closed). */
 int pal_win16_et4k_profile_plan(PAL_ET4KPlan *plan);
+/* Lookup only: no far call to returned API and no assisted-save request. */
+unsigned pal_win16_vdd_selector(void);
 /* CRTC37 diagnostic wiring is intentionally NOT a query_capacity callback.
  * A controller must explicitly permit raw ports, and 386 Enhanced mode is
  * always refused here until a real VDD port-access contract exists. */

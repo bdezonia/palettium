@@ -142,10 +142,15 @@ int pal_et4k_session_start_published(PAL_ET4KSession *session,
     ET4K_ModeInfo geometry;
     PAL_PDEVICE image;
     pal_boottrace("SESSION TRANSACTION ENTER");
-    if (!platform_authorized || !session || !plan || !pdevice_token ||
+    if (!session || !plan || !pdevice_token ||
         !publish || session->host.running ||
         plan->status != PAL_ET4K_PLAN_OK ||
-        plan->vdd_assessment != PAL_VDD_NOT_ENHANCED ||
+        !((platform_authorized==PAL_ET4K_AUTH_STANDARD &&
+           plan->vdd_assessment==PAL_VDD_NOT_ENHANCED) ||
+          (platform_authorized==PAL_ET4K_AUTH_ENH_STARTUP &&
+           plan->vdd_assessment==PAL_VDD_UNVERIFIED &&
+           plan->configured_bytes==524288UL && plan->mode.width==640u &&
+           plan->mode.height==480u && plan->mode.format==RG_FMT_INDEX8)) ||
         plan->configured_bytes == 0UL ||
         (plan->observed_hint &&
          plan->configured_bytes != plan->observed_hint) ||
