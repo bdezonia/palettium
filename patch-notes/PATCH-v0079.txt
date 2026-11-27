@@ -1,0 +1,10 @@
+Palettium v0079 — documentation consolidation and observer runtime PASS
+Apply over v0078. No functional source, build or test recipe changes.
+Record maintainer's successful hook install, chain probe and removal;
+DOS switching remains unvalidated. Retain two text rejection markers as
+an open diagnostic issue. See docs/v0079-runtime-validation.md for the
+next controlled switch experiment using the existing traced PALXHOOK.DRV.
+Replace cumulative README logs with concise current guides. Preserve both
+previous Markdown files byte-for-byte under docs/history/; redirect stale
+Win31 README.txt. Future milestone history goes in patch-notes and docs,
+not appended to README. Existing historical manifests remain unchanged.
