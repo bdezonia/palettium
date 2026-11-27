@@ -1,3 +1,21 @@
+# Windows 3.1 adapter — current v0077 layout
+
+See the [root README](../../README.md) for current build commands and
+runtime status. v0076 PALX386 achieved Enhanced-mode desktop startup;
+DOS switching and VDD ownership support are still pending. PALTRIAL
+remains the validated Standard-mode path; PALSTAGE is not installable.
+See [v0076 startup notes](../../docs/v0076-enhanced-startup.md) for the
+experimental configuration and resource binding. All make commands run
+from the repository root with `-f makefiles/Makefile` (or the named
+standalone makefile). Native build scripts remain in this directory.
+
+---
+
+# Historical Windows 3.1 development log (v0048 and earlier)
+
+These entries document earlier releases, not the current capability or
+installation status.
+
 # Palettium v0048 -- first GDI initialization diagnosis
 
 The v0047 Windows 3.1 BOOTLOG shows PALTRIAL.DRV LoadSuccess,
@@ -14,7 +32,7 @@ PALTRIAL adds a temporary KERNEL-only DOS file trace to distinguish
 GDI phases. Only this trial build calls it; `PALSTAGE` remains fail-closed.
 The trace is a diagnostic that itself may affect low memory or disk I/O.
 Never infer an unlogged phase was skipped when the trace file is absent.
-See PATCH-v0048.txt for instructions. Expected file: C:\PALBOOT.TXT.
+See patch-notes/PATCH-v0048.txt for instructions. Expected file: C:\PALBOOT.TXT.
 There is no evidence yet that GDI can actually initialize the desktop.
 
 ---
@@ -67,7 +85,7 @@ INT 10h wrapper can remain because it avoids unrelated runtime linkage.
 ```
 cd ~/dev/palettium
 unzip -o ~/Downloads/pal47.zip
-make clean && make test
+make -f makefiles/Makefile clean && make -f makefiles/Makefile test
 sh windows/win31/build-palddi.sh
 sh windows/win31/build-paltrial.sh
 python3 tools/check_win31_imports.py tests/exes/PALTRIAL.DRV
@@ -297,7 +315,7 @@ module. The previously reported missing `et4k.h` caused cascading
 linking. This **passed** on the maintainer's Open Watcom
 toolchain with all 13 exports. The driver still deliberately refuses `Enable(style=0)`.
 
-From the project root, `make clean` now deletes all generated artifacts
+From the project root, `make -f makefiles/Makefile clean` now deletes all generated artifacts
 under `tests/exes/` and `build/`, plus historical Win16 probe DLL, EXE and
 OBJ files, without removing `.LNK`, `.c`, or `.h` sources.
 
@@ -322,7 +340,7 @@ recoverable 86Box VM with the existing display driver. PALSTAGE.DRV must
 not be installed.
 
 ```sh
-make -f Makefile.win31diag test
+make -f makefiles/Makefile.win31diag test
 sh windows/win31/build-paldiag.sh
 ```
 
@@ -362,7 +380,7 @@ mode switching or 3CDh bank I/O. Do not install `PALSTAGE.DRV`.
 ```sh
 cd ~/dev/palettium
 unzip -o ~/Downloads/pal34.zip
-make -f Makefile.win31diag test
+make -f makefiles/Makefile.win31diag test
 sh windows/win31/build-paldiag.sh
 ```
 

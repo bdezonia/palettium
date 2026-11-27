@@ -1,3 +1,97 @@
+# Palettium — v0077 project layout synchronization
+
+A reusable C89 graphics-driver framework for Windows 3.1, Windows for
+Workgroups 3.11, Windows 95 and Windows 98. Shared software rasterization
+and hardware operation overrides are kept separate from OS-specific DDI
+and chipset-specific mode/banking code.
+
+## Current status (v0076 runtime baseline)
+
+- Standard-mode desktop (`PALTRIAL.DRV`) is runtime validated. v0074
+  shared text rendering was reported roughly 30% faster (subjective).
+- `PALX386.DRV` successfully launched the Windows 3.1 desktop, with
+  386 Enhanced mode confirmed in the About dialog by the maintainer.
+  This is startup-only validation, not full Enhanced-mode support.
+- DOS-window/full-screen switching, VDD notifications, repaint,
+  video ownership and state restoration remain mandatory next work.
+- `PALSTAGE.DRV` remains a non-activating staging binary. Do not install it.
+- Preserve the four-OS architecture; WfW 3.11, Windows 95/98, additional
+  display formats and accelerated chipset backends remain future work.
+- v0077 changes build paths, test orchestration and documentation only.
+  No C sources, headers, linker recipes or driver build flags are changed.
+
+## Repository layout
+
+```text
+checksums/      Patch SHA-256 manifests
+common/         Shared C89 renderer and hardware interfaces
+docs/          Engineering notes and historical milestones
+dos/           DOS diagnostic sources and build script
+hardware/      Chipset and simulation backends
+include/       Shared headers
+makefiles/     Main and standalone host makefiles
+patch-notes/   Patch release notes
+tests/         Host tests; generated artifacts in tests/exes/ (ignored)
+tools/         Build/verification/packaging tools
+windows/       OS-specific code and Win16 build scripts
+```
+
+## Build and test from the repository root
+
+```sh
+make -f makefiles/Makefile clean
+make -f makefiles/Makefile test-all
+```
+
+`test` retains the existing main-suite coverage; `test-all` also runs
+all 22 standalone regression makefiles. A single test can be run with
+`make -f makefiles/Makefile.win31native test`, for example. Do not use
+`make -C makefiles`: source paths are relative to the repository root.
+No root Makefile or wrapper is needed.
+
+With Open Watcom configured, the native build commands remain:
+
+```sh
+sh windows/win31/build-palddi.sh
+sh windows/win31/build-paltrial.sh
+sh windows/win31/build-palx386.sh
+```
+
+Outputs are still under `tests/exes/`. Host tests do not replace native
+Win16 compilation, NE audits or 86Box testing. Resource binding and VM
+activation instructions are in `docs/v0076-enhanced-startup.md` (historical
+v0076 paths in that document should be translated as below).
+
+## Patches and historical records
+
+Apply repository-relative ZIP patches from the repository root:
+
+```sh
+unzip -o ~/Downloads/pal77.zip
+sha256sum -c checksums/CHECKSUMS-v0077.sha256
+```
+
+New notes go in `patch-notes/`, manifests in `checksums/`, and makefiles
+in `makefiles/`. Manifest entries are relative to the repository root,
+not the checksum file's directory. Historical notes and checksum manifests
+are retained unchanged: they describe their original release trees and
+may refer to old paths or superseded files. Do not expect old manifests
+to validate the latest working tree.
+
+For old commands, translate `make` to `make -f makefiles/Makefile`,
+`make -f Makefile.NAME` to `make -f makefiles/Makefile.NAME`, and old
+root-level notes and manifests to their respective subdirectories.
+Some retired makefiles mentioned in historical notes no longer exist.
+
+See `docs/v0077-layout.md` for the layout transition and next steps.
+
+---
+
+# Historical development log (v0048 and earlier)
+
+The following entries are retained for reference, not current capability
+or installation guidance. The current status and commands above take priority.
+
 # Palettium v0048 -- first GDI initialization diagnosis
 
 The v0047 Windows 3.1 BOOTLOG shows PALTRIAL.DRV LoadSuccess,
@@ -14,7 +108,7 @@ PALTRIAL adds a temporary KERNEL-only DOS file trace to distinguish
 GDI phases. Only this trial build calls it; `PALSTAGE` remains fail-closed.
 The trace is a diagnostic that itself may affect low memory or disk I/O.
 Never infer an unlogged phase was skipped when the trace file is absent.
-See PATCH-v0048.txt for instructions. Expected file: C:\PALBOOT.TXT.
+See patch-notes/PATCH-v0048.txt for instructions. Expected file: C:\PALBOOT.TXT.
 There is no evidence yet that GDI can actually initialize the desktop.
 
 ---
@@ -67,7 +161,7 @@ INT 10h wrapper can remain because it avoids unrelated runtime linkage.
 ```
 cd ~/dev/palettium
 unzip -o ~/Downloads/pal47.zip
-make clean && make test
+make -f makefiles/Makefile clean && make -f makefiles/Makefile test
 sh windows/win31/build-palddi.sh
 sh windows/win31/build-paltrial.sh
 python3 tools/check_win31_imports.py tests/exes/PALTRIAL.DRV
@@ -293,7 +387,7 @@ v0040 export ordinals were confirmed with `wdump`.
 - **v0031 (maintainer-validated build-repair checkpoint):** the Open Watcom Win16 link recipe now
   supplies the ET4000AX header path and compiles the existing ET4000AX
   backend, fixing the maintainer-reported v0030 include error and the
-  subsequent unresolved-symbol risk. `make clean` is now **project-wide**:
+  subsequent unresolved-symbol risk. `make -f makefiles/Makefile clean` is now **project-wide**:
   it removes all generated binaries under `tests/exes/`, DOS products under
   `build/`, and legacy Win16 probe outputs while preserving sources and
   checked-in link recipes. A maintenance regression checks both. **Open
@@ -435,29 +529,29 @@ cannot be assumed binary-identical without testing.
 
 ## Build and test (Linux)
 
-The top-level `make clean` removes **all** generated test executables,
+The top-level `make -f makefiles/Makefile clean` removes **all** generated test executables,
 Win16 driver objects/exports, DOS build outputs, and historical Win16 probe
 binaries. It is idempotent; recompilation is required afterwards. For the
 shared C89 renderer and existing regression suite:
 
 ```sh
-make clean && make test
+make -f makefiles/Makefile clean && make -f makefiles/Makefile test
 ```
 
 For the current Windows 3.1 and ET4000AX integration tests:
 
 ```sh
-make -f Makefile.win31link test
-make -f Makefile.screen17 test
-make -f Makefile.win31ddi test
-make -f Makefile.bitmap test
-make -f Makefile.enable22 test
-make -f Makefile.et4k test
-make -f Makefile.et4kmodes test
-make -f Makefile.win31native test
-make -f Makefile.win31diag test
-make -f Makefile.win31text test
-make -f Makefile.cursor test
+make -f makefiles/Makefile.win31link test
+make -f makefiles/Makefile.screen17 test
+make -f makefiles/Makefile.win31ddi test
+make -f makefiles/Makefile.bitmap test
+make -f makefiles/Makefile.enable22 test
+make -f makefiles/Makefile.et4k test
+make -f makefiles/Makefile.et4kmodes test
+make -f makefiles/Makefile.win31native test
+make -f makefiles/Makefile.win31diag test
+make -f makefiles/Makefile.win31text test
+make -f makefiles/Makefile.cursor test
 ```
 
 Tests compile with a host C89 compiler; generated executables and artifacts go
@@ -480,7 +574,7 @@ The earlier 13-export **v0029** build passed on the maintainer's Open Watcom
 system. The **v0030 build stopped** on a missing `et4k.h` include directory;
 v0031 adds that directory and includes `et4k.c` in the Win16 link recipe.
 The **v0039 Open Watcom build passed on the maintainer's machine**.
-The v0032 PALDIAG build succeeded but its original Windows runtime failed; v0033 and v0034 PALDIAG then succeeded in 86Box, and the v0035 STEP 6 VDD-configuration screenshot succeeded. v0036 DOS diagnostic was later user-validated at all three VRAM sizes across three BIOS versions. See HANDOFF.md for the up-to-date tests and v0040 limitations.
+The v0032 PALDIAG build succeeded but its original Windows runtime failed; v0033 and v0034 PALDIAG then succeeded in 86Box, and the v0035 STEP 6 VDD-configuration screenshot succeeded. v0036 DOS diagnostic was later user-validated at all three VRAM sizes across three BIOS versions. See the historical patch notes for v0040 limitations.
 
 When applying an incremental patch downloaded through your browser:
 
@@ -515,5 +609,5 @@ text/cursor and missing bitmap DDIs and test Win3.1 standard-mode startup
 first, then 386 enhanced mode with the appropriate VDD and screen switching,
 in a recoverable 86Box VM. Preserve shared code across the four OS targets.
 
-Check `HANDOFF.md` and `PATCH-v0040.txt` for precise checkpoint status and
-remaining test gaps. Earlier `docs/` and patch notes document the milestones.
+See `patch-notes/PATCH-v0040.txt` for historical checkpoint status and
+test gaps. Earlier `docs/` and patch notes document the milestones.

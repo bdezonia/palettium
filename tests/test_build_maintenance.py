@@ -125,7 +125,8 @@ def check_win16_recipe():
 def check_full_clean():
     with tempfile.TemporaryDirectory(prefix="pal-clean-") as temp:
         base = pathlib.Path(temp)
-        shutil.copyfile(ROOT / "Makefile", base / "Makefile")
+        (base / "makefiles").mkdir()
+        shutil.copyfile(ROOT / "makefiles/Makefile", base / "makefiles/Makefile")
         generated = [
             "tests/exes/raster-test", "tests/exes/win31-native-test",
             "tests/exes/PALSTAGE.DRV", "tests/exes/PALSTAGE.generated.lnk",
@@ -141,13 +142,16 @@ def check_full_clean():
         retained = [
             "windows/win31/PALPROBE.LNK", "windows/win31/palddi.c",
             "windows/win31/README.md", "README.md", "tests/test_kept.c",
+            "makefiles/Makefile", "makefiles/Makefile.kept",
+            "checksums/CHECKSUMS-v0076.sha256", "patch-notes/PATCH-v0076.txt",
         ]
         for rel in generated + retained:
             path = base / rel
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("test fixture\n")
+            if not path.exists():
+                path.write_text("test fixture\n")
         for _ in range(2):  # clean must be idempotent
-            subprocess.run(["make", "clean"], cwd=base, check=True,
+            subprocess.run(["make", "-f", "makefiles/Makefile", "clean"], cwd=base, check=True,
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         for rel in generated:
             assert not (base / rel).exists(), "not cleaned: " + rel

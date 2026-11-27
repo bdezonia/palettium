@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pack specified repo-relative files with real UTC ZIP extended timestamps.
 
-Usage: python3 tools/pack_utc.py pal16.zip PATCH-v0016.txt ...
+Usage: python3 tools/pack_utc.py pal77.zip patch-notes/PATCH-v0077.txt ...
 Run in the repository root; never pass compiled binaries or ROMs.
 """
 import datetime
@@ -31,7 +31,7 @@ def pack(output, filenames):
                 raise ValueError('invalid relative source file: ' + filename)
             zi = zipfile.ZipInfo(path.as_posix(), stamp)
             zi.create_system = 3
-            zi.external_attr = (0o100644 << 16)
+            zi.external_attr = (path.stat().st_mode & 0xffff) << 16
             zi.extra = struct.pack('<HHBI', 0x5455, 5, 1, now)
             zf.writestr(zi, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED)
         assert zf.testzip() is None

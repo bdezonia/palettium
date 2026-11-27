@@ -1,7 +1,9 @@
 CC = cc
 CFLAGS = -std=c89 -O2 -Wall -Wextra -Werror -Iinclude -Ihardware/sim_bank
 
-.PHONY: all test clean
+# Run from the repository root: make -f makefiles/Makefile test-all
+# Source and output paths remain repository-relative.
+.PHONY: all test test-all clean
 all: tests/exes/raster-test tests/exes/banked-test tests/exes/blit-test tests/exes/win16-guard tests/exes/hardware-test tests/exes/format-test tests/exes/hardware-format-test
 tests/exes/raster-test: common/rgfx.c tests/test_raster.c include/rgfx.h | tests/exes
 	$(CC) $(CFLAGS) common/rgfx.c tests/test_raster.c -o $@
@@ -19,15 +21,28 @@ test: all
 	./tests/exes/hardware-format-test
 	python3 tests/test_build_maintenance.py
 	python3 tests/test_win31_importcheck.py
-	$(MAKE) -f Makefile.gdiinfo test
-	$(MAKE) -f Makefile.win31diag test
-	$(MAKE) -f Makefile.win31enh test
-	$(MAKE) -f Makefile.win31load test
-	$(MAKE) -f Makefile.win31trial test
-	$(MAKE) -f Makefile.win31boottrace test
-	$(MAKE) -f Makefile.win31text test
-	$(MAKE) -f Makefile.cursor test
-	$(MAKE) -f Makefile.win31cursor test
+	$(MAKE) -f makefiles/Makefile.gdiinfo test
+	$(MAKE) -f makefiles/Makefile.win31diag test
+	$(MAKE) -f makefiles/Makefile.win31enh test
+	$(MAKE) -f makefiles/Makefile.win31load test
+	$(MAKE) -f makefiles/Makefile.win31trial test
+	$(MAKE) -f makefiles/Makefile.win31boottrace test
+	$(MAKE) -f makefiles/Makefile.win31text test
+	$(MAKE) -f makefiles/Makefile.cursor test
+	$(MAKE) -f makefiles/Makefile.win31cursor test
+# The main test target retains its existing subset. The complete suite
+# runs every other standalone regression makefile sequentially, avoiding
+# duplicate concurrent writes to shared test executables.
+CORE_SUBTESTS = gdiinfo win31diag win31enh win31load win31trial \
+                win31boottrace win31text cursor win31cursor
+CORE_MAKEFILES = $(addprefix makefiles/Makefile.,$(CORE_SUBTESTS))
+EXTRA_MAKEFILES = $(filter-out $(CORE_MAKEFILES),$(sort $(wildcard makefiles/Makefile.*)))
+test-all: test
+	+@set -e; for mf in $(EXTRA_MAKEFILES); do \
+	    $(MAKE) -f "$$mf" test; \
+	done
+	@echo "PASS: main and all standalone host regression targets"
+
 # This is the project-wide clean, not merely the original seven raster tests.
 # All Makefile.* host binaries and the Win16 staging objects live under
 # tests/exes; DOS outputs live under build/. Older Win16 probe scripts run

@@ -1,0 +1,10 @@
+Palettium v0077 — project layout synchronization (after reorganized v0076)
+Apply from repository root; no enclosing ZIP directory.
+Read docs/v0077-layout.md and updated README.md.
+Verify: sha256sum -c checksums/CHECKSUMS-v0077.sha256
+Test: make -f makefiles/Makefile clean
+      make -f makefiles/Makefile test-all
+Host main + all 22 supplemental regression targets PASS.
+No driver code changes. Native build commands unchanged; Watcom validation pending.
+Patch notes/checksums/makefiles remain in maintainer's new subdirectories.
+Next: Enhanced-mode VDD notification bridge; no DOS switching test yet.

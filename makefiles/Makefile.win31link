@@ -1,7 +1,7 @@
 .PHONY: test win16 clean
 
 test: tests/exes/win31-pixel-test tests/exes/win31-palette-test tests/exes/win31-objects-test tests/exes/win31-lines-test tests/exes/win31-mem-test
-	$(MAKE) -f Makefile.win31text test
+	$(MAKE) -f makefiles/Makefile.win31text test
 	./tests/exes/win31-pixel-test
 	./tests/exes/win31-palette-test
 	./tests/exes/win31-objects-test

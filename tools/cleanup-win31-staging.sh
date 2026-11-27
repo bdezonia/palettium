@@ -16,7 +16,8 @@ for path in \
     windows/win31/PALGDI.DRV \
     windows/win31/PALGDI.EXPORTS.txt \
     tests/exes/palddi20.obj \
-    Makefile.far20
+    Makefile.far20 \
+    makefiles/Makefile.far20
  do
     if [ -e "$path" ]; then rm -f "$path"; echo "removed $path"; fi
  done
