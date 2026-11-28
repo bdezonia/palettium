@@ -71,6 +71,9 @@
 #ifdef PAL_WIN31_ENH_HOOK
 #include "pal_hook.h"
 #include "pal_switch.h"
+#ifdef PAL_WIN31_NATIVE_REPAINT
+#include "pal_repaint.h"
+#endif
 #endif
 
 static PAL_ScreenHost *pal_active_host = 0;
@@ -94,6 +97,9 @@ static int pal_ddi_trace_enter(const char *name)
 {
 #ifdef PAL_WIN31_ENH_HOOK
     pal_hook_sync();
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    if (pal_boottrace_suspended) return 0;
+#endif
     pal_hook_trace_live(); /* independent of the ordinary DDI trace budget */
 #endif
     if (!pal_ddi_trace_budget) return 0;
@@ -126,6 +132,74 @@ static void pal_hook_sync(void)
             &pal_win16_cursor);
     --pal_win16_cursor.draw_depth;
 }
+#ifdef PAL_WIN31_NATIVE_REPAINT
+/* USER ordinal 275 is a FAR PASCAL procedure without arguments. Lookup
+ * only during Enable, never inside the multiplex handler. The DDK allows
+ * this special callback on foreground notification when USER permits it.
+ * No direct USER import; no file trace from the callback or nested GDI. */
+typedef void (FAR PASCAL *PAL_UserRepaint)(void);
+static PAL_UserRepaint pal_user_repaint;
+static PAL_Repaint pal_repaint;
+/* Atomic exchange prevents a nested notification from claiming the same
+ * epoch. Do not mask interrupts around USER calls. */
+static volatile unsigned pal_repaint_dispatch;
+#if defined(__WATCOMC__) && !defined(__386__)
+static unsigned pal_repaint_lock(volatile unsigned *gate);
+#pragma aux pal_repaint_lock = "mov ax,1" "xchg ax,[si]" \
+    parm [si] value [ax] modify [ax];
+#else
+static unsigned pal_repaint_lock(volatile unsigned *gate)
+{
+    unsigned old=*gate;
+    *gate=1;
+    return old;
+}
+#endif
+static void pal_native_repaint_try(void)
+{
+    unsigned fg,focus,ready;
+    if (pal_repaint_lock(&pal_repaint_dispatch)) return;
+    if (!pal_user_repaint || !pal_repaint.armed || pal_repaint.busy) goto done;
+    focus=pal_hook_read(PAL_HOOK_FOCUS);
+    fg=pal_hook_read(PAL_HOOK_FG);
+    if (focus!=2u || fg==pal_repaint.last) goto done;
+    if (!pal_repaint.blocked && !pal_boottrace_busy &&
+        !pal_boottrace_suspended) pal_hook_sync();
+    ready=!pal_boottrace_busy && !pal_boottrace_suspended &&
+        !pal_win16_cursor.draw_depth && !pal_win16_cursor.composing &&
+        pal_hook_recovery_enabled && pal_hook_recovered_fg==fg &&
+        pal_hook_read(PAL_HOOK_FOCUS)==2u && pal_hook_read(PAL_HOOK_FG)==fg;
+    if (!pal_repaint_claim(&pal_repaint,focus,fg,ready)) goto done;
+    pal_boottrace_suspended=1;
+    (*pal_user_repaint)();
+    pal_boottrace_suspended=0;
+    pal_repaint_finish(&pal_repaint);
+done:
+    pal_repaint_dispatch=0;
+}
+/* Resident assembly supplies driver DS and saves registers/flags. */
+void PAL_HOOK_CALL pal_native_repaint_event(void)
+{
+    pal_native_repaint_try();
+}
+static void pal_native_repaint_resolve(void)
+{
+    HMODULE user=GetModuleHandle("USER");
+    pal_user_repaint=user ? (PAL_UserRepaint)GetProcAddress(user,
+                                      (LPSTR)MK_FP(0,275u)) : 0;
+    pal_boottrace(pal_user_repaint ? "NATIVE REPAINT RESOLVED" :
+                                   "NATIVE REPAINT UNAVAILABLE");
+}
+static void pal_native_repaint_trace(void)
+{
+    pal_boottrace_hex("NATIVE REPAINT CALLS",pal_repaint.calls);
+    pal_boottrace_hex("NATIVE REPAINT RETURNS",pal_repaint.completed);
+    pal_boottrace_hex("NATIVE REPAINT DEFERRED",pal_repaint.deferred);
+    pal_boottrace_hex("NATIVE REPAINT BLOCKED",pal_repaint.blocked);
+    pal_boottrace_hex("NATIVE REPAINT DISABLES",pal_repaint.disables);
+    pal_boottrace_hex("NATIVE REPAINT ENABLES",pal_repaint.enables);
+}
+#endif
 #endif
 #if defined(PAL_WIN31_ENH_HOOK) && defined(PAL_WIN31_BOOTTRACE)
 /* Ordinary drawing context only. Never call this from cursor ISR entries,
@@ -140,6 +214,9 @@ static void pal_hook_trace_live(void)
 {
     unsigned n,changed=0,values[6];
     if (!pal_hook_live_enabled) return;
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    if (pal_boottrace_suspended || pal_boottrace_busy) return;
+#endif
     for (n=0;n<6u;++n) {
         values[n]=pal_hook_read(n);
         if (values[n]!=pal_hook_live_last[n]) changed=1;
@@ -160,6 +237,9 @@ static void pal_hook_trace_live(void)
     pal_boottrace_hex("HOOK LIVE BANK VALID",pal_native_session.card.bank_valid);
     pal_boottrace_hex("HOOK LIVE READ BANK",pal_native_session.card.read_bank);
     pal_boottrace_hex("HOOK LIVE WRITE BANK",pal_native_session.card.write_bank);
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    pal_native_repaint_trace();
+#endif
 }
 #endif
 
@@ -392,6 +472,9 @@ static int pal_win16_activate(LPVOID destination)
             unsigned status,selector,count;
             /* Install only AFTER a complete successful publication. No
              * hook can escape a failed hardware startup transaction. */
+#ifdef PAL_WIN31_NATIVE_REPAINT
+            pal_native_repaint_resolve();
+#endif
             pal_boottrace("HOOK INSTALL ENTER");
             status=pal_hook_install();
             pal_boottrace_hex("HOOK INSTALL STATUS",status);
@@ -407,6 +490,10 @@ static int pal_win16_activate(LPVOID destination)
 #if defined(PAL_WIN31_BOOTTRACE)
                 pal_hook_recovered_fg=0;
                 pal_hook_recovery_enabled=(selector==original_selector && count);
+#ifdef PAL_WIN31_NATIVE_REPAINT
+                if (pal_hook_recovery_enabled && pal_user_repaint)
+                    pal_repaint_arm(&pal_repaint,pal_hook_read(PAL_HOOK_FG));
+#endif
                 pal_hook_live_enabled=1;
                 pal_hook_live_seen=0;
                 pal_hook_live_calls=0;
@@ -503,14 +590,18 @@ void FAR PASCAL CheckCursor(void)
     pal_cursor16_check(&pal_win16_cursor);
 }
 
-/* Standard-mode KERNEL resolves DISPLAY ordinal 500 and calls it with
- * a WORD to disable (1) or enable (0) driver-initiated USER repaint.
- * Palettium currently never requests USER repaint, so both states are
- * already honored. Do not suppress normal GDI drawing or call USER here.
- * This callback can run in sensitive kernel contexts: no tracing/I/O. */
+/* KERNEL/USER resolve DISPLAY ordinal 500 and pass a byte flag in a
+ * WORD stack slot. Only the experimental PALXRPT uses the documented
+ * re-enable callback to retry a pending foreground repaint. No tracing
+ * or file I/O here; other builds remain stubs. */
 void FAR PASCAL UserRepaintDisable(WORD disable)
 {
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    pal_repaint_permission(&pal_repaint,disable);
+    if (!pal_repaint.blocked) pal_native_repaint_try();
+#else
     (void)disable;
+#endif
 }
 
 /* Default PALSTAGE always refuses. PALTRIAL remains Standard only;
@@ -546,6 +637,11 @@ static int pal_win16_install_ready(void)
                                       "SYSTEM.INI") != PAL_HOOK_KEY)
         allowed=0;
     pal_boottrace("ENH PASSIVE HOOK GATE");
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    if ((unsigned)GetPrivateProfileInt("Palettium","EnhancedRepaint",0,
+                                      "SYSTEM.INI") != 4404u) allowed=0;
+    pal_boottrace("ENH NATIVE REPAINT GATE");
+#endif
 #endif
 #else
     allowed=pal_win31_trial_permitted(flags,vram,key);
@@ -1937,6 +2033,11 @@ void FAR PASCAL Disable(LPVOID physical_device)
     token=pal_ddi_far_token((PAL_U16)FP_SEG(physical_device),
                             (PAL_U16)FP_OFF(physical_device));
     if (token != pal_active_host->ddi.screen_token) return;
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    /* Stop callback dispatch before any logging or hardware teardown. */
+    pal_repaint.armed=0;
+    pal_user_repaint=0;
+#endif
     pal_boottrace("DISABLE ENTER");
 #ifdef PAL_WIN31_ENH_HOOK
     if (pal_active_host == &pal_native_session.host) {
@@ -1946,6 +2047,9 @@ void FAR PASCAL Disable(LPVOID physical_device)
         pal_hook_trace_live();
         pal_hook_live_enabled=0;
         pal_hook_recovery_enabled=0;
+#endif
+#ifdef PAL_WIN31_NATIVE_REPAINT
+        pal_native_repaint_trace();
 #endif
         pal_boottrace("HOOK REMOVE ENTER");
         status=pal_hook_remove();

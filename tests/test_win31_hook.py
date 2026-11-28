@@ -15,12 +15,22 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / 'windows/win31/pal_hook.asm'
 
 
-def parse():
+def parse(native=False):
     code, labels, data = [], {}, {}
     in_code = False
+    enabled = True
     for line in SRC.read_text().splitlines():
         line = line.split(';')[0].strip().lower()
-        if not line:
+        if line == 'ifdef pal_native_repaint':
+            enabled = native
+            continue
+        if line == 'else':
+            enabled = not native
+            continue
+        if line == 'endif':
+            enabled = True
+            continue
+        if not enabled or not line:
             continue
         if line.startswith('palhook_code segment'):
             in_code = True
@@ -33,9 +43,9 @@ def parse():
         elif line.startswith(('push ', 'pop ', 'mov ', 'cmp ', 'jne ',
                               'je ', 'jz ', 'jmp ', 'inc ', 'call ', 'or ',
                               'xor ', 'shl ', 'int ', 'ja ')) or line in (
-                                  'pushf', 'popf', 'ret', 'retf', 'retf 2'):
+                                  'pushf', 'popf', 'pushfd', 'popfd', 'pushad', 'popad', 'cld', 'ret', 'retf', 'retf 2'):
             code.append(line)
-        elif in_code and not (line.startswith(('assume ', 'public ')) or line.endswith(' endp')):
+        elif in_code and not (line.startswith(('assume ', 'public ', 'extrn ')) or line.endswith(' endp')):
             raise AssertionError('unmodeled instruction: ' + line)
     return code, labels, data
 
@@ -47,12 +57,13 @@ class CPU:
     def __init__(self):
         self.r = dict(ax=0x1111, bx=0x2222, cx=0x3333, dx=0x4444,
                       si=0x5555, di=0x6666, bp=0x7777, ds=0x8888,
-                      es=0x9999, ss=0xaaaa, cs=0x1000, sp=0xe000)
+                      es=0x9999, fs=0x1110, gs=0x2220, ss=0xaaaa, cs=0x1000, sp=0xe000)
         self.flags = 0x0847
         self.mem = {(0x2000, off): 0 for off in DATA.values()}
         self.vector = (0x3000, 0x4444)
         self.set_mode = 'normal'
         self.sets = 0
+        self.callbacks = 0
 
     def address(self, a):
         if a in DATA:
@@ -108,6 +119,19 @@ class CPU:
             elif op == 'pop': self.put(a, self.pop())
             elif op == 'pushf': self.push(self.flags)
             elif op == 'popf': self.flags = self.pop()
+            # Model the stack sizes of the 386 save block; registers in
+            # the legacy model are low words. Upper halves are not modeled.
+            elif op == 'pushfd': self.push(0); self.push(self.flags)
+            elif op == 'popfd': self.flags=self.pop(); self.pop()
+            elif op == 'pushad':
+                sp=self.r['sp']
+                for k in ('ax','cx','dx','bx','sp','bp','si','di'):
+                    self.push(0); self.push(sp if k=='sp' else self.r[k])
+            elif op == 'popad':
+                for k in ('di','si','bp','sp','bx','dx','cx','ax'):
+                    v=self.pop(); self.pop()
+                    if k!='sp': self.r[k]=v
+            elif op == 'cld': self.flags &= ~0x400
             elif op in ('mov', 'cmp', 'or', 'xor', 'shl'):
                 dst, src = map(str.strip, a.split(','))
                 b = self.get(src)
@@ -127,7 +151,16 @@ class CPU:
                 z, c = bool(self.flags & 0x40), bool(self.flags & 1)
                 if {'jne': not z, 'je': z, 'jz': z, 'ja': not z and not c,
                     'jmp': True}[op]: pc = LABELS[a.split()[-1]]
-            elif op == 'call': self.push(pc); pc = LABELS[a]
+            elif op == 'call':
+                if a=='_pal_native_repaint_event':
+                    assert self.r['ds']==0x2000 and not (self.flags & 0x400)
+                    assert self.get('last_focus')==2
+                    self.callbacks+=1
+                    # A balanced far callback may clobber all ordinary registers.
+                    for k in ('ax','bx','cx','dx','si','di','bp','ds','es','fs','gs'):
+                        self.r[k]=0xdead
+                    self.flags=0x42
+                else: self.push(pc); pc = LABELS[a]
             elif op == 'ret': pc = self.pop()
             elif op == 'retf':
                 ip, cs = self.pop(), self.pop()
@@ -243,3 +276,9 @@ def test_export():
 
 if __name__ == '__main__':
     test_hook(); test_ne(); test_export()
+    CODE,LABELS,DATA=parse(native=True)
+    test_hook()
+    c=CPU(); assert c.farcall('install')==1
+    for ax in (0x4001,0x4005,0x4006,0x1684,0x4002,0x4002): c.notify(ax)
+    assert c.callbacks==2
+    print('PASS: native callback dispatch, DS, DF, low register and chain-frame model')

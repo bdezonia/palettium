@@ -11,11 +11,12 @@ and host tests. Native drivers are experimental; use disposable 86Box VMs.
 | PALSTAGE.DRV | Non-activating staging and ABI checks | Never install |
 | PALTRIAL.DRV | Standard-mode trial | Desktop validated |
 | PALX386.DRV | Enhanced-mode startup only | Desktop validated |
-| PALXHOOK.DRV | Enhanced-mode INT 2Fh observer and experimental recovery | Desktop, chain probe, removal and switch notifications validated |
+| PALXHOOK.DRV | Enhanced-mode INT 2Fh observer and experimental recovery | One full-screen DOS round trip and clean shutdown with PALWATCH /repaintonce validated |
+| PALXRPT.DRV | Experimental driver-managed USER repaint | Host checks only; native build and runtime pending |
 
-Full-screen/windowed DOS compatibility and active video ownership are not
-validated. Assisted save/restore is not enabled. Do not treat startup or
-passive observation as full Enhanced-mode support.
+Repeated full-screen switches, windowed DOS compatibility and active video
+ownership are not fully validated. Assisted save/restore is not enabled.
+Do not treat the one-shot result as full Enhanced-mode support.
 
 ## Build from the repository root
 
@@ -28,14 +29,15 @@ sh windows/win31/build-paltrial.sh
 sh windows/win31/build-palx386.sh
 sh windows/win31/build-palxhook.sh
 sh windows/win31/build-palwatch.sh # optional live diagnostics
+sh windows/win31/build-palxrpt.sh # native repaint experiment
 ```
 
 Build only the variant needed for a given experiment. Products go in
-`tests/exes/`. The activation builds default to tracing; set
-`PAL_TRIAL_TRACE=0` before invoking their build script for an untraced build.
+`tests/exes/`. The activation builds default to tracing; PALTRIAL alone supports
+`PAL_TRIAL_TRACE=0` for an untraced build.
 Keep tracing enabled for diagnostic sessions. Native driver link audits
 check expected exports, module name and KERNEL-only imports. PALXHOOK
-also requires the resident-segment audit.
+and PALXRPT also require the resident-segment audit.
 
 ## Bind local startup resources
 
@@ -97,10 +99,12 @@ EnhancedHook=4403
 Start `WIN /B` on the current VM (confirm Enhanced mode). For the startup-only fallback use PALX386.DRV instead;
 it does not install the hook. Do not enable assisted save/restore.
 The observer receives background/foreground notifications. Bank/cursor
-resynchronization plus `PALWATCH.EXE /repaint` restored the desktop in a
-VM test; a post-switch hang remains. See [repaint and shutdown experiment](../../docs/v0082-repaint-shutdown.md).
-`PALWATCH.EXE /repaintonce` is an experimental hidden, one-shot repaint
-monitor that exits after several samples following a successful request.
+resynchronization plus `PALWATCH.EXE /repaintonce` restored the desktop and
+allowed normal shutdown in a VM test. The earlier visible-monitor hang is
+not isolated. See [repaint and shutdown experiment](../../docs/v0082-repaint-shutdown.md).
+For the separate PALXRPT native repaint experiment, follow
+[the v0083 instructions](../../docs/v0083-native-repaint.md); no PALWATCH
+process is needed during that test. Retain PALXHOOK as the validated fallback.
 On a hang or hook-removal conflict, recover the logs before restoring the VM
 snapshot. Never attempt live unloading of the observer. Save `C:\PALBOOT.TXT`
 and `C:\PALWATCH.TXT` before the next launch overwrites them; also save

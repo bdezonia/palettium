@@ -1,0 +1,13 @@
+Palettium v0084
+
+Change Palettium's project license from MIT to Apache License 2.0.
+- Replace root LICENSE with the standard, unmodified Apache 2.0 text.
+- Add root NOTICE with the existing copyright holder and project attribution.
+- Document the license, voluntary README credit request, historical MIT
+  permissions and third-party resource exclusions in README.md.
+- Preserve the previous MIT text verbatim in docs/history/ for reference.
+
+No source, build recipe, test or driver binary changes. Earlier distributed
+MIT versions retain their original permissions; this is not retroactive.
+The license change applies to work for which the project owner has authority
+to grant the license, not third-party Windows resources or OEM components.

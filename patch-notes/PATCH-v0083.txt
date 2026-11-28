@@ -1,0 +1,8 @@
+Palettium v0083
+
+Record v0082 successful hidden one-shot repaint and clean shutdown.
+Add separate opt-in PALXRPT.DRV native USER ordinal 275 experiment,
+foreground epoch and permission gates, reentry guard and trace suppression.
+Keep PALXHOOK and PALWATCH recovery baseline. No shared raster/backend change.
+Host clean test-all PASS. Native build and runtime pending.
+See docs/v0083-native-repaint.md for limitations and tests.

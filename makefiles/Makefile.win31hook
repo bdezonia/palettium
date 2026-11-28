@@ -9,3 +9,8 @@ test:
 	./tests/exes/palwatch-host-test
 	$(CC) $(CFLAGS) -Iinclude -Iwindows/win31 -Ihardware/tseng/et4000ax tests/test_win31_switch.c -o tests/exes/palswitch-host-test
 	./tests/exes/palswitch-host-test
+	$(CC) $(CFLAGS) -fsyntax-only -DPAL_WIN31_TRIAL_MODE -DPAL_WIN31_BOOTTRACE -DPAL_WIN31_ENH_STARTUP -DPAL_WIN31_ENH_HOOK -DPAL_WIN31_NATIVE_REPAINT -Itests/win16_stubs -Iinclude -Iwindows/win31 -Ihardware/tseng/et4000ax -include tests/win16_stubs/driver_syntax.h windows/win31/palddi.c
+	$(CC) $(CFLAGS) -Iwindows/win31 tests/test_win31_repaint.c -o tests/exes/palrepaint-host-test
+	./tests/exes/palrepaint-host-test
+	$(CC) $(CFLAGS) -DPAL_WIN31_BOOTTRACE -DPAL_WIN31_NATIVE_REPAINT -Itests/win16_stubs -Iwindows/win31 windows/win31/pal_boottrace.c tests/test_win31_boottrace.c -o tests/exes/palrepaint-trace-test
+	./tests/exes/palrepaint-trace-test

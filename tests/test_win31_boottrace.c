@@ -47,6 +47,18 @@ int main(void)
     pal_boottrace_hex("BIOS REQUEST",0x002fu);
     assert(!strcmp(output,"LIBMAIN OK\r\nENABLE1 ENTER\r\nENABLE1 OK\r\nBIOS REQUEST=002F\r\n"));
     assert(opens==4 && closes==4 && writes==8 && !active);
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    pal_boottrace_suspended=1;
+    pal_boottrace("NO DOS WHILE REPAINTING");
+    pal_boottrace_hex("NO DOS WHILE REPAINTING",1);
+    pal_boottrace_suspended=0;
+    pal_boottrace_busy=1;
+    pal_boottrace("NO NESTED LOG");
+    pal_boottrace_busy=0;
+    assert(opens==4 && closes==4 && writes==8);
+    pal_boottrace("RESUMED");
+    assert(opens==5 && closes==5 && writes==10 && !pal_boottrace_busy);
+#endif
     puts("PASS: Win16 trial-only KERNEL boottrace create/append/close markers");
     return 0;
 }

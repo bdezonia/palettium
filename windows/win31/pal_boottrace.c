@@ -9,11 +9,18 @@
 #if defined(PAL_WIN31_BOOTTRACE)
 #include <windows.h>
 static int pal_trace_started;
+#ifdef PAL_WIN31_NATIVE_REPAINT
+volatile unsigned pal_boottrace_busy, pal_boottrace_suspended;
+#endif
 void pal_boottrace(const char *event)
 {
     HFILE file;
     unsigned length=0;
     if (!event) return;
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    if (pal_boottrace_busy || pal_boottrace_suspended) return;
+    pal_boottrace_busy=1;
+#endif
     if (!pal_trace_started) {
         pal_trace_started=1;
         file=_lcreat("C:\\PALBOOT.TXT",0);
@@ -21,11 +28,15 @@ void pal_boottrace(const char *event)
         file=_lopen("C:\\PALBOOT.TXT",OF_WRITE);
         if (file>=0) (void)_llseek(file,0L,2);
     }
-    if (file<0) return;
-    while (length<80u && event[length]) ++length;
-    if (length) (void)_lwrite(file,event,length);
-    (void)_lwrite(file,"\r\n",2u);
-    (void)_lclose(file);
+    if (file>=0) {
+        while (length<80u && event[length]) ++length;
+        if (length) (void)_lwrite(file,event,length);
+        (void)_lwrite(file,"\r\n",2u);
+        (void)_lclose(file);
+    }
+#ifdef PAL_WIN31_NATIVE_REPAINT
+    pal_boottrace_busy=0;
+#endif
 }
 /* Keep the diagnostic independent of printf and additional runtime imports. */
 void pal_boottrace_hex(const char *event, unsigned value)

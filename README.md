@@ -29,7 +29,7 @@ See [hardware binding](docs/hardware-api.md) and the
 | Win3.x drawing | 1/8bpp memory bitmaps, screen drawing, text, palette, DIB operations and software cursor; partial DDI coverage |
 | ET4000AX | Native packed 640x400x256 and 640x480x256, banked VRAM and DAC; no VESA dependency |
 | Windows 3.1 Standard mode | Experimental desktop runtime validated in 86Box |
-| Windows 3.1 Enhanced mode | Experimental desktop startup, INT 2Fh hook installation, chaining, removal and switch notifications runtime validated; DOS return visually restored with optional task-side repaint; post-switch shutdown hang unresolved |
+| Windows 3.1 Enhanced mode | Experimental desktop startup, INT 2Fh hook installation, chaining, removal and switch notifications runtime validated; one full-screen DOS round trip and normal shutdown validated with hidden one-shot task-side repaint; native repaint experimental |
 | WfW 3.11, Windows 95/98 | Planned adapters, not working drivers yet |
 
 The ET4000AX DOS backend has been tested at 256, 512 and 1024 KiB.
@@ -94,4 +94,20 @@ logs are preserved as [historical reference](docs/history/), not current
 build or installation guidance. New milestone history belongs in patch
 notes; update this README only when its current descriptions change.
 
-[License](LICENSE)
+## License and attribution
+
+Copyright (c) 2026 Barry DeZonia.
+Palettium is licensed under the [Apache License, Version 2.0](LICENSE)
+(`Apache-2.0`). See [NOTICE](NOTICE) for project attribution. When
+redistributing Palettium or derivative works, comply with the license,
+including its applicable attribution and notice requirements.
+
+If you build a driver or other project based on Palettium, please also
+acknowledge Palettium in your README or documentation. This is a request,
+not an additional license condition.
+
+Third-party software, firmware, OEM drivers and locally supplied Windows
+resources are not covered by Palettium's license grant; their respective
+terms still apply. Releases previously made available under MIT retain
+those permissions. The [historical MIT license](docs/history/LICENSE-MIT-through-v0083.txt)
+is preserved for reference; it is not an alternative license for new work.

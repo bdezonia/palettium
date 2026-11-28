@@ -1,8 +1,13 @@
-; Passive Win16 INT 2F observer. Original Palettium code. No C, DOS,
-; Windows, video I/O, or IRET in the interrupt handler itself.
-; cdecl FAR procedures are called only at normal GDI Enable/Disable.
+; Win16 INT 2F observer. Original Palettium code. Passive build performs
+; no C/Windows/DOS/video calls in the handler. Experimental native-repaint
+; build calls a guarded C bridge for 4002h only; original frame is chained.
+; Vector management occurs at ordinary Enable/Disable.
+ifdef PAL_NATIVE_REPAINT
+.386
+else
 .286
-_DATA segment word public 'DATA'
+endif
+_DATA segment word public use16 'DATA'
 old_off dw 0
 old_seg dw 0
 installed dw 0
@@ -15,10 +20,13 @@ seen_query dw 0
 _DATA ends
 DGROUP group _DATA
 
-PALHOOK_CODE segment word public 'CODE'
+PALHOOK_CODE segment word public use16 'CODE'
 assume cs:PALHOOK_CODE, ds:DGROUP
 public _pal_hook_install, _pal_hook_remove, _pal_hook_read
 public PALHOOKSTATUS
+ifdef PAL_NATIVE_REPAINT
+extrn _pal_native_repaint_event:far
+endif
 
 ; Incoming stack is IP,CS,FLAGS. Reserve two words WITHOUT altering flags.
 ; Place prior vector there, restore original live flags/registers, RETF
@@ -45,6 +53,24 @@ check_fg:
     jne check_save
     inc seen_fg
     mov last_focus,2
+ifdef PAL_NATIVE_REPAINT
+    ; Driver DS is established above. Preserve 386 register halves too,
+    ; since the special USER procedure may reenter Win16 GDI.
+    pushfd
+    pushad
+    push ds
+    push es
+    push fs
+    push gs
+    cld
+    call _pal_native_repaint_event
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    popad
+    popfd
+endif
     jmp short chain_old
 check_save:
     cmp ax,4005h
