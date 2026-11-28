@@ -70,6 +70,7 @@
 #include "pal_boottrace.h"
 #ifdef PAL_WIN31_ENH_HOOK
 #include "pal_hook.h"
+#include "pal_switch.h"
 #endif
 
 static PAL_ScreenHost *pal_active_host = 0;
@@ -85,8 +86,16 @@ static int pal_far_range(PAL_U16 offset, PAL_U32 bytes)
 #if defined(PAL_WIN31_BOOTTRACE)
 static unsigned pal_ddi_trace_budget = 256u;
 static unsigned pal_color_trace_budget = 24u;
+#ifdef PAL_WIN31_ENH_HOOK
+static void pal_hook_trace_live(void);
+static void pal_hook_sync(void);
+#endif
 static int pal_ddi_trace_enter(const char *name)
 {
+#ifdef PAL_WIN31_ENH_HOOK
+    pal_hook_sync();
+    pal_hook_trace_live(); /* independent of the ordinary DDI trace budget */
+#endif
     if (!pal_ddi_trace_budget) return 0;
     --pal_ddi_trace_budget;
     pal_boottrace(name);
@@ -100,6 +109,59 @@ static PAL_Win16ET4K pal_native_adapter;
 /* Driver-owned, persistent: never allocate a 4 KiB saved-under block
  * on the small Win16 stack. Used only after GDI publishes a screen host. */
 static PAL_Cursor16 pal_win16_cursor;
+#ifdef PAL_WIN31_ENH_HOOK
+static volatile unsigned pal_hook_recovery_enabled;
+static volatile unsigned pal_hook_recovered_fg;
+/* The hook publishes only counters. Apply a new foreground epoch at the
+ * next safe DDI/cursor boundary. Never call USER or log from a cursor IRQ.
+ * The existing draw-depth guard excludes the timer compositor. */
+static void pal_hook_sync(void)
+{
+    if (!pal_hook_recovery_enabled || pal_win16_cursor.draw_depth ||
+        pal_win16_cursor.composing) return;
+    ++pal_win16_cursor.draw_depth;
+    if (pal_hook_read(PAL_HOOK_FOCUS)==2u)
+        (void)pal_switch_resume(&pal_hook_recovered_fg,
+            pal_hook_read(PAL_HOOK_FG), &pal_native_session.card,
+            &pal_win16_cursor);
+    --pal_win16_cursor.draw_depth;
+}
+#endif
+#if defined(PAL_WIN31_ENH_HOOK) && defined(PAL_WIN31_BOOTTRACE)
+/* Ordinary drawing context only. Never call this from cursor ISR entries,
+ * UserRepaintDisable or the multiplex handler. Persist transitions before
+ * the operator needs to exit Windows. Reads are individually atomic, not
+ * a coherent multi-counter transaction. A task-side monitor is independent. */
+static unsigned pal_hook_live_enabled;
+static unsigned pal_hook_live_last[6];
+static unsigned pal_hook_live_calls;
+static unsigned pal_hook_live_seen;
+static void pal_hook_trace_live(void)
+{
+    unsigned n,changed=0,values[6];
+    if (!pal_hook_live_enabled) return;
+    for (n=0;n<6u;++n) {
+        values[n]=pal_hook_read(n);
+        if (values[n]!=pal_hook_live_last[n]) changed=1;
+    }
+    ++pal_hook_live_calls;
+    if (!changed && pal_hook_live_seen && pal_hook_live_calls<256u) return;
+    pal_hook_live_seen=1;
+    pal_hook_live_calls=0;
+    for (n=0;n<6u;++n) pal_hook_live_last[n]=values[n];
+    pal_boottrace("HOOK LIVE SNAPSHOT");
+    pal_boottrace_hex("HOOK LIVE BG",values[PAL_HOOK_BG]);
+    pal_boottrace_hex("HOOK LIVE FG",values[PAL_HOOK_FG]);
+    pal_boottrace_hex("HOOK LIVE SAVE",values[PAL_HOOK_SAVE]);
+    pal_boottrace_hex("HOOK LIVE RESTORE",values[PAL_HOOK_RESTORE]);
+    pal_boottrace_hex("HOOK LIVE FOCUS",values[PAL_HOOK_FOCUS]);
+    pal_boottrace_hex("HOOK LIVE QUERY",values[PAL_HOOK_QUERY]);
+    pal_boottrace_hex("HOOK RECOVERED FG",pal_hook_recovered_fg);
+    pal_boottrace_hex("HOOK LIVE BANK VALID",pal_native_session.card.bank_valid);
+    pal_boottrace_hex("HOOK LIVE READ BANK",pal_native_session.card.read_bank);
+    pal_boottrace_hex("HOOK LIVE WRITE BANK",pal_native_session.card.write_bank);
+}
+#endif
 
 /* Cursor entry points may run on interrupt stacks. Capture only bounded
  * scalar observations there. Flush from ordinary drawing or Disable,
@@ -204,6 +266,9 @@ static void pal_cursor_draw_end(void)
     if (pal_win16_cursor.draw_depth)
         pal_cursor16_end_draw(&pal_win16_cursor);
     pal_cursor_trace_snapshot(0);
+#if defined(PAL_WIN31_ENH_HOOK) && defined(PAL_WIN31_BOOTTRACE)
+    pal_hook_trace_live();
+#endif
 }
 
 
@@ -339,6 +404,14 @@ static int pal_win16_activate(LPVOID destination)
                 pal_boottrace_hex("HOOK CHAIN QUERY COUNT",count);
                 pal_boottrace(selector==original_selector && count ?
                     "HOOK CHAIN PROBE OK" : "HOOK CHAIN PROBE FAIL");
+#if defined(PAL_WIN31_BOOTTRACE)
+                pal_hook_recovered_fg=0;
+                pal_hook_recovery_enabled=(selector==original_selector && count);
+                pal_hook_live_enabled=1;
+                pal_hook_live_seen=0;
+                pal_hook_live_calls=0;
+                pal_hook_trace_live();
+#endif
             }
             /* Failures are logged, not converted into GDI load failure:
              * an uncertain vector may already reference resident code. */
@@ -371,6 +444,9 @@ void FAR PASCAL SetCursor(LPVOID shape)
     const unsigned char FAR *far_bytes=(const unsigned char FAR *)shape;
     unsigned available,need,i;
     PAL_U32 remaining;
+#ifdef PAL_WIN31_ENH_HOOK
+    pal_hook_sync();
+#endif
     PAL_CURSOR_COUNT(pal_cursor_sets);
     if (!shape) {
         PAL_CURSOR_COUNT(pal_cursor_nulls);
@@ -420,6 +496,9 @@ void FAR PASCAL MoveCursor(WORD x,WORD y)
 }
 void FAR PASCAL CheckCursor(void)
 {
+#ifdef PAL_WIN31_ENH_HOOK
+    pal_hook_sync();
+#endif
     PAL_CURSOR_COUNT(pal_cursor_checks);
     pal_cursor16_check(&pal_win16_cursor);
 }
@@ -748,6 +827,9 @@ WORD FAR PASCAL DeviceBitmapBits(LPVOID dest, WORD get, WORD start, WORD scans,
     WORD result;
     int traced=0;
     (void)drawmode;
+#ifdef PAL_WIN31_ENH_HOOK
+    pal_hook_sync();
+#endif
 #if defined(PAL_WIN31_BOOTTRACE)
     if (pal_dib_trace_budget) {
         --pal_dib_trace_budget;
@@ -1859,6 +1941,12 @@ void FAR PASCAL Disable(LPVOID physical_device)
 #ifdef PAL_WIN31_ENH_HOOK
     if (pal_active_host == &pal_native_session.host) {
         unsigned status;
+#if defined(PAL_WIN31_BOOTTRACE)
+        pal_hook_sync();
+        pal_hook_trace_live();
+        pal_hook_live_enabled=0;
+        pal_hook_recovery_enabled=0;
+#endif
         pal_boottrace("HOOK REMOVE ENTER");
         status=pal_hook_remove();
         pal_boottrace_hex("HOOK REMOVE STATUS",status);

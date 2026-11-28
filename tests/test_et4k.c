@@ -169,10 +169,26 @@ int main(void)
             CHECK(m->vram[off]==(off>=65534UL && off<65543UL ? 0x39 : 0x77));
         CHECK(m->invalid==0);
     }
+    /* Foreground resumption invalidates cached banks. Simulate a VDD
+     * changing both bank nibbles without telling the backend. The next
+     * same-bank read must program the register, retaining write bank 1. */
+    n=m->writes_to_bank;
+    CHECK(state.read_bank==2 && state.write_bank==1);
+    m->reg=0x77;
+    state.bank_valid=0;
+    (void)rg_read_byte(&dev,2UL*65536UL);
+    CHECK(m->reg==0x21 && m->writes_to_bank==n+1 && state.bank_valid);
+    (void)rg_read_byte(&dev,2UL*65536UL);
+    CHECK(m->writes_to_bank==n+1);
+    m->reg=0x77;
+    state.bank_valid=0;
+    rg_write_byte(&dev,65536UL,0xA9);
+    CHECK(m->reg==0x21 && m->vram[65536UL]==0xA9);
+    CHECK(m->writes_to_bank==n+2 && m->invalid==0);
     rg_hw_close(&binding);
     CHECK(m->restore_calls == 1);
     dev.ops.fill(&dev,0,0,640,480,0);
-    CHECK(m->byte_calls==3 && m->fill_calls==490UL);
+    CHECK(m->byte_calls==4 && m->fill_calls==490UL);
     /* Same backend MUST reject a pixel format its silicon does not support. */
     mode.format = RG_FMT_RGB565;
     mode.capacity = 0;

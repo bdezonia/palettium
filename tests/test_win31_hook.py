@@ -7,6 +7,9 @@ import importlib.util
 import pathlib
 import re
 import struct
+import subprocess
+import sys
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / 'windows/win31/pal_hook.asm'
@@ -30,7 +33,7 @@ def parse():
         elif line.startswith(('push ', 'pop ', 'mov ', 'cmp ', 'jne ',
                               'je ', 'jz ', 'jmp ', 'inc ', 'call ', 'or ',
                               'xor ', 'shl ', 'int ', 'ja ')) or line in (
-                                  'pushf', 'popf', 'ret', 'retf'):
+                                  'pushf', 'popf', 'ret', 'retf', 'retf 2'):
             code.append(line)
         elif in_code and not (line.startswith(('assume ', 'public ')) or line.endswith(' endp')):
             raise AssertionError('unmodeled instruction: ' + line)
@@ -128,6 +131,7 @@ class CPU:
             elif op == 'ret': pc = self.pop()
             elif op == 'retf':
                 ip, cs = self.pop(), self.pop()
+                if a: self.r['sp'] += int(a)
                 return cs, ip
             elif op == 'int':
                 assert a == '21h'
@@ -155,6 +159,13 @@ class CPU:
         assert all(self.r[k] == v for k, v in before.items() if k != 'ax')
         return self.r['ax']
 
+    def status(self, index):
+        before = dict(self.r)
+        self.push(index); self.push(0x1234); self.push(0x5678)
+        assert self.run('palhookstatus') == (0x1234, 0x5678)
+        assert all(self.r[k] == v for k,v in before.items() if k != 'ax')
+        return self.r['ax']
+
     def notify(self, ax):
         self.r['ax'] = ax
         # Original interrupt frame, different from current live flags.
@@ -168,12 +179,15 @@ class CPU:
 
 def test_hook():
     c = CPU()
+    assert c.status(0xffff) == 0xffff
     assert c.farcall('install') == 1
+    assert c.status(0xffff) == 0x805a and c.status(6) == 0xffff
     assert c.vector == (0x1000, LABELS['hook_entry'])
     assert c.farcall('install') == 2 and c.sets == 1
     for ax in (0x1684, 0x4002, 0x4001, 0x4001, 0x4005, 0x4006,
                0x4000, 0x4007, 0x1600, 0x4002): c.notify(ax)
     assert [c.farcall('read', i) for i in range(7)] == [2,2,1,1,2,1,0]
+    assert [c.status(i) for i in range(6)] == [2,2,1,1,2,1]
     c.mem[0x2000, DATA['seen_bg']] = 0xffff
     c.notify(0x4001)
     assert c.farcall('read', 0) == 0 and c.farcall('read', 4) == 1
@@ -181,6 +195,7 @@ def test_hook():
     for ax in range(65536): c.notify(ax)
     assert [c.farcall('read', i) for i in range(6)] == [1,3,2,2,2,2]
     assert c.farcall('remove') == 1 and c.vector == (0x3000, 0x4444)
+    assert c.status(0xffff) == 0xffff and c.status(0) == 0xffff
     assert c.farcall('remove') == 1 and c.sets == 2
     assert c.farcall('install') == 1
     assert [c.farcall('read', i) for i in range(6)] == [0]*6
@@ -216,5 +231,15 @@ def test_ne():
     print('PASS: NE residency audit positive and negative fixtures')
 
 
+def test_export():
+    with tempfile.TemporaryDirectory() as d:
+        path = pathlib.Path(d)/'exports.txt'
+        for line, good in [('PALHOOKSTATUS @501', True), ('PALHOOKSTATUS @502', False), ('', False)]:
+            path.write_text(line+'\n')
+            proc = subprocess.run([sys.executable, str(ROOT/'tools/check_win31_hook_export.py'), str(path)], capture_output=True)
+            assert (proc.returncode == 0) == good
+    print('PASS: private export checker positive and negative fixtures')
+
+
 if __name__ == '__main__':
-    test_hook(); test_ne()
+    test_hook(); test_ne(); test_export()

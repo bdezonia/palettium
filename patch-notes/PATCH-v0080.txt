@@ -1,0 +1,6 @@
+Palettium v0080 - durable Enhanced-mode switching observations
+Apply after v0079. First DOS-return test failed visually; shutdown counter dump
+was absent. Persist live hook counters in ordinary driver trace contexts and
+add PALWATCH.EXE with a private read-only PALXHOOK status export @501. No
+rendering, hardware state or assisted-save behavior changes. Host tests model
+observer and watcher; native build/runtime required. See docs/v0080-switch-diagnostics.md.

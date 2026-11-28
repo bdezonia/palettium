@@ -18,6 +18,7 @@ DGROUP group _DATA
 PALHOOK_CODE segment word public 'CODE'
 assume cs:PALHOOK_CODE, ds:DGROUP
 public _pal_hook_install, _pal_hook_remove, _pal_hook_read
+public PALHOOKSTATUS
 
 ; Incoming stack is IP,CS,FLAGS. Reserve two words WITHOUT altering flags.
 ; Place prior vector there, restore original live flags/registers, RETF
@@ -238,5 +239,34 @@ read_done:
     pop bp
     retf
 _pal_hook_read endp
+; Diagnostic-only named Win16 FAR PASCAL export. Load our own DS even
+; when invoked by an unrelated task. One WORD argument; callee pops it.
+; FFFFh requests the v0080 signature (only while installed). No I/O.
+PALHOOKSTATUS proc far
+    push bp
+    mov bp,sp
+    push ds
+    push bx
+    mov ax,DGROUP
+    mov ds,ax
+    mov ax,0ffffh
+    cmp installed,1
+    jne status_done
+    mov bx,[bp+6]
+    cmp bx,0ffffh
+    jne status_index
+    mov ax,805ah
+    jmp short status_done
+status_index:
+    cmp bx,5
+    ja status_done
+    shl bx,1
+    mov ax,seen_bg[bx]
+status_done:
+    pop bx
+    pop ds
+    pop bp
+    retf 2
+PALHOOKSTATUS endp
 PALHOOK_CODE ends
 end

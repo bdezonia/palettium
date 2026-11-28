@@ -133,6 +133,11 @@ export CheckCursor.104
 export UserRepaintDisable.500
 EOF_EXPORTS
 
+# Private diagnostic, only on the observer; not part of the Win16 DDI.
+if [ "$NAME" = PALXHOOK ]; then
+    printf '%s\n' 'export PALHOOKSTATUS.501' >> "$LINKFILE"
+fi
+
 # Fail early if an edit duplicates the executable-format selection.
 [ "$(grep -ic '^system ' "$LINKFILE")" -eq 1 ] || {
     echo 'FAIL: linker file must contain exactly one SYSTEM directive' >&2
@@ -149,6 +154,7 @@ python3 tools/check_win31_imports.py "$OUTPUT"
 python3 tools/check_win31_exports.py "tests/exes/$NAME.exports.txt"
 if [ "$NAME" = PALXHOOK ]; then
     python3 tools/check_win31_resident.py "$OUTPUT"
+    python3 tools/check_win31_hook_export.py "tests/exes/$NAME.exports.txt"
     printf '%s\n' 'PASS: linked PALXHOOK.DRV (passive notification observer ONLY).' \
         'WARNING: snapshot only; no DOS sessions or VM switching on first test.'
 elif [ "$NAME" = PALX386 ]; then

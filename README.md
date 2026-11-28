@@ -29,7 +29,7 @@ See [hardware binding](docs/hardware-api.md) and the
 | Win3.x drawing | 1/8bpp memory bitmaps, screen drawing, text, palette, DIB operations and software cursor; partial DDI coverage |
 | ET4000AX | Native packed 640x400x256 and 640x480x256, banked VRAM and DAC; no VESA dependency |
 | Windows 3.1 Standard mode | Experimental desktop runtime validated in 86Box |
-| Windows 3.1 Enhanced mode | Experimental desktop startup, passive INT 2Fh hook installation, chaining and removal runtime validated; DOS switching unvalidated |
+| Windows 3.1 Enhanced mode | Experimental desktop startup, INT 2Fh hook installation, chaining, removal and switch notifications runtime validated; DOS return is visually corrupt; foreground recovery experimental |
 | WfW 3.11, Windows 95/98 | Planned adapters, not working drivers yet |
 
 The ET4000AX DOS backend has been tested at 256, 512 and 1024 KiB.

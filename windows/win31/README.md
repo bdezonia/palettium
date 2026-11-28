@@ -11,7 +11,7 @@ and host tests. Native drivers are experimental; use disposable 86Box VMs.
 | PALSTAGE.DRV | Non-activating staging and ABI checks | Never install |
 | PALTRIAL.DRV | Standard-mode trial | Desktop validated |
 | PALX386.DRV | Enhanced-mode startup only | Desktop validated |
-| PALXHOOK.DRV | Enhanced-mode passive INT 2Fh observer | Desktop, hook chain probe and removal validated |
+| PALXHOOK.DRV | Enhanced-mode INT 2Fh observer and experimental recovery | Desktop, chain probe, removal and switch notifications validated |
 
 Full-screen/windowed DOS compatibility and active video ownership are not
 validated. Assisted save/restore is not enabled. Do not treat startup or
@@ -27,6 +27,7 @@ sh windows/win31/build-palddi.sh
 sh windows/win31/build-paltrial.sh
 sh windows/win31/build-palx386.sh
 sh windows/win31/build-palxhook.sh
+sh windows/win31/build-palwatch.sh # optional live diagnostics
 ```
 
 Build only the variant needed for a given experiment. Products go in
@@ -93,13 +94,15 @@ EnhancedStartup=4402
 EnhancedHook=4403
 ```
 
-Start `WIN /B /3`. For the startup-only fallback use PALX386.DRV instead;
+Start `WIN /B` on the current VM (confirm Enhanced mode). For the startup-only fallback use PALX386.DRV instead;
 it does not install the hook. Do not enable assisted save/restore.
-For switching experiments follow the controlled protocol in
-[v0079 runtime validation](../../docs/v0079-runtime-validation.md).
-Restore the VM snapshot on a hang or hook-removal conflict. Never attempt
-live unloading of the observer. Save `C:\PALBOOT.TXT` after exit and before
-the next launch overwrites it; also save BOOTLOG.TXT if relevant.
+The observer receives background/foreground notifications, but DOS return
+is visually corrupt. See [foreground recovery experiment](../../docs/v0081-foreground-recovery.md)
+for the bank/cursor resynchronization and optional task-side repaint test.
+On a hang or hook-removal conflict, recover the logs before restoring the VM
+snapshot. Never attempt live unloading of the observer. Save `C:\PALBOOT.TXT`
+and `C:\PALWATCH.TXT` before the next launch overwrites them; also save
+BOOTLOG.TXT if relevant.
 
 ## Further reading
 

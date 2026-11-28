@@ -1,0 +1,8 @@
+Palettium v0081 - foreground recovery experiment
+Apply after v0080. The VDD delivered one background and one foreground
+notification despite a corrupted desktop. In PALXHOOK only, invalidate
+cached bank selection and discard stale cursor saved-under on a new
+foreground epoch at a guarded boundary. Add optional task-context
+PALWATCH /repaint to request a desktop repaint. No ISR changes, assisted
+save, palette writes or BIOS resets. Standard mode remains unchanged.
+See docs/v0081-foreground-recovery.md; native validation required.
