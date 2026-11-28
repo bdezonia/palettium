@@ -97,6 +97,10 @@ static int pal_far_range(PAL_U16 offset, PAL_U32 bytes)
 #define PAL_FAR_FITS(pointer, bytes) \
     ((pointer) && pal_far_range((PAL_U16)FP_OFF(pointer), (PAL_U32)(bytes)))
 #if defined(PAL_WIN31_BOOTTRACE)
+/* Keep boot/shutdown and bounded failure diagnostics even when detailed
+ * rendering traces are disabled. Do not compile out BOOTTRACE: the
+ * experimental Enhanced recovery path currently depends on it. */
+static unsigned pal_render_trace = 1u;
 static unsigned pal_ddi_trace_budget = 256u;
 static unsigned pal_color_trace_budget = 24u;
 #ifdef PAL_WIN31_ENH_HOOK
@@ -112,7 +116,7 @@ static int pal_ddi_trace_enter(const char *name)
 #endif
     pal_hook_trace_live(); /* independent of the ordinary DDI trace budget */
 #endif
-    if (!pal_ddi_trace_budget) return 0;
+    if (!pal_render_trace || !pal_ddi_trace_budget) return 0;
     --pal_ddi_trace_budget;
     pal_boottrace(name);
     return 1;
@@ -232,7 +236,8 @@ static void pal_hook_trace_live(void)
         if (values[n]!=pal_hook_live_last[n]) changed=1;
     }
     ++pal_hook_live_calls;
-    if (!changed && pal_hook_live_seen && pal_hook_live_calls<256u) return;
+    if (!changed && pal_hook_live_seen &&
+        (!pal_render_trace || pal_hook_live_calls<256u)) return;
     pal_hook_live_seen=1;
     pal_hook_live_calls=0;
     for (n=0;n<6u;++n) pal_hook_live_last[n]=values[n];
@@ -260,6 +265,12 @@ static void pal_hook_trace_live(void)
 static volatile unsigned pal_cursor_sets, pal_cursor_nulls;
 static volatile unsigned pal_cursor_accepts, pal_cursor_rejects;
 static volatile unsigned pal_cursor_moves, pal_cursor_checks;
+/* Session-wide call counts, independent of the detailed trace budget.
+ * These measure calls, not elapsed time or only successful draws. */
+static volatile unsigned pal_perf_scan, pal_perf_rect, pal_perf_poly;
+static volatile unsigned pal_perf_hint, pal_perf_other_output;
+static volatile unsigned pal_perf_blt, pal_perf_text, pal_perf_pixel;
+static volatile unsigned pal_perf_border, pal_perf_dib;
 static volatile unsigned pal_cursor_header[6];
 static volatile unsigned pal_cursor_header_seen;
 static unsigned pal_cursor_trace_seen;
@@ -296,6 +307,7 @@ static void pal_cursor_count(volatile unsigned *counter)
 static void pal_cursor_trace_snapshot(int force)
 {
     unsigned state;
+    if (!force && !pal_render_trace) return;
     state=(pal_cursor_sets?1u:0u) | (pal_cursor_accepts?2u:0u) |
           (pal_cursor_rejects?4u:0u) | (pal_cursor_moves?8u:0u) |
           (pal_cursor_checks?16u:0u) |
@@ -338,6 +350,25 @@ static void pal_cursor_trace_snapshot(int force)
     pal_boottrace_hex("CURSOR VISIBLE",pal_win16_cursor.image.visible);
     pal_boottrace_hex("CURSOR X",(unsigned)pal_win16_cursor.x);
     pal_boottrace_hex("CURSOR Y",(unsigned)pal_win16_cursor.y);
+    if (force) {
+        pal_boottrace_hex("CURSOR HIDES SHAPE",pal_win16_cursor.hide_shape);
+        pal_boottrace_hex("CURSOR HIDES FULL",pal_win16_cursor.hide_full);
+        pal_boottrace_hex("CURSOR HIDES OVERLAP",pal_win16_cursor.hide_overlap);
+        pal_boottrace_hex("CURSOR HIDES MOVE",pal_win16_cursor.hide_move);
+        pal_boottrace_hex("CURSOR SHOWS",pal_win16_cursor.shows);
+        pal_boottrace_hex("CURSOR SHAPE REUSE",pal_win16_cursor.shape_reuse);
+        pal_boottrace_hex("CURSOR TRANSPARENT SKIP",pal_win16_cursor.transparent_skip);
+        pal_boottrace_hex("PERF OUTPUT SCANLINE",pal_perf_scan);
+        pal_boottrace_hex("PERF OUTPUT RECT",pal_perf_rect);
+        pal_boottrace_hex("PERF OUTPUT POLYLINE",pal_perf_poly);
+        pal_boottrace_hex("PERF OUTPUT HINT",pal_perf_hint);
+        pal_boottrace_hex("PERF OUTPUT OTHER",pal_perf_other_output);
+        pal_boottrace_hex("PERF BITBLT",pal_perf_blt);
+        pal_boottrace_hex("PERF TEXT",pal_perf_text);
+        pal_boottrace_hex("PERF PIXEL",pal_perf_pixel);
+        pal_boottrace_hex("PERF FASTBORDER",pal_perf_border);
+        pal_boottrace_hex("PERF DIB",pal_perf_dib);
+    }
 }
 #define PAL_CURSOR_COUNT(x) pal_cursor_count(&(x))
 #else
@@ -658,6 +689,11 @@ static int pal_win16_install_ready(void)
     /* Never change the route of an already published session. */
     if (pal_active_host) return 0;
     pal_unified_enhanced=(flags & 0x0031UL)==0x0021UL;
+#ifdef PAL_WIN31_BOOTTRACE
+    pal_render_trace=GetPrivateProfileInt("Palettium","RenderTrace",1,
+                                         "SYSTEM.INI") != 0;
+    pal_boottrace(pal_render_trace ? "RENDER TRACE ON" : "RENDER TRACE OFF");
+#endif
     pal_boottrace(PAL_ENH_ACTIVE ? "UNIFIED ENHANCED ROUTE" :
                                   "UNIFIED STANDARD ROUTE");
     if (PAL_ENH_ACTIVE) {
@@ -970,7 +1006,8 @@ WORD FAR PASCAL DeviceBitmapBits(LPVOID dest, WORD get, WORD start, WORD scans,
     pal_hook_sync();
 #endif
 #if defined(PAL_WIN31_BOOTTRACE)
-    if (pal_dib_trace_budget) {
+    PAL_CURSOR_COUNT(pal_perf_dib);
+    if (pal_render_trace && pal_dib_trace_budget) {
         --pal_dib_trace_budget;
         traced=1;
         pal_boottrace("DIB ENTER");
@@ -1141,7 +1178,7 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
 #if defined(PAL_WIN31_BOOTTRACE)
     {
         static unsigned font_base_budget=8u;
-        if (font_base_budget) {
+        if (pal_render_trace && font_base_budget) {
             --font_base_budget;
             pal_boottrace_hex("FONT SEGMENT BASE OFFSET",fb.base);
             pal_boottrace_hex("FONT FIRST INPUT CHAR",(unsigned)str[0]);
@@ -1262,6 +1299,7 @@ DWORD FAR PASCAL ExtTextOut(LPVOID dest, short x, short y,
 {
     DWORD result;
     int traced = pal_ddi_trace_enter("DDI ExtTextOut ENTER");
+    PAL_CURSOR_COUNT(pal_perf_text);
     if (traced) {
         pal_boottrace_hex("TEXT COUNT",(unsigned)count);
         pal_boottrace_hex("TEXT OPTIONS",(unsigned)options);
@@ -1299,6 +1337,7 @@ DWORD FAR PASCAL StrBlt(LPVOID dest, short x, short y,
 {
     DWORD result;
     int traced = pal_ddi_trace_enter("DDI StrBlt ENTER");
+    PAL_CURSOR_COUNT(pal_perf_text);
     result = pal_trace_impl_StrBlt(dest, x, y, clip_rect, text, count, font, drawmode, text_transform);
     if (traced) pal_boottrace_hex("DDI StrBlt RETURN LO", (unsigned)result);
     if (traced) pal_boottrace_hex("DDI StrBlt RETURN HI", (unsigned)(result >> 16));
@@ -1424,7 +1463,7 @@ static BOOL pal_win16_bitblt_impl(LPVOID dest, short dx, short dy,
     if (d->surface.format != s->surface.format &&
         !pal_win16_mode_colors(drawmode,&text,&background)) return FALSE;
 #if defined(PAL_WIN31_BOOTTRACE)
-    if (pal_bitmap_trace_budget && d!=&pal_active_host->device &&
+    if (pal_render_trace && pal_bitmap_trace_budget && d!=&pal_active_host->device &&
         s!=&pal_active_host->device) {
         --pal_bitmap_trace_budget;
         trace_bitmap=1;
@@ -1489,6 +1528,7 @@ BOOL FAR PASCAL BitBlt(LPVOID dest, short dx, short dy,
 {
     BOOL result;
     int traced = pal_ddi_trace_enter("DDI BitBlt ENTER");
+    PAL_CURSOR_COUNT(pal_perf_blt);
     if (traced) {
         pal_boottrace_hex("BLT ROP3", (unsigned)((rop >> 16) & 255UL));
         pal_boottrace_hex("BLT SRC PRESENT", (unsigned)(src != 0));
@@ -1536,7 +1576,13 @@ DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
 #endif
 {
     DWORD result;
-    pal_cursor_draw_begin(); /* reads must omit composited mouse bits */
+    pal_cursor_draw_hold();
+    /* Reads and writes must exclude a composited cursor pixel, not an
+     * unrelated cursor elsewhere on the display. */
+    if (pal_active_host && dest &&
+        pal_ddi_far_token((PAL_U16)FP_SEG(dest),(PAL_U16)FP_OFF(dest))==
+            pal_active_host->ddi.screen_token)
+        pal_cursor16_exclude_rect(&pal_win16_cursor,x,y,1,1);
     result=pal_win16_pixel_impl(dest,x,y,physical_color,drawmode);
     pal_cursor_draw_end();
     return result;
@@ -1547,6 +1593,7 @@ DWORD FAR PASCAL Pixel(LPVOID dest, short x, short y,
 {
     DWORD result;
     int traced = pal_ddi_trace_enter("DDI Pixel ENTER");
+    PAL_CURSOR_COUNT(pal_perf_pixel);
     result = pal_trace_impl_Pixel(dest, x, y, physical_color, drawmode);
     if (traced) pal_boottrace_hex("DDI Pixel RETURN LO", (unsigned)result);
     if (traced) pal_boottrace_hex("DDI Pixel RETURN HI", (unsigned)(result >> 16));
@@ -1824,6 +1871,13 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
 {
     WORD result;
     int traced = pal_ddi_trace_enter("DDI Output ENTER");
+    switch (style) {
+    case 4u: PAL_CURSOR_COUNT(pal_perf_scan); break;
+    case 6u: PAL_CURSOR_COUNT(pal_perf_rect); break;
+    case 18u: PAL_CURSOR_COUNT(pal_perf_poly); break;
+    case 80u: case 81u: PAL_CURSOR_COUNT(pal_perf_hint); break;
+    default: PAL_CURSOR_COUNT(pal_perf_other_output); break;
+    }
     if (traced) pal_boottrace_hex("  style", (unsigned)style);
     result = pal_trace_impl_Output(dest, style, count, points, pen, brush, drawmode, cliprect);
     if (traced) pal_boottrace_hex("DDI Output RETURN LO", (unsigned)result);
@@ -2008,6 +2062,7 @@ DWORD FAR PASCAL FastBorder(LPVOID rect, WORD hx, WORD vy, DWORD rop,
 {
     DWORD result;
     int traced = pal_ddi_trace_enter("DDI FastBorder ENTER");
+    PAL_CURSOR_COUNT(pal_perf_border);
     result = pal_trace_impl_FastBorder(rect, hx, vy, rop, device, brush, mode, clip);
     if (traced) pal_boottrace_hex("DDI FastBorder RETURN LO", (unsigned)result);
     if (traced) pal_boottrace_hex("DDI FastBorder RETURN HI", (unsigned)(result >> 16));
@@ -2189,7 +2244,7 @@ DWORD FAR PASCAL ColorInfo(LPVOID device, DWORD color, LPVOID physical)
 {
     DWORD result;
     int traced = 0;
-    if (pal_color_trace_budget) {
+    if (pal_render_trace && pal_color_trace_budget) {
         --pal_color_trace_budget;
         traced = pal_ddi_trace_enter("DDI ColorInfo ENTER");
     }

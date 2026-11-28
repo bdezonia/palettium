@@ -1,0 +1,8 @@
+Palettium v0088 — Cursor exclusion and Calculator workload counts
+
+Apply over v0087. Preserve Apache-2.0 license and NOTICE.
+Shared cursor: identical shape reuse and actual nontransparent mask overlap.
+Win16 Pixel: exclude only the accessed screen pixel. Shutdown-only saturating
+cursor and drawing counters remain visible with RenderTrace=0. No renderer,
+mode activation, VDD, or native repaint algorithm changes.
+See docs/v0088-cursor-profile.md. Native Watcom build and VM test pending.

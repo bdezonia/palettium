@@ -6,6 +6,7 @@
 #include "../windows/win31/palddi.c"
 static DWORD flags;
 static unsigned vram,trial,startup,hook,repaint;
+static int render_trace=-1;
 static const char *vdd,*grabber;
 static unsigned enhanced_reads;
 volatile unsigned pal_boottrace_busy,pal_boottrace_suspended;
@@ -15,6 +16,7 @@ int GetPrivateProfileInt(const char *section,const char *key,int fallback,const 
     (void)section; (void)filename;
     if (!strcmp(key,"VRAMKiB")) return vram;
     if (!strcmp(key,"TrialEnable")) return trial;
+    if (!strcmp(key,"RenderTrace")) return render_trace<0?fallback:render_trace;
     ++enhanced_reads;
     if (!strcmp(key,"EnhancedStartup")) return startup;
     if (!strcmp(key,"EnhancedHook")) return hook;
@@ -129,6 +131,13 @@ int main(void)
     CHECK(pal_win16_install_ready() && pal_win16_activate(&dest));
     CHECK(queries==3 && installs==1 && resolves==1 && !pal_hook_recovery_enabled);
     Disable(&dest); CHECK(removes==1 && stops==3);
+    render_trace=0;
+    CHECK(pal_win16_install_ready() && !pal_render_trace);
+    CHECK(pal_win16_activate(&dest));
+    Disable(&dest);
+    render_trace=1;
+    CHECK(pal_win16_install_ready() && pal_render_trace);
+    puts("PASS: quiet rendering profile preserves unified activation and shutdown");
     puts("PASS: actual unified activate/Disable dispatch with mocked platform services");
     return 0;
 }

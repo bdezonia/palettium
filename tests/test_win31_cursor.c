@@ -107,6 +107,18 @@ int main(void)
     assert(vram[102UL*640UL+255UL]==255);
     /* Only three nontransparent pixels in the 8x8 shape. */
     assert(reads==3u && writes==3u);
+    assert(cursor.shows==1u);
+    assert(pal_cursor16_set(&cursor,wire,76));
+    pal_cursor16_check(&cursor);
+    assert(cursor.shape_reuse==1u && cursor.shows==1u);
+    assert(reads==3u && writes==3u);
+    pal_cursor16_hold(&cursor);
+    /* Inside padded mask but on transparent pixels only. */
+    pal_cursor16_exclude_rect(&cursor,254,103,8,7);
+    pal_cursor16_exclude_rect(&cursor,256,102,1,1);
+    assert(cursor.image.visible && cursor.transparent_skip==2u);
+    pal_cursor16_end_draw(&cursor);
+    assert(reads==3u && writes==3u && cursor.hide_overlap==0u);
     write_before=writes; read_before=reads;
     pal_cursor16_hold(&cursor);
     pal_cursor16_exclude_rect(&cursor,262,102,10,8); /* touches edge only */
@@ -119,6 +131,7 @@ int main(void)
     pal_cursor16_hold(&cursor);
     pal_cursor16_begin_draw(&cursor);
     assert(!cursor.image.visible && cursor.draw_depth==2u);
+    assert(cursor.hide_full==1u);
     assert(vram[102UL*640UL+254UL]==0x55);
     pal_cursor16_end_draw(&cursor);
     assert(!cursor.image.visible);
@@ -126,6 +139,7 @@ int main(void)
     assert(cursor.image.visible);
     pal_cursor16_hold(&cursor);
     pal_cursor16_exclude_rect(&cursor,253,101,2,2); /* overlaps one pixel */
+    assert(cursor.hide_overlap==1u);
     assert(!cursor.image.visible);
     assert(vram[102UL*640UL+254UL]==0x55);
     pal_cursor16_end_draw(&cursor);

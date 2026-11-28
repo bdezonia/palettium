@@ -25,6 +25,27 @@ static rg_pixel cursor_value(const RG_Cursor *c,unsigned x,unsigned y,
     return (old & (bit_at(c->and_bits,4u,x,y)?mask:0UL)) ^
                   (bit_at(c->xor_bits,4u,x,y)?mask:0UL);
 }
+/* Test actual mask coverage, not the padded 32x32 wire rectangle.
+ * Every nontransparent pixel is excluded even if its current color
+ * happens to equal the underlying framebuffer value. */
+int rg_cursor_intersects(const RG_Cursor *c,int x,int y,int w,int h)
+{
+    long l,t,r,b,ox,oy;
+    unsigned xx,yy;
+    if (!c || !c->visible || w<=0 || h<=0) return 0;
+    ox=(long)c->x-c->hot_x; oy=(long)c->y-c->hot_y;
+    l=(long)x-ox; t=(long)y-oy;
+    r=l+w; b=t+h;
+    if (l<0L) l=0L;
+    if (t<0L) t=0L;
+    if (r>(long)c->width) r=c->width;
+    if (b>(long)c->height) b=c->height;
+    if (l>=r || t>=b) return 0;
+    for (yy=(unsigned)t;yy<(unsigned)b;++yy)
+        for (xx=(unsigned)l;xx<(unsigned)r;++xx)
+            if (!cursor_transparent(c,xx,yy)) return 1;
+    return 0;
+}
 void rg_cursor_init(RG_Cursor *c)
 {
     if (c) memset(c,0,sizeof(*c));
@@ -66,6 +87,15 @@ int rg_cursor_shape(RG_Cursor *c,const rg_u8 *and_mask,
     if (hot_x < -32768 || hot_x > 32767 ||
         hot_y < -32768 || hot_y > 32767) return 0;
 #endif
+    /* Repeated SetCursor of the same shape must not flash a stationary
+     * cursor. Compare packed mask rows, not pointer identity. */
+    if (c->has_shape && c->width==width && c->height==height &&
+        c->hot_x==hot_x && c->hot_y==hot_y) {
+        for (y=0;y<height;++y)
+            if (memcmp(c->and_bits+y*4u,and_mask+y*bytes,bytes) ||
+                memcmp(c->xor_bits+y*4u,xor_mask+y*bytes,bytes)) break;
+        if (y==height) return 1;
+    }
     if (c->visible) rg_cursor_hide(c);
     memset(c->and_bits,0xFF,sizeof(c->and_bits));
     memset(c->xor_bits,0,sizeof(c->xor_bits));

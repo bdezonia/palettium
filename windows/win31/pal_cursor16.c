@@ -58,6 +58,15 @@ static void pal_irq_consume(PAL_Move16 *move, PAL_Move16 *snapshot)
 }
 #endif
 
+static void count_event(unsigned *n)
+{
+    if (*n!=65535u) ++*n;
+}
+static void hide_counted(PAL_Cursor16 *s,unsigned *n)
+{
+    if (s->image.visible) count_event(n);
+    rg_cursor_hide(&s->image);
+}
 unsigned pal_cursor16_wire_size(const rg_u8 *p, unsigned available)
 {
     int width,height,color;
@@ -90,6 +99,8 @@ void pal_cursor16_bind(PAL_Cursor16 *s,RG_Device *screen)
     if (!s) return;
     pal_cursor16_unbind(s);
     ++s->draw_depth;
+    s->hide_shape=s->hide_full=s->hide_overlap=s->hide_move=0;
+    s->shows=s->shape_reuse=s->transparent_skip=0;
     s->screen=screen;
     s->incoming.ready=1;
     --s->draw_depth;
@@ -97,11 +108,11 @@ void pal_cursor16_bind(PAL_Cursor16 *s,RG_Device *screen)
 int pal_cursor16_set(PAL_Cursor16 *s, const rg_u8 *p,unsigned available)
 {
     rg_u8 and_bits[128],xor_bits[128];
-    unsigned size,w,h,bytes,y;
+    unsigned size,w,h,bytes,y,was_visible;
     if (!s) return 0;
     if (!p) {
         ++s->draw_depth; /* keep timer CheckCursor out of state changes */
-        rg_cursor_hide(&s->image);
+        hide_counted(s,&s->hide_shape);
         s->wants_shape=0;
         s->image.has_shape=0;
         --s->draw_depth;
@@ -118,10 +129,15 @@ int pal_cursor16_set(PAL_Cursor16 *s, const rg_u8 *p,unsigned available)
         memcpy(xor_bits+y*bytes,p+PAL_CURSOR16_HEADER+h*4u+y*4u,bytes);
     }
     ++s->draw_depth;
+    was_visible=s->image.visible;
     if (!rg_cursor_shape(&s->image,and_bits,xor_bits,w,h,
                            signed_word(p),signed_word(p+2))) {
         --s->draw_depth;
         return 0;
+    }
+    if (was_visible) {
+        if (s->image.visible) count_event(&s->shape_reuse);
+        else count_event(&s->hide_shape);
     }
     s->wants_shape=1;
     --s->draw_depth;
@@ -152,17 +168,20 @@ void pal_cursor16_check(PAL_Cursor16 *s)
         s->y=s->snapshot.y;
         s->snapshot.ready=0;
     }
-    if (!s->wants_shape) rg_cursor_hide(&s->image);
+    if (!s->wants_shape) hide_counted(s,&s->hide_shape);
     else if (!s->image.visible || s->image.x!=s->x ||
-             s->image.y!=s->y)
-        (void)rg_cursor_show(&s->image,s->screen,s->x,s->y);
+             s->image.y!=s->y) {
+        if (s->image.visible) count_event(&s->hide_move);
+        if (rg_cursor_show(&s->image,s->screen,s->x,s->y))
+            count_event(&s->shows);
+    }
     s->composing=0;
 }
 void pal_cursor16_begin_draw(PAL_Cursor16 *s)
 {
     if (!s) return;
     ++s->draw_depth;
-    rg_cursor_hide(&s->image); /* also exclude nested drawing after a hold */
+    hide_counted(s,&s->hide_full); /* also exclude nested drawing after a hold */
 }
 /* Hold timer composition while a drawing transaction is active, but do
  * not hide unless a screen region actually intersects the cursor. */
@@ -179,7 +198,11 @@ void pal_cursor16_exclude_rect(PAL_Cursor16 *s,int x,int y,int w,int h)
     right=left+s->image.width;
     bottom=top+s->image.height;
     if ((long)x<right && (long)x+w>left &&
-        (long)y<bottom && (long)y+h>top) rg_cursor_hide(&s->image);
+        (long)y<bottom && (long)y+h>top) {
+        if (rg_cursor_intersects(&s->image,x,y,w,h))
+            hide_counted(s,&s->hide_overlap);
+        else count_event(&s->transparent_skip);
+    }
 }
 void pal_cursor16_end_draw(PAL_Cursor16 *s)
 {

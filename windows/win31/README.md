@@ -13,7 +13,7 @@ and host tests. Native drivers are experimental; use disposable 86Box VMs.
 | PALX386.DRV | Enhanced-mode startup only | Desktop validated |
 | PALXHOOK.DRV | Enhanced-mode INT 2Fh observer and experimental recovery | One full-screen DOS round trip and clean shutdown with PALWATCH /repaintonce validated |
 | PALXRPT.DRV | Driver-managed USER repaint | Native full-screen and repeated full-screen/windowed switching and clean shutdown validated |
-| PALWIN31.DRV | Combined Standard/Enhanced activation build | Host tests pass; native/runtime pending |
+| PALWIN31.DRV | Combined Standard/Enhanced activation build | Standard and Enhanced desktop startup validated; application performance under test |
 
 The tested full-screen/windowed transitions and repaint work on the OEM
 reference configuration. Arbitrary mid-draw switching, broader DOS programs,
@@ -38,6 +38,11 @@ sh windows/win31/build-palwin31.sh # combined experiment
 Build only the variant needed for a given experiment. Products go in
 `tests/exes/`. The activation builds default to tracing; PALTRIAL alone supports
 `PAL_TRIAL_TRACE=0` for an untraced build.
+For PALWIN31 only, set `[Palettium] RenderTrace=0` in SYSTEM.INI to
+suppress detailed drawing diagnostics while retaining startup, shutdown,
+notification changes and bounded failures. Default is 1 (verbose). See
+[performance isolation](../../docs/v0087-calc-trace.md) and
+[shutdown drawing/cursor counts](../../docs/v0088-cursor-profile.md).
 Keep tracing enabled for diagnostic sessions. Native driver link audits
 check expected exports, module name and KERNEL-only imports. PALXHOOK,
 PALXRPT and PALWIN31 also require the resident-segment audit.

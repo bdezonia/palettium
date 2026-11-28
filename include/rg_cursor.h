@@ -26,4 +26,6 @@ int rg_cursor_shape(RG_Cursor *, const rg_u8 *,const rg_u8 *,
 int rg_cursor_show(RG_Cursor *,RG_Device *,int x,int y);
 int rg_cursor_move(RG_Cursor *,int x,int y);
 void rg_cursor_hide(RG_Cursor *);
+/* True if any nontransparent mask pixel intersects a screen rectangle. */
+int rg_cursor_intersects(const RG_Cursor *,int x,int y,int w,int h);
 #endif

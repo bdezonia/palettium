@@ -25,6 +25,10 @@ typedef struct PAL_Cursor16 {
     int x, y;
     volatile unsigned draw_depth;
     unsigned wants_shape;
+    /* Saturating counts; read at ordinary task-time shutdown only.
+     * Counts are per bind/session, not individual framebuffer writes. */
+    unsigned hide_shape, hide_full, hide_overlap, hide_move, shows;
+    unsigned shape_reuse, transparent_skip;
 } PAL_Cursor16;
 
 /* Wire header is six little-endian signed WORDs, masks are two consecutive

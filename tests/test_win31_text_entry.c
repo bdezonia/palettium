@@ -250,6 +250,13 @@ int main(void)
     pts[0].x=14;pts[0].y=12;pts[1].x=20;pts[1].y=15;
     assert(Output(&host.pdevice,6,2,pts,0,&solid,mode,clip)==1u);
     assert(cursor_pixel_writes==0u && pixels[12u*32u+14u]==255u);
+    assert(Pixel(&host.pdevice,8,0,0,0)==5u);
+    assert(Pixel(&host.pdevice,8,0,6,mode)==6u);
+    assert(cursor_pixel_writes==0u && pixels[3]==0u);
+    assert(Pixel(&host.pdevice,8,0,5,mode)==5u);
+#if defined(PAL_WIN31_BOOTTRACE)
+    assert(pal_perf_rect>0u && pal_perf_pixel>=3u);
+#endif
     pts[0].x=0;pts[0].y=0;pts[1].x=2;pts[1].y=4;
     pts[2].x=15;pts[2].y=18;
     assert(Output(&host.pdevice,4,3,pts,0,&solid,mode,clip)==1u);
@@ -295,6 +302,31 @@ int main(void)
     assert(source_pixels==2048u && trace_pixels==2048u);
     assert(source_nonzero==1024u && trace_nonzero==source_nonzero);
     assert(source_hash==trace_hash);
+#endif
+#if defined(PAL_WIN31_BOOTTRACE)
+    /* Quiet mode avoids the diagnostic sampling path without changing the
+     * actual bitmap copy. Preserve the remaining verbose budgets. */
+    {
+        unsigned budget=pal_bitmap_trace_budget, ddi=pal_ddi_trace_budget;
+        unsigned dib=pal_dib_trace_budget;
+        source_pixels=trace_pixels=0;
+        pal_render_trace=0;
+        memset(bitmap_dest+12,0,256);
+        assert(BitBlt(&dest_header,0,0,&source_header,0,0,32,64,
+                      0x00CC0020UL,0,0));
+        assert(!memcmp(bitmap_source+16,bitmap_dest+12,256));
+        assert(source_pixels==0u && trace_pixels==0u);
+        assert(pal_bitmap_trace_budget==budget && pal_ddi_trace_budget==ddi);
+        make_dib(32,64,1);
+        dib_word(40,0); dib_word(42,255);
+        for(i=0;i<64u;++i)
+            memcpy(dib_data+4u*i,bitmap_source+16u+4u*(63u-i),4u);
+        assert(DeviceBitmapBits(&source_header,0,0,64,dib_data,dib_header,0,0)==64u);
+        assert(pal_dib_trace_budget==dib);
+        assert(!memcmp(bitmap_source+16,bitmap_dest+12,256));
+        pal_render_trace=1;
+        puts("PASS: quiet rendering skips DDI, bitmap sampling and DIB traces");
+    }
 #endif
     /* Upload a bottom-up DIB to the actual bitmap before constructing the
      * cursor. Distinct top and bottom rows expose reversal bugs. */

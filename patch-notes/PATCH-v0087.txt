@@ -1,0 +1,8 @@
+Palettium v0087 — isolate diagnostic overhead in Calculator
+
+Based on v0086. Standard startup confirmed after correcting TrialEnable.
+Add PALWIN31 RenderTrace=0 opt-in quiet profile (default 1). Preserve
+functional recovery and essential diagnostic markers. No rendering,
+cursor, hardware or repaint algorithm changes. Paint deferred.
+See docs/v0087-calc-trace.md. Complete clean host regression PASS;
+native Watcom and 86Box runtime pending.
