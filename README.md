@@ -29,7 +29,7 @@ See [hardware binding](docs/hardware-api.md) and the
 | Win3.x drawing | 1/8bpp memory bitmaps, screen drawing, text, palette, DIB operations and software cursor; partial DDI coverage |
 | ET4000AX | Native packed 640x400x256 and 640x480x256, banked VRAM and DAC; no VESA dependency |
 | Windows 3.1 Standard mode | Experimental desktop runtime validated in 86Box |
-| Windows 3.1 Enhanced mode | Experimental desktop startup, INT 2Fh hook installation, chaining, removal and switch notifications runtime validated; one full-screen DOS round trip and normal shutdown validated with hidden one-shot task-side repaint; native repaint experimental |
+| Windows 3.1 Enhanced mode | Experimental desktop, native repaint, full-screen/windowed DOS switching (five repeated transitions), and normal shutdown runtime validated on the 512 KiB OEM reference configuration |
 | WfW 3.11, Windows 95/98 | Planned adapters, not working drivers yet |
 
 The ET4000AX DOS backend has been tested at 256, 512 and 1024 KiB.
@@ -76,8 +76,8 @@ link audits or actual VM testing.
 
 ## Roadmap
 
-1. Complete Windows 3.1 Enhanced-mode support: screen switching, video
-   ownership, bank/palette/cursor state and repaint; preserve Standard mode.
+1. Consolidate and validate the Standard/Enhanced build, then complete video
+   ownership and switch hardening.
 2. Finish driver coverage, hardening, independent resources and installation.
 3. Reuse the framework for WfW 3.11, Windows 95 and Windows 98.
 4. Extend chipset and display-format support and demonstrate hardware

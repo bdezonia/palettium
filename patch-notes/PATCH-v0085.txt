@@ -1,0 +1,14 @@
+Palettium v0085 (incremental over v0084)
+
+- Record v0083 repeated Alt+Enter DOS transitions: five matched BG/FG and
+  native repaint calls/returns, normal shutdown; no PALWATCH.
+- Add separate PALWIN31.DRV combined runtime route; retain old variants,
+  explicit mode-specific gates, 512 KiB OEM Enhanced restriction and
+  standard 256/512 KiB restriction. No assisted save/restore or new VDD.
+- Standard skips Enhanced VDD queries, hook lifecycle and USER resolution.
+  Enhanced retains the validated native repaint implementation.
+- Add actual profile-gate and activate/Disable mocked host regression.
+- Update concise READMEs. Apache 2.0 license and NOTICE unchanged.
+- Native build and both-mode VM validation pending.
+
+See docs/v0085-unified-win31.md for build and runtime instructions.

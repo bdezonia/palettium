@@ -12,11 +12,13 @@ and host tests. Native drivers are experimental; use disposable 86Box VMs.
 | PALTRIAL.DRV | Standard-mode trial | Desktop validated |
 | PALX386.DRV | Enhanced-mode startup only | Desktop validated |
 | PALXHOOK.DRV | Enhanced-mode INT 2Fh observer and experimental recovery | One full-screen DOS round trip and clean shutdown with PALWATCH /repaintonce validated |
-| PALXRPT.DRV | Experimental driver-managed USER repaint | Host checks only; native build and runtime pending |
+| PALXRPT.DRV | Driver-managed USER repaint | Native full-screen and repeated full-screen/windowed switching and clean shutdown validated |
+| PALWIN31.DRV | Combined Standard/Enhanced activation build | Host tests pass; native/runtime pending |
 
-Repeated full-screen switches, windowed DOS compatibility and active video
-ownership are not fully validated. Assisted save/restore is not enabled.
-Do not treat the one-shot result as full Enhanced-mode support.
+The tested full-screen/windowed transitions and repaint work on the OEM
+reference configuration. Arbitrary mid-draw switching, broader DOS programs,
+active video ownership and independent VDD/grabber support remain unvalidated.
+Assisted save/restore is not enabled.
 
 ## Build from the repository root
 
@@ -29,15 +31,16 @@ sh windows/win31/build-paltrial.sh
 sh windows/win31/build-palx386.sh
 sh windows/win31/build-palxhook.sh
 sh windows/win31/build-palwatch.sh # optional live diagnostics
-sh windows/win31/build-palxrpt.sh # native repaint experiment
+sh windows/win31/build-palxrpt.sh # validated Enhanced baseline
+sh windows/win31/build-palwin31.sh # combined experiment
 ```
 
 Build only the variant needed for a given experiment. Products go in
 `tests/exes/`. The activation builds default to tracing; PALTRIAL alone supports
 `PAL_TRIAL_TRACE=0` for an untraced build.
 Keep tracing enabled for diagnostic sessions. Native driver link audits
-check expected exports, module name and KERNEL-only imports. PALXHOOK
-and PALXRPT also require the resident-segment audit.
+check expected exports, module name and KERNEL-only imports. PALXHOOK,
+PALXRPT and PALWIN31 also require the resident-segment audit.
 
 ## Bind local startup resources
 
@@ -102,9 +105,10 @@ The observer receives background/foreground notifications. Bank/cursor
 resynchronization plus `PALWATCH.EXE /repaintonce` restored the desktop and
 allowed normal shutdown in a VM test. The earlier visible-monitor hang is
 not isolated. See [repaint and shutdown experiment](../../docs/v0082-repaint-shutdown.md).
-For the separate PALXRPT native repaint experiment, follow
+For the validated PALXRPT native repaint configuration, follow
 [the v0083 instructions](../../docs/v0083-native-repaint.md); no PALWATCH
-process is needed during that test. Retain PALXHOOK as the validated fallback.
+process is needed. Retain PALXRPT and PALTRIAL as the validated single-mode
+baselines. For PALWIN31, see [combined build](../../docs/v0085-unified-win31.md).
 On a hang or hook-removal conflict, recover the logs before restoring the VM
 snapshot. Never attempt live unloading of the observer. Save `C:\PALBOOT.TXT`
 and `C:\PALWATCH.TXT` before the next launch overwrites them; also save

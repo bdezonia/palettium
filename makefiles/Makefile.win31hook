@@ -14,3 +14,5 @@ test:
 	./tests/exes/palrepaint-host-test
 	$(CC) $(CFLAGS) -DPAL_WIN31_BOOTTRACE -DPAL_WIN31_NATIVE_REPAINT -Itests/win16_stubs -Iwindows/win31 windows/win31/pal_boottrace.c tests/test_win31_boottrace.c -o tests/exes/palrepaint-trace-test
 	./tests/exes/palrepaint-trace-test
+	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections -Wl,--gc-sections -DPAL_WIN31_TRIAL_MODE -DPAL_WIN31_BOOTTRACE -DPAL_WIN31_ENH_STARTUP -DPAL_WIN31_ENH_HOOK -DPAL_WIN31_NATIVE_REPAINT -DPAL_WIN31_UNIFIED -Itests/win16_stubs -Iinclude -Iwindows/win31 -Ihardware/tseng/et4000ax -include tests/win16_stubs/driver_syntax.h tests/test_win31_unified.c windows/win31/pal_trial_gate.c -o tests/exes/palunified-host-test
+	./tests/exes/palunified-host-test

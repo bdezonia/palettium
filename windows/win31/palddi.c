@@ -77,6 +77,16 @@
 #endif
 
 static PAL_ScreenHost *pal_active_host = 0;
+/* v0085: a separate combined build chooses the validated mode path at
+ * Enable(style=0). Existing single-mode variants retain their gates. */
+#ifdef PAL_WIN31_UNIFIED
+static unsigned pal_unified_enhanced;
+#define PAL_ENH_ACTIVE (pal_unified_enhanced != 0u)
+#elif defined(PAL_WIN31_ENH_STARTUP)
+#define PAL_ENH_ACTIVE 1
+#else
+#define PAL_ENH_ACTIVE 0
+#endif
 
 /* A FAR offset must not wrap when indexing an entire object. This is
  * arithmetic preflight, not proof of selector validity or access rights. */
@@ -414,7 +424,7 @@ static int pal_win16_activate(LPVOID destination)
     PAL_Win16Commit commit;
     PAL_U32 token;
 #ifdef PAL_WIN31_ENH_HOOK
-    unsigned original_selector;
+    unsigned original_selector=0;
 #endif
     if (!destination || pal_active_host ||
         !pal_win16_et4k_profile_plan(&plan)) {
@@ -424,19 +434,17 @@ static int pal_win16_activate(LPVOID destination)
     pal_boottrace("ACT PLAN OK");
     /* Platform-adapter lookup is deliberately after the pure planning
      * preflight; no A000 selector or I/O is touched during style=1. */
-#ifdef PAL_WIN31_ENH_STARTUP
-    if (plan.vdd_assessment != PAL_VDD_UNVERIFIED ||
-        plan.configured_bytes != 524288UL || plan.mode.height != 480u ||
-#else
-    if (plan.vdd_assessment != PAL_VDD_NOT_ENHANCED ||
-#endif
+    if ((PAL_ENH_ACTIVE ?
+         (plan.vdd_assessment != PAL_VDD_UNVERIFIED ||
+          plan.configured_bytes != 524288UL || plan.mode.height != 480u) :
+         (plan.vdd_assessment != PAL_VDD_NOT_ENHANCED)) ||
         (PAL_U32)(PAL_U16)FP_OFF(destination) +
         (PAL_U32)sizeof(PAL_PDEVICE) > 65536UL) {
         pal_boottrace("ACT PRECHECK FAIL");
         return 0;
     }
 #ifdef PAL_WIN31_ENH_STARTUP
-    {
+    if (PAL_ENH_ACTIVE) {
         unsigned selector;
         pal_boottrace("ENH API QUERY ENTER");
         selector=pal_win16_vdd_selector();
@@ -462,13 +470,10 @@ static int pal_win16_activate(LPVOID destination)
         int succeeded=pal_et4k_session_start_published(&pal_native_session,
                        port,&plan,token,pal_win16_publish_transaction,
                        &commit,
-#ifdef PAL_WIN31_ENH_STARTUP
-                       PAL_ET4K_AUTH_ENH_STARTUP);
-#else
-                       PAL_ET4K_AUTH_STANDARD);
-#endif
+                       PAL_ENH_ACTIVE ? PAL_ET4K_AUTH_ENH_STARTUP :
+                                        PAL_ET4K_AUTH_STANDARD);
 #ifdef PAL_WIN31_ENH_HOOK
-        if (succeeded) {
+        if (succeeded && PAL_ENH_ACTIVE) {
             unsigned status,selector,count;
             /* Install only AFTER a complete successful publication. No
              * hook can escape a failed hardware startup transaction. */
@@ -624,6 +629,14 @@ static int pal_win16_install_ready(void)
 #ifdef PAL_WIN31_ENH_STARTUP
     char vdd[32],grabber[32];
     unsigned n,m;
+#ifdef PAL_WIN31_UNIFIED
+    /* Never change the route of an already published session. */
+    if (pal_active_host) return 0;
+    pal_unified_enhanced=(flags & 0x0031UL)==0x0021UL;
+    pal_boottrace(PAL_ENH_ACTIVE ? "UNIFIED ENHANCED ROUTE" :
+                                  "UNIFIED STANDARD ROUTE");
+    if (PAL_ENH_ACTIVE) {
+#endif
     vdd[0]=0; grabber[0]=0;
     key=(unsigned)GetPrivateProfileInt("Palettium","EnhancedStartup",0,"SYSTEM.INI");
     n=(unsigned)GetPrivateProfileString("386Enh","display","",vdd,sizeof(vdd),"SYSTEM.INI");
@@ -642,6 +655,11 @@ static int pal_win16_install_ready(void)
                                       "SYSTEM.INI") != 4404u) allowed=0;
     pal_boottrace("ENH NATIVE REPAINT GATE");
 #endif
+#endif
+#ifdef PAL_WIN31_UNIFIED
+    } else {
+        allowed=pal_win31_trial_permitted(flags,vram,key);
+    }
 #endif
 #else
     allowed=pal_win31_trial_permitted(flags,vram,key);
@@ -2040,7 +2058,7 @@ void FAR PASCAL Disable(LPVOID physical_device)
 #endif
     pal_boottrace("DISABLE ENTER");
 #ifdef PAL_WIN31_ENH_HOOK
-    if (pal_active_host == &pal_native_session.host) {
+    if (PAL_ENH_ACTIVE && pal_active_host == &pal_native_session.host) {
         unsigned status;
 #if defined(PAL_WIN31_BOOTTRACE)
         pal_hook_sync();

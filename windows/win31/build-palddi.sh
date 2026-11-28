@@ -39,7 +39,12 @@ windows/win31/palddi.c
 windows/win31/pal_driver_entry.c
 windows/win31/pal_boottrace.c'
 
-if [ "${PAL_ENH_REPAINT_BUILD:-0}" = 1 ]; then
+if [ "${PAL_UNIFIED_BUILD:-0}" = 1 ]; then
+    NAME=PALWIN31
+    TRIAL_OPTION='-dPAL_WIN31_TRIAL_MODE -dPAL_WIN31_ENH_STARTUP -dPAL_WIN31_ENH_HOOK -dPAL_WIN31_NATIVE_REPAINT -dPAL_WIN31_UNIFIED'
+    TRACE_OPTION=-dPAL_WIN31_BOOTTRACE
+    command -v wasm >/dev/null
+elif [ "${PAL_ENH_REPAINT_BUILD:-0}" = 1 ]; then
     NAME=PALXRPT
     TRIAL_OPTION='-dPAL_WIN31_TRIAL_MODE -dPAL_WIN31_ENH_STARTUP -dPAL_WIN31_ENH_HOOK -dPAL_WIN31_NATIVE_REPAINT'
     TRACE_OPTION=-dPAL_WIN31_BOOTTRACE
@@ -98,9 +103,9 @@ for source in $SOURCES; do
     printf 'file %s\n' "$obj" >> "$LINKFILE"
 done
 
-if [ "$NAME" = PALXHOOK ] || [ "$NAME" = PALXRPT ]; then
+if [ "$NAME" = PALXHOOK ] || [ "$NAME" = PALXRPT ] || [ "$NAME" = PALWIN31 ]; then
     ASM_OPTION=
-    if [ "$NAME" = PALXRPT ]; then ASM_OPTION=-dPAL_NATIVE_REPAINT; fi
+    if [ "$NAME" = PALXRPT ] || [ "$NAME" = PALWIN31 ]; then ASM_OPTION=-dPAL_NATIVE_REPAINT; fi
     wasm -q $ASM_OPTION -fo=tests/exes/pal_hook.obj windows/win31/pal_hook.asm
     test -s tests/exes/pal_hook.obj
     printf '%s\n' 'file tests/exes/pal_hook.obj' \
@@ -141,7 +146,7 @@ export UserRepaintDisable.500
 EOF_EXPORTS
 
 # Private diagnostic, only on the observer; not part of the Win16 DDI.
-if [ "$NAME" = PALXHOOK ] || [ "$NAME" = PALXRPT ]; then
+if [ "$NAME" = PALXHOOK ] || [ "$NAME" = PALXRPT ] || [ "$NAME" = PALWIN31 ]; then
     printf '%s\n' 'export PALHOOKSTATUS.501' >> "$LINKFILE"
 fi
 
@@ -159,10 +164,10 @@ wdump -x "$OUTPUT" > "tests/exes/$NAME.exports.txt"
 python3 tools/check_win31_modname.py "$OUTPUT"
 python3 tools/check_win31_imports.py "$OUTPUT"
 python3 tools/check_win31_exports.py "tests/exes/$NAME.exports.txt"
-if [ "$NAME" = PALXHOOK ] || [ "$NAME" = PALXRPT ]; then
+if [ "$NAME" = PALXHOOK ] || [ "$NAME" = PALXRPT ] || [ "$NAME" = PALWIN31 ]; then
     python3 tools/check_win31_resident.py "$OUTPUT"
     python3 tools/check_win31_hook_export.py "tests/exes/$NAME.exports.txt"
-    printf '%s\n' "PASS: linked $NAME.DRV (experimental Enhanced-mode driver)." \
+    printf '%s\n' "PASS: linked $NAME.DRV (experimental resident driver)." \
         'WARNING: snapshot only; follow the milestone-specific test procedure.'
 elif [ "$NAME" = PALX386 ]; then
     printf '%s\n' 'PASS: linked PALX386.DRV (Enhanced startup experiment ONLY).' \
