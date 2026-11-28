@@ -1,0 +1,5 @@
+v0082: record v0081 desktop repaint runtime success; isolate post-DOS hang.
+PALWATCH: explicit timer stop and close/session teardown diagnostics, ignore
+late WM_TIMER after stopping, hidden /repaintonce mode. No driver changes.
+Host tests cover close order, late timers, session cancellation/end, one-shot
+success/failure. Native Watcom and VM validation remain outstanding.

@@ -96,9 +96,11 @@ EnhancedHook=4403
 
 Start `WIN /B` on the current VM (confirm Enhanced mode). For the startup-only fallback use PALX386.DRV instead;
 it does not install the hook. Do not enable assisted save/restore.
-The observer receives background/foreground notifications, but DOS return
-is visually corrupt. See [foreground recovery experiment](../../docs/v0081-foreground-recovery.md)
-for the bank/cursor resynchronization and optional task-side repaint test.
+The observer receives background/foreground notifications. Bank/cursor
+resynchronization plus `PALWATCH.EXE /repaint` restored the desktop in a
+VM test; a post-switch hang remains. See [repaint and shutdown experiment](../../docs/v0082-repaint-shutdown.md).
+`PALWATCH.EXE /repaintonce` is an experimental hidden, one-shot repaint
+monitor that exits after several samples following a successful request.
 On a hang or hook-removal conflict, recover the logs before restoring the VM
 snapshot. Never attempt live unloading of the observer. Save `C:\PALBOOT.TXT`
 and `C:\PALWATCH.TXT` before the next launch overwrites them; also save

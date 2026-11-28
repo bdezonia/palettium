@@ -1,10 +1,10 @@
-/* v0081 task-context observer; optional deferred USER repaint.
+/* v0082 task-context observer; optional deferred USER repaint.
  * The driver export reads one resident WORD without file/Windows calls. */
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
 #define REPORT "C:\\PALWATCH.TXT"
-#define TITLE "PALWATCH v0081"
+#define TITLE "PALWATCH v0082"
 #define TIMER_ID 1u
 #define SIGNATURE 0x805au
 
@@ -12,7 +12,9 @@ typedef WORD (FAR PASCAL *ReadHook)(WORD);
 static ReadHook read_hook;
 static int failed;
 static unsigned sequence;
-static int repaint_enabled, have_sample;
+static int repaint_enabled, have_sample, one_shot;
+static int stopping, timer_running, repaint_queued;
+static unsigned settle_ticks;
 static WORD last_fg;
 static int append(const char *line)
 {
@@ -46,8 +48,12 @@ static int sample(void)
         if (!append("REPAINT REQUEST\r\n")) return 0;
         if (!RedrawWindow(GetDesktopWindow(),0,0,
              RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_ALLCHILDREN)) {
-            if (!append("REPAINT FAILED\r\n")) return 0;
-        } else if (!append("REPAINT QUEUED\r\n")) return 0;
+            if (!append("REPAINT FAILED\r\n") || one_shot) return 0;
+        } else {
+            if (!append("REPAINT QUEUED\r\n")) return 0;
+            repaint_queued=1;
+            settle_ticks=0;
+        }
     }
     /* Do not consume a foreground epoch if the independently read focus
      * still announces background. Retry at the next timer sample. */
@@ -55,18 +61,65 @@ static int sample(void)
     have_sample=1;
     return 1;
 }
+/* Disarm before destroying a window or allowing session teardown.
+ * A queued WM_TIMER can still arrive after KillTimer: stopping prevents
+ * all further driver-export calls, even on the error path. */
+static void stop_timer(HWND hwnd)
+{
+    if (stopping) return;
+    stopping=1;
+    (void)append("TIMER STOP ENTER\r\n");
+    if (timer_running) {
+        timer_running=0;
+        (void)append(KillTimer(hwnd,TIMER_ID) ?
+                     "TIMER STOP OK\r\n" : "TIMER STOP FAILED\r\n");
+    }
+}
+static void close_watch(HWND hwnd)
+{
+    (void)append("CLOSE ENTER\r\n");
+    stop_timer(hwnd);
+    (void)append("DESTROY WINDOW ENTER\r\n");
+    if (!DestroyWindow(hwnd)) {
+        (void)append("DESTROY WINDOW FAILED\r\n");
+        failed=1;
+        PostQuitMessage(0);
+    } else (void)append("DESTROY WINDOW RETURN\r\n");
+}
 LONG FAR PASCAL __export watch_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
 {
     switch (msg) {
     case WM_TIMER:
-        if (wp==TIMER_ID && !sample()) {
-            failed=1;
-            KillTimer(hwnd,TIMER_ID);
-            SetWindowText(hwnd,"PALWATCH: logging stopped");
+        if (wp==TIMER_ID && !stopping) {
+            if (!sample()) {
+                failed=1;
+                stop_timer(hwnd);
+                if (one_shot) close_watch(hwnd);
+                else SetWindowText(hwnd,"PALWATCH: logging stopped");
+            } else if (one_shot && repaint_queued && ++settle_ticks>=3u) {
+                (void)append("ONE SHOT COMPLETE\r\n");
+                close_watch(hwnd);
+            }
         }
         return 0;
+    case WM_CLOSE:
+        close_watch(hwnd);
+        return 0;
+    case WM_QUERYENDSESSION:
+        /* Query alone is not a commitment; a canceled shutdown must
+         * leave sampling operational. No driver call here. */
+        (void)append("QUERY END SESSION\r\n");
+        return 1;
+    case WM_ENDSESSION:
+        if (wp) {
+            stop_timer(hwnd);
+            (void)append("END SESSION TRUE\r\n");
+            PostQuitMessage(0);
+        } else (void)append("END SESSION CANCELED\r\n");
+        return 0;
     case WM_DESTROY:
-        KillTimer(hwnd,TIMER_ID);
+        (void)append("WM_DESTROY ENTER\r\n");
+        stop_timer(hwnd);
         (void)append(failed ? "STOP AFTER FAILURE\r\n" : "STOP\r\n");
         PostQuitMessage(0);
         return 0;
@@ -75,7 +128,7 @@ LONG FAR PASCAL __export watch_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
 }
 int PASCAL WinMain(HINSTANCE instance,HINSTANCE previous,LPSTR cmd,int show)
 {
-    static const char cls[]="PalWatch81";
+    static const char cls[]="PalWatch82";
     WNDCLASS wc;
     HWND hwnd;
     HMODULE module;
@@ -84,7 +137,11 @@ int PASCAL WinMain(HINSTANCE instance,HINSTANCE previous,LPSTR cmd,int show)
     char driver[32];
     int rc;
     (void)show;
-    repaint_enabled=cmd && !lstrcmpi(cmd,"/repaint");
+    one_shot=cmd && !lstrcmpi(cmd,"/repaintonce");
+    repaint_enabled=one_shot || (cmd && !lstrcmpi(cmd,"/repaint"));
+    stopping=timer_running=repaint_queued=0;
+    settle_ticks=0;
+    failed=0; sequence=0;
     have_sample=0;
     last_fg=0;
     if (previous) return 1;
@@ -102,11 +159,12 @@ int PASCAL WinMain(HINSTANCE instance,HINSTANCE previous,LPSTR cmd,int show)
     f=_lcreat(REPORT,0);
     if (f<0) return 3;
     if (_lclose(f)<0) return 3;
-    if (!append("PALWATCH v0081; individually sampled WORD counters\r\nABOUT TO READ HOOK\r\n") || !sample()) {
+    if (!append("PALWATCH v0082; individually sampled WORD counters\r\nABOUT TO READ HOOK\r\n") || !sample()) {
         MessageBox(0,"Cannot read active hook or write report.",TITLE,MB_OK);
         return 3;
     }
     if (!append(repaint_enabled ? "REPAINT MODE ON\r\n" : "REPAINT MODE OFF\r\n")) return 3;
+    if (one_shot && !append("ONE SHOT HIDDEN\r\n")) return 3;
     memset(&wc,0,sizeof(wc));
     wc.lpfnWndProc=watch_proc; wc.hInstance=instance;
     wc.hCursor=LoadCursor(0,IDC_ARROW);
@@ -118,9 +176,12 @@ int PASCAL WinMain(HINSTANCE instance,HINSTANCE previous,LPSTR cmd,int show)
         (void)append("TIMER START FAILED\r\n");
         DestroyWindow(hwnd); return 6;
     }
-    ShowWindow(hwnd,SW_SHOWNORMAL);
+    timer_running=1;
+    if (!one_shot) ShowWindow(hwnd,SW_SHOWNORMAL);
     while ((rc=GetMessage(&msg,0,0,0))>0) {
         TranslateMessage(&msg); DispatchMessage(&msg);
     }
+    stop_timer(hwnd);
+    (void)append("MESSAGE LOOP EXIT\r\n");
     return rc<0 || failed ? 7 : 0;
 }
