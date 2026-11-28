@@ -123,3 +123,11 @@ BOOTLOG.TXT if relevant.
 - [Historical README archive](../../docs/history/win31-readme-through-v0078.md)
 
 Keep this guide current rather than appending milestone history.
+
+### Application compatibility
+
+The memory DDB adapter currently supports single-segment 1/8bpp bitmaps
+only; large Paint canvases and other huge bitmaps are not validated.
+Calculator and Paint application coverage is still under test. If Standard
+startup reports `GATE BLOCKED` and `KEY=0000`, check `TrialEnable=4401` in
+the guest SYSTEM.INI before debugging framebuffer initialization.

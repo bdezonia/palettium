@@ -1,0 +1,10 @@
+Palettium v0086: optimize solid GDI Output and cursor exclusion.
+- v0085 Standard startup trace shows missing/zero TrialEnable, not an
+  activated Standard session; existing gates remain unchanged.
+- Use shared fill dispatch for COPY solid rectangles and scanlines.
+- Avoid cursor hide/show for nonoverlapping Output/text and memory targets.
+- Add 21,504 rectangle comparisons and actual Win16 wrapper tests.
+- Clean full host suite PASS; native build/runtime pending.
+- Paint black canvas/hang unresolved; current huge DDB limitation is a
+  hypothesis to investigate with a separate Enhanced-mode trace.
+See docs/v0086-rendering-performance.md for details.

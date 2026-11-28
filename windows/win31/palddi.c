@@ -351,6 +351,31 @@ static void pal_cursor_draw_begin(void)
             &pal_active_host->device)
         pal_cursor16_begin_draw(&pal_win16_cursor);
 }
+/* Clip in long coordinates before converting to Win16 int dimensions.
+ * Only screen operands can overlap the saved-under cursor. */
+static void pal_cursor_draw_hold(void)
+{
+    if (pal_active_host && pal_win16_cursor.screen==&pal_active_host->device)
+        pal_cursor16_hold(&pal_win16_cursor);
+}
+static void pal_cursor_exclude_bounds(RG_Device *target, long l, long t,
+    long r, long b, const RG_Rect *clip)
+{
+    if (!target || target!=pal_win16_cursor.screen) return;
+    if (clip) {
+        if (l<clip->left) l=clip->left;
+        if (t<clip->top) t=clip->top;
+        if (r>clip->right) r=clip->right;
+        if (b>clip->bottom) b=clip->bottom;
+    }
+    if (l<0) l=0;
+    if (t<0) t=0;
+    if (r>(long)target->surface.width) r=target->surface.width;
+    if (b>(long)target->surface.height) b=target->surface.height;
+    if (l<r && t<b && r<=32767L && b<=32767L)
+        pal_cursor16_exclude_rect(&pal_win16_cursor,(int)l,(int)t,
+                                  (int)(r-l),(int)(b-t));
+}
 static void pal_cursor_draw_end(void)
 {
     if (pal_win16_cursor.draw_depth)
@@ -1096,6 +1121,8 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
     }
     if (count==0) {
         if (!(options & 2u)) return pal_text_fail(4u);
+        pal_cursor_exclude_bounds(target,opaque.left,opaque.top,
+                                  opaque.right,opaque.bottom,clip_use);
         return rg_gdi_text_fill(target,opaque,clip_use,bg) ?
                1UL : pal_text_fail(5u);
     }
@@ -1183,6 +1210,11 @@ static DWORD pal_win16_text(LPVOID dest, short x, short y,
             text_box.top=y;
             text_box.right=(int)maximum;
             text_box.bottom=(int)((long)y+(long)font.height);
+            pal_cursor_exclude_bounds(target,text_box.left,text_box.top,
+                                      text_box.right,text_box.bottom,clip_use);
+            if (options & 2u)
+                pal_cursor_exclude_bounds(target,opaque.left,opaque.top,
+                                          opaque.right,opaque.bottom,clip_use);
             /* Opaque rectangle is independent of DRAWMODE background mode.
              * In normal opaque mode, fill the string's full bounding box. */
             if (options & 2u) {
@@ -1215,10 +1247,10 @@ DWORD FAR PASCAL ExtTextOut(LPVOID dest, short x, short y,
 #endif
 {
     DWORD result;
-    if (count>0 || (options&2u)) pal_cursor_draw_begin();
+    if (count>=0 && (count>0 || (options&2u))) pal_cursor_draw_hold();
     result=pal_win16_text(dest,x,y,clip_rect,text,count,font,drawmode,
                           text_transform,widths,opaque_rect,options);
-    if (count>0 || (options&2u)) pal_cursor_draw_end();
+    if (count>=0 && (count>0 || (options&2u))) pal_cursor_draw_end();
     return result;
 }
 #if defined(PAL_WIN31_BOOTTRACE)
@@ -1254,7 +1286,7 @@ DWORD FAR PASCAL StrBlt(LPVOID dest, short x, short y,
 #endif
 {
     DWORD result;
-    if (count>0) pal_cursor_draw_begin();
+    if (count>0) pal_cursor_draw_hold();
     result=pal_win16_text(dest,x,y,clip_rect,text,count,font,drawmode,
                           text_transform,0,0,0);
     if (count>0) pal_cursor_draw_end();
@@ -1732,6 +1764,9 @@ static WORD pal_win16_output_impl(LPVOID dest, WORD style, WORD count,
         for (i=1u; i<(unsigned)count; ++i)
             if (pt[i].x > pt[i].y) return (WORD)-1;
         for (i=1u; i<(unsigned)count; ++i)
+            pal_cursor_exclude_bounds(target,pt[i].x,pt[0].y,pt[i].y,
+                                      (long)pt[0].y+1L,cptr);
+        for (i=1u; i<(unsigned)count; ++i)
             if (!rg_gdi_output_scanline(target,
                     pt[0].y, pt[i].x, pt[i].y, cptr,
                     pen ? &near_pen : 0, brush ? &near_brush : 0,
@@ -1739,6 +1774,14 @@ static WORD pal_win16_output_impl(LPVOID dest, WORD style, WORD count,
         return 1u;
     }
     if (style == 18u) {
+        long l=pt[0].x, t=pt[0].y, r=l, b=t;
+        for (i=1u; i<(unsigned)count; ++i) {
+            if (pt[i].x<l) l=pt[i].x;
+            if (pt[i].x>r) r=pt[i].x;
+            if (pt[i].y<t) t=pt[i].y;
+            if (pt[i].y>b) b=pt[i].y;
+        }
+        pal_cursor_exclude_bounds(target,l,t,r+1L,b+1L,cptr);
         for (i=1u; i<(unsigned)count; ++i)
             if (!rg_gdi_output_segment(target,
                     pt[i-1u].x, pt[i-1u].y, pt[i].x, pt[i].y,
@@ -1747,6 +1790,8 @@ static WORD pal_win16_output_impl(LPVOID dest, WORD style, WORD count,
     }
     bounds.left = pt[0].x; bounds.top = pt[0].y;
     bounds.right = pt[1].x; bounds.bottom = pt[1].y;
+    pal_cursor_exclude_bounds(target,bounds.left,bounds.top,
+                              bounds.right,bounds.bottom,cptr);
     return rg_gdi_output_rectangle(target, bounds, cptr,
              pen ? &near_pen : 0, brush ? &near_brush : 0,
              rop2, bgmode) ? 1u : (WORD)-1;
@@ -1766,7 +1811,7 @@ WORD FAR PASCAL Output(LPVOID dest, WORD style, WORD count,
     if (style==80u || style==81u) return
         pal_win16_output_impl(dest,style,count,points,pen,brush,drawmode,
                                cliprect);
-    pal_cursor_draw_begin();
+    pal_cursor_draw_hold();
     result=pal_win16_output_impl(dest,style,count,points,pen,brush,
                                   drawmode,cliprect);
     pal_cursor_draw_end();

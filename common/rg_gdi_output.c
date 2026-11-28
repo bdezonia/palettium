@@ -42,6 +42,25 @@ static int output_clip(RG_Device *dev, const RG_Rect *user,
 }
 
 
+/* Use the explicit fill override, but never bypass a pixel-only override
+ * via the default software fill. All boxes have already been clipped. */
+static RG_FillFn output_fill_op(RG_Device *dev)
+{
+    if (dev->ops.fill == rg_software_fill &&
+        dev->ops.pixel != rg_software_pixel) return 0;
+    return dev->ops.fill;
+}
+static void fill_intersection(RG_Device *dev, RG_FillFn fill,
+    RG_Rect clip, int l, int t, int r, int b, unsigned color)
+{
+    if (l<clip.left) l=clip.left;
+    if (t<clip.top) t=clip.top;
+    if (r>clip.right) r=clip.right;
+    if (b>clip.bottom) b=clip.bottom;
+    if (l<r && t<b) fill(dev,l,t,r-l,b-t,(rg_pixel)color);
+}
+
+
 int rg_gdi_output_rectangle(RG_Device *dev, RG_Rect r,
                             const RG_Rect *user_clip, const RG_Pen *pen,
                             const RG_Brush *brush, unsigned rop2,
@@ -49,6 +68,7 @@ int rg_gdi_output_rectangle(RG_Device *dev, RG_Rect r,
 {
     RG_Rect clip;
     int x, y, border;
+    RG_FillFn fill;
     unsigned color;
     if (!output_clip(dev,user_clip,&clip) ||
         rop2 < 1u || rop2 > 16u ||
@@ -61,6 +81,27 @@ int rg_gdi_output_rectangle(RG_Device *dev, RG_Rect r,
     if (clip.right > r.right) clip.right = r.right;
     if (clip.bottom > r.bottom) clip.bottom = r.bottom;
     if (clip.left >= clip.right || clip.top >= clip.bottom) return 1;
+    fill=output_fill_op(dev);
+    if (rop2==13u && fill && (!brush || brush->style!=RG_BRUSH_HATCHED)) {
+        /* COPY makes each span independent. Keep border and interior
+         * disjoint, including one-pixel-wide/one-pixel-high rectangles. */
+        border=pen && pen->style!=RG_PEN_NULL;
+        if (brush && brush->style==RG_BRUSH_SOLID) {
+            if (border) fill_intersection(dev,fill,clip,r.left+1,r.top+1,
+                                         r.right-1,r.bottom-1,brush->foreground);
+            else fill_intersection(dev,fill,clip,r.left,r.top,r.right,r.bottom,
+                                   brush->foreground);
+        }
+        if (border) {
+            fill_intersection(dev,fill,clip,r.left,r.top,r.right,r.top+1,pen->color);
+            if (r.bottom-1>r.top)
+                fill_intersection(dev,fill,clip,r.left,r.bottom-1,r.right,r.bottom,pen->color);
+            fill_intersection(dev,fill,clip,r.left,r.top+1,r.left+1,r.bottom-1,pen->color);
+            if (r.right-1>r.left)
+                fill_intersection(dev,fill,clip,r.right-1,r.top+1,r.right,r.bottom-1,pen->color);
+        }
+        return 1;
+    }
     /* Interior first, border second per the Windows 3.x DDK contract. */
     if (brush && brush->style != RG_BRUSH_HOLLOW) {
         for (y=clip.top; y<clip.bottom; ++y) {
@@ -104,6 +145,7 @@ int rg_gdi_output_scanline(RG_Device *dev, int y, int left, int right,
     RG_Rect clip;
     int x;
     unsigned color;
+    RG_FillFn fill;
     if (!output_clip(dev,user_clip,&clip) || left > right ||
         rop2 < 1u || rop2 > 16u || bg_mode < 1u || bg_mode > 2u ||
         (pen && !rg_pen_valid(pen)) ||
@@ -112,6 +154,17 @@ int rg_gdi_output_scanline(RG_Device *dev, int y, int left, int right,
     if (left < clip.left) left=clip.left;
     if (right > clip.right) right=clip.right;
     if (left >= right) return 1;
+    fill=output_fill_op(dev);
+    if (rop2==13u && fill) {
+        if (brush && brush->style==RG_BRUSH_SOLID) {
+            fill(dev,left,y,right-left,1,(rg_pixel)brush->foreground);
+            return 1;
+        }
+        if (!brush && pen && pen->style!=RG_PEN_NULL) {
+            fill(dev,left,y,right-left,1,(rg_pixel)pen->color);
+            return 1;
+        }
+    }
     for (x=left; x<right; ++x) {
         if (brush) {
             if (brush->style == RG_BRUSH_HOLLOW) continue;

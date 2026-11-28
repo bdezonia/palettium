@@ -16,6 +16,12 @@ static void counted_pixel(RG_Device *dev, int x, int y, rg_pixel c)
     ++writes;
     rg_software_pixel(dev,x,y,c);
 }
+static unsigned fills;
+static void counted_fill(RG_Device *dev,int x,int y,int w,int h,rg_pixel c)
+{
+    ++fills;
+    rg_software_fill(dev,x,y,w,h,c);
+}
 static rg_u8 at(unsigned x, unsigned y) { return pixels[y*W+x]; }
 
 int main(void)
@@ -27,6 +33,8 @@ int main(void)
     RG_Rect r, clip;
     unsigned short table[256];
     unsigned i, rop, bg;
+    int x,y,w,h,kind;
+    rg_u8 reference[W*H];
     assert(pal_object_layout_ok());
     rg_palette_init(&palette);
     for (i=0; i<256u; ++i) table[i] = (unsigned short)i;
@@ -130,6 +138,35 @@ int main(void)
     r.left=10; r.right=9;
     assert(!rg_gdi_output_rectangle(&dev,r,0,&pen,&solid,13,2));
     assert(writes==0);
+    /* Compare optimized COPY spans with the original pixel-only path.
+     * Include degenerate, clipped and skinny rectangles, distinct pen
+     * and brush colors, and no-pen / no-brush / hollow variants. */
+    pen.color=19u;
+    clip.left=2; clip.top=3; clip.right=19; clip.bottom=15;
+    for (kind=0;kind<6;++kind) {
+        const RG_Pen *p=(kind&1) ? &pen : 0;
+        const RG_Brush *b=kind<2 ? &solid : kind<4 ? &hollow : 0;
+        for (x=-2;x<22;x+=3) for (y=-2;y<17;y+=3)
+        for (w=0;w<=7;++w) for (h=0;h<=7;++h) {
+            r.left=x;r.top=y;r.right=x+w;r.bottom=y+h;
+            memset(pixels,3,sizeof(pixels));
+            dev.ops.fill=0;
+            assert(rg_gdi_output_rectangle(&dev,r,&clip,p,b,13,2));
+            memcpy(reference,pixels,sizeof(pixels));
+            memset(pixels,3,sizeof(pixels));
+            dev.ops.fill=counted_fill;writes=0;
+            assert(rg_gdi_output_rectangle(&dev,r,&clip,p,b,13,2));
+            assert(!memcmp(reference,pixels,sizeof(pixels)) && writes==0);
+        }
+    }
+    assert(fills>0u);
+    fills=writes=0;
+    assert(rg_gdi_output_scanline(&dev,4,0,20,&clip,&pen,&solid,13,2));
+    assert(fills==1u && writes==0u && at(2,4)==111u && at(18,4)==111u);
+    fills=writes=0;
+    assert(rg_gdi_output_scanline(&dev,4,2,19,&clip,&pen,&solid,7,2));
+    assert(fills==0u && writes==17u);
+    puts("PASS: COPY fill dispatch, 21,504 clipped rectangle cases and pixel override fallback");
     puts("PASS: Win3.x object wire layout, pens/brushes, 6 hatches, clipped ROP2 rectangle");
     return 0;
 }

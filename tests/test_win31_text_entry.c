@@ -86,6 +86,12 @@ void pal_boottrace_hex(const char *event,unsigned value)
  * Unused Win16 DDI functions are dropped via --gc-sections at link time. */
 #include "../windows/win31/palddi.c"
 
+static unsigned cursor_pixel_writes;
+static void count_cursor_pixel(RG_Device *d,int x,int y,rg_pixel v)
+{
+    if (x==3 && y==0) ++cursor_pixel_writes;
+    rg_software_pixel(d,x,y,v);
+}
 static unsigned char pixels[32u*24u];
 static unsigned char dib_header[552], dib_data[256], dib_out[256];
 static void dib_word(unsigned at,unsigned value)
@@ -119,6 +125,7 @@ int main(void)
     unsigned char cursor_shape[76];
     WORD mouse_info[2];
     RG_Brush solid;
+    PAL_POINT16 pts[3];
     short mode[12];
     short clip[4],opaque[4],widths[2];
     DWORD ext;
@@ -230,6 +237,28 @@ int main(void)
     assert(pixels[3]==5u); /* deferred, no mouse IRQ hardware write */
     CheckCursor();
     assert(pixels[3]==0u);
+    /* Observe actual pixel dispatch at cursor's opaque pixel, not just
+     * final visual equivalence (which would miss a hide/show cycle). */
+    host.device.ops.pixel=count_cursor_pixel;
+    cursor_pixel_writes=0;
+    ext=ExtTextOut(&host.pdevice,0,10,clip,(LPSTR)str,2,
+         font_area,mode,0,0,0,0);
+    assert(ext==0x00080010UL && cursor_pixel_writes==0u);
+    assert(rg_brush_realize(&host.palette,RG_BRUSH_SOLID,0x00FFFFFFUL,
+                            0,0,0,0,&solid));
+    mode[0]=13;
+    pts[0].x=14;pts[0].y=12;pts[1].x=20;pts[1].y=15;
+    assert(Output(&host.pdevice,6,2,pts,0,&solid,mode,clip)==1u);
+    assert(cursor_pixel_writes==0u && pixels[12u*32u+14u]==255u);
+    pts[0].x=0;pts[0].y=0;pts[1].x=2;pts[1].y=4;
+    pts[2].x=15;pts[2].y=18;
+    assert(Output(&host.pdevice,4,3,pts,0,&solid,mode,clip)==1u);
+    assert(cursor_pixel_writes==3u && pixels[3]==0u);
+    assert(Pixel(&host.pdevice,3,0,0,0)==255u);
+    /* Restore the preexisting test's initial saved-under value. */
+    assert(Pixel(&host.pdevice,3,0,5,mode)==5u);
+    host.device.ops.pixel=rg_software_pixel;
+    mode[0]=0;
     assert(Pixel((LPVOID)&host.pdevice,3,0,0UL,0)==5UL);
     assert(pixels[3]==0u); /* read sees unobscured screen */
     ext=ExtTextOut((LPVOID)&host.pdevice,0,0,clip,(LPSTR)str,2,
